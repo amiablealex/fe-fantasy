@@ -47,3 +47,21 @@ def index():
         window_days=window_days,
         title="Admin",
     )
+
+@admin_bp.route("/request-info")
+@admin_required
+def request_info():
+    """What the proxy chain is actually delivering.
+
+    The hop count in ProxyFix has to match reality: too few and you read a
+    proxy's IP instead of the client's, too many and a client can spoof it.
+    """
+    from flask import request
+
+    return {
+        "remote_addr": request.remote_addr,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+        "cf_connecting_ip": request.headers.get("CF-Connecting-IP"),
+        "x_forwarded_proto": request.headers.get("X-Forwarded-Proto"),
+        "scheme": request.scheme,
+    }
