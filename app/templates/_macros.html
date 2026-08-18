@@ -1,0 +1,7 @@
+{% macro field(f) %}
+<p>
+  {{ f.label }}
+  {{ f(**kwargs) }}
+  {% if f.errors %}<span class="error">{{ f.errors|join(' ') }}</span>{% endif %}
+</p>
+{% endmacro %}

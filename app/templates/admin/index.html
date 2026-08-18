@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin</h1>
+<ul>
+  <li>Users: {{ stats.users_total }}</li>
+  <li>Active in the last {{ window_days }} days: {{ stats.users_active }}</li>
+  <li>Registered in the last 7 days: {{ stats.users_new_7d }}</li>
+  <li>Leagues: {{ stats.leagues_total }}</li>
+</ul>
+<p>Sync health, provider quota and per-round actions arrive with the data layer
+   in Phase 1.</p>
+{% endblock %}

@@ -1,0 +1,15 @@
+# Railway deployment config.
+#
+# Phase 0 runs a single web service. The worker service is added in Phase 1,
+# when there is something to poll — an idle APScheduler process before then is
+# a bill and a red herring in the logs.
+#
+#   Web service start command:
+#     gunicorn wsgi:app --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

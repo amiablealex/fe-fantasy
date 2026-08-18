@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block content %}
+<h1>Account</h1>
+
+<fieldset>
+  <legend>Display name</legend>
+  <form method="post" action="{{ url_for('auth.change_username') }}" novalidate>
+    {{ username_form.hidden_tag() }}
+    {{ field(username_form.username) }}
+    {{ username_form.submit() }}
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>Email</legend>
+  <form method="post" action="{{ url_for('auth.change_email') }}" novalidate>
+    {{ email_form.hidden_tag() }}
+    {{ field(email_form.email, type="email") }}
+    {{ field(email_form.current_password, autocomplete="current-password") }}
+    {{ email_form.submit() }}
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>Password</legend>
+  <form method="post" action="{{ url_for('auth.change_password') }}" novalidate>
+    {{ password_form.hidden_tag() }}
+    {{ field(password_form.current_password, autocomplete="current-password") }}
+    {{ field(password_form.new_password, autocomplete="new-password") }}
+    {{ field(password_form.confirm_password, autocomplete="new-password") }}
+    {{ password_form.submit() }}
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>Delete account</legend>
+  <p>This cannot be undone.</p>
+  <form method="post" action="{{ url_for('auth.delete_account') }}" novalidate>
+    {{ delete_form.hidden_tag() }}
+    {{ field(delete_form.current_password, autocomplete="current-password") }}
+    {{ field(delete_form.confirm_phrase) }}
+    {{ delete_form.submit() }}
+  </form>
+</fieldset>
+{% endblock %}
