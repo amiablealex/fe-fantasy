@@ -338,7 +338,7 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Repo | Fresh repo, not a fork of `f1-predictions` |
 | Local dev | Raspberry Pi (Singularity), Debian 12, `~/projects/fe-fantasy` |
 | Python | **3.11.2** — no PEP 695 generics, no `type` statement, no 3.12+ syntax |
-| Postgres | **18.4 local and 18.4 on Railway.** No version skew; `pg_dump` restores in both directions. |
+| Postgres | **18.x in both environments** — local 18.4, Railway 18.6 and patched on their schedule. Same major version, so `pg_dump` restores in both directions; minor versions will drift. |
 | DB driver | **psycopg 3** (`psycopg[binary]`), URI scheme `postgresql+psycopg://`. Not psycopg2. |
 | Auth | Separate account system. Keep the `User` model shape close to the F1 app so a future merge or SSO handshake stays cheap. |
 | Stack | Flask, SQLAlchemy 2.x, Alembic/Flask-Migrate, APScheduler, HTMX, Jinja2, Flask-WTF, Gunicorn, pytest |
@@ -364,6 +364,8 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Fresh dependency pins, psycopg 3 | The F1 pins date from mid-2024. A repo started in August 2026 should not begin two years behind |
 | Drop `pytest-flask` | Adds little over a plain app fixture in `conftest.py` |
 | Add `responses` | For mocking the OCB API in tests against the committed probe fixtures |
+| Client IP from `CF-Connecting-IP`, not `request.remote_addr` | Railway's edge rebuilds `X-Forwarded-For` from its own peer address, so the chain reads `<cloudflare-edge>, <railway-edge>` and the client never appears in it. `ProxyFix` hop counts cannot recover it. Only rate limiting depends on this, and it was bucketing every visitor together. |
+| `session_protection = "basic"`, not `"strong"` | `"strong"` pins a session to `request.remote_addr`, which is a rotating Cloudflare edge address here. Also wrong on principle for a mobile-first app: a phone moving between wifi and mobile data changes IP mid-session. |
 
 **Known limitation, accepted:** login rate limiting is in-memory and therefore per-process. With `gunicorn --workers 2` the effective allowance doubles and blocking is inconsistent between requests. Acceptable for an invite-scale app; revisit with a `login_attempts` table if the app is ever shared publicly.
 
