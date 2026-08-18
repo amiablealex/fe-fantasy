@@ -33,3 +33,11 @@ class ProviderTransientError(ProviderError):
 
 class ProviderPayloadError(ProviderError):
     """A 200 response whose shape or content is not what the parser expects."""
+
+
+class ProviderRequestError(ProviderError):
+    """The API rejected the request as malformed or unknown (HTTP 400 / 404).
+
+    Permanent by nature: a numeric season id where a UUID is expected, or a
+    session that does not exist. Retrying will not help.
+    """

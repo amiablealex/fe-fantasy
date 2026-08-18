@@ -1,11 +1,13 @@
 # Formula E Fantasy — Project Spec
 
-**Status:** Scoping complete, Phase 0 ready to build
+**Status:** Phase 0 complete and deployed. Phase 1 stage 1 (provider client) complete.
 **Last updated:** 18 August 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
 
-> **Revision note (18 Aug 2026).** Updated after the implementation-planning session. Material changes: places gained/lost now ships in v1 (§3); forced team relocation costs two transfers, spent atomically (§2); Season 13 sporting format changes recorded (§3, §6, Appendix A); `Round.format` added for E-Prix Unleashed vs E-Prix (§5); design ground fixed as light with open-licence typography (§1); config split and CSS-native design tokens (§7); auth-lift divergences from the F1 app recorded (§7); repo structure added (§12); Phase 0 broken down with checkpoints (§8).
+> **Revision note 1 (18 Aug 2026).** Implementation-planning session. Places gained/lost ships in v1 (§3); forced team relocation costs two transfers, spent atomically (§2); Season 13 sporting format changes recorded (§3, §6, Appendix A); `Round.format` added (§5); design ground fixed as light with open-licence typography (§1); config split and CSS-native design tokens (§7); auth-lift divergences recorded (§7); repo structure added (§12); Phase 0 broken down with checkpoints (§8).
+
+> **Revision note 2 (18 Aug 2026).** Phase 0 shipped; Phase 1 stage 1 built. **The API differs from the original probe write-up in nine material ways — see §6 and Appendix A.** Two of them (`session.type` having four values, and qualifying rows omitting `points`/`status` rather than nulling them) would have crashed a parser written to the old spec. Also: sync conflict policy defined (§6); production proxy and session findings recorded (§7); Postgres version claim corrected (§7); fixture inventory expanded (Appendix A).
 
 ---
 
@@ -88,9 +90,11 @@ Rationale: it is consistent with the existing rule that two banked transfers buy
 
 Lineup locks at the **first qualifying session of the meeting's first round**. One deadline per meeting.
 
-**Store the computed deadline on the Meeting; do not derive it at request time.** Formula E schedules move. The deadline is computed at season sync from the earliest qualifying session of the meeting's first round, then persisted.
+Computed from the earliest `startTime` across the sessions of `type: "qualifying"` on the meeting's first round. Note that session times come from the events endpoint only — the season detail endpoint returns the calendar without them (§6).
 
-**The deadline is monotonic once published: a resync may move it later, never earlier.** Without this rule a schedule shift retroactively locks players out of a meeting they were still editing, with no way to explain what happened. If a resync finds an earlier session time, log a warning and surface it to admin rather than applying it silently.
+**Store the computed deadline on the Meeting; do not derive it at request time.** Formula E schedules move. The deadline is computed at season sync, then persisted.
+
+**The deadline is monotonic once published: a resync may move it later, never earlier.** Without this rule a schedule shift retroactively locks players out of a meeting they were still editing, with no way to explain what happened. An earlier session time found at resync is a sync conflict (§6): the meeting is left untouched and flagged.
 
 ### Season-start grace
 
@@ -102,9 +106,9 @@ A picked driver who does not appear in a session's results scores 0 for it. No s
 
 If a driver leaves the grid mid-season (injury, contract change), the player must spend a normal transfer to replace them. **No free transfers**, deliberately: it avoids a special case, and it removes any route where a convenient absence hands someone an extra move.
 
-**The roster is fully derived from results payloads.** No curated entry list, no admin-maintained "main driver" flag. One-off reserve drivers become pickable once they appear in results, and that is acceptable — the app must not assert who the regular drivers are, because it would eventually be wrong.
+**The roster is fully derived from API data.** No curated entry list, no admin-maintained "main driver" flag. One-off reserve drivers become pickable, and that is acceptable — the app must not assert who the regular drivers are, because it would eventually be wrong.
 
-**Mitigation against misinforming users:** the driver picker shows rounds-participated alongside each driver, computed from results. A reserve who has appeared once is then self-evidently a one-off without the app claiming anything. See also §6 on why `participationRounds` from the API cannot be used for this.
+**Mitigation against misinforming users:** the driver picker shows rounds-participated alongside each driver. A reserve who has appeared once is then self-evidently a one-off without the app claiming anything. This figure comes directly from `driver.teams[].participationRounds` (§6) — it does not need computing from results.
 
 ### Leagues
 
@@ -282,38 +286,69 @@ Default `Python-urllib/3.x` is blocked by Cloudflare with **Error 1010** (403) b
 KitsniffFEFantasy/0.1.0 (+https://fe.kitsniff.com)
 ```
 
-Same class of problem as the Jolpica UA requirement. Set the UA centrally, validate at boot, and raise a named exception on 403 so a CDN block is never mistaken for a data problem.
+Set the UA centrally and validate it at construction — `OCBlacktopProvider` refuses a `Python-*` UA outright, so the failure surfaces immediately rather than as a 403 inside a worker log.
 
-**Risk:** a CDN blocking a plain server-side client on a tier documented as server-side-only is a reliability warning sign. Worth raising with the vendor — their responsiveness is itself useful information. **Mitigation: provider abstraction layer from day one** (`app/providers/`, see §12).
+A 403 is ambiguous and must be classified: an HTML body naming error 1010 is a CDN refusal (`ProviderBlockedError`), a JSON body is an API credential failure (`ProviderAuthError`). Treating a CDN block as bad credentials sends you looking for a key problem that does not exist.
 
-### Verified quirks (probe, 14 Aug 2026)
+**Risk:** a CDN blocking a plain server-side client on a tier documented as server-side-only is a reliability warning sign. **Mitigation: provider abstraction layer from day one** (`app/providers/`, see §12) — implemented, with `base.py` defining normalised dataclasses and a `ResultsProvider` protocol so nothing downstream sees a vendor payload.
+
+### Verified quirks
+
+Probed 14 August 2026; corrected and extended 18 August 2026 against a re-fetched corpus. **Where an earlier draft of this section said otherwise, this table is right.**
 
 | Quirk | Detail |
 |---|---|
-| Three envelope styles | `/events` → `{data, meta}`; `/seasons/{id}` → bare object; `/results` → bare array. Normalise in the client layer. |
-| Unknown params silently ignored | `?season=`, `?seasonId=`, `?perPage=` return byte-identical unfiltered responses with HTTP 200. **Never treat a 200 as proof a filter applied — compare counts.** |
-| Pagination | `?limit=` and `?page=` work. `meta` = `{page, limit, total, totalPages}`. Default limit 20; 165 events total. |
-| Seasons UUID-keyed | `/seasons/2026` → 400 "uuid is expected". S12 (2025-26) = `3552d83c-1896-4909-a8c8-31b07917f151` |
-| `driver.code` often null | De Vries `DEV`, Cassidy `null`. **Key on `driver.id` (UUID)**; `number` as display fallback. |
-| Type inconsistency | `position` is a string (`"1"`), `gridPosition` an int (`5`). Cast on ingest. |
-| `team.color` unreliable | Andretti and Jaguar both `000000`. Not a usable palette. |
+| Three envelope styles | `/events` → `{data, meta}`; `/seasons/{id}` → bare object; `/results` → bare array. Normalised in the client layer. |
+| Unknown params silently ignored | `?season=`, `?seasonId=`, `?perPage=` return **byte-identical** unfiltered responses with HTTP 200 — verified by hash. **Never treat a 200 as proof a filter applied.** Only `limit` and `page` work. |
+| The events collection cannot be filtered | 165 events across all 12 seasons, with no server-side season filter. A season's session times require paging the whole collection and matching client-side against the event IDs from season detail. Four calls at `limit=50`. **Season sync is inherently a two-step operation.** |
+| Pagination | `?limit=` and `?page=` work. `meta` = `{page, limit, total, totalPages}`. Default limit 20. |
+| Seasons UUID-keyed | `/seasons/2026` → 400 "uuid is expected". `/seasons` gives the year → UUID index. |
+| **Season `year` is the ENDING year** | S12 ran Dec 2025 – Aug 2026 and is keyed **2026**. S13 runs Dec 2026 – Jul 2027 and will be keyed **2027**. Reading it as the starting year silently returns the wrong season, because the payload is valid either way. |
+| **Season 13 not yet published** | `/seasons` runs 2026 back to 2015 as of 18 Aug 2026. `status` and `roundCount` are null for every season, so year is the only usable selector. Resolve by year at run time and treat "not found" as a normal condition. |
+| **`session.type` has four values** | `practice`, `qualifying`, `race`, **`other`**. The earlier claim of three was wrong. Season 13's shakedown day will most likely arrive as `other`. |
+| **Sessions use `startTime`/`endTime`** | Events use `dateStart`/`dateEnd`. The two levels use opposite naming conventions; reading the event's names at session level yields a null deadline. |
+| Sessions carry their own status | `scheduled` \| `ongoing` \| `completed`. The results poller should check this before requesting results rather than requesting and inferring from an empty array. |
+| **Qualifying rows omit `points` and `status`** | Absent keys, not null ones — subscripting raises `KeyError` on nine of the eleven sessions in a round. `gridPosition` by contrast is present-and-null there. Read every field with `.get()`. |
+| **`driver.code` is null for 16 of 20** | Not "frequently" — almost always. There is no code-based display path; **key on `driver.id` (UUID)**, label with `lastName` plus `number`, treat `code` as decoration. |
+| Type inconsistency | `position` is a string (`"1"`), `gridPosition` an int (`5`), `points` a string decimal. Cast on ingest. |
+| **`displayTime` has a variable shape** | `"1:01:13.217"` for a race over an hour, `"59:23.013"` for one under. Never split on `:` expecting three parts — the 30-minute E-Prix Unleashed will be sub-hour every time. |
+| `team.color` unreliable | Andretti and Jaguar both `000000`; Nissan has a real value. Not a usable palette. |
 | Season detail lacks sessions | `/seasons/{uuid}` gives calendar + standings but no session times. Those come only from `/events`. |
 
 ### Endpoint strategy
 
-- **`/seasons/{uuid}`** — full calendar plus driver and team standings in one 13.6KB call. Primary bootstrap.
-- **`/events?limit=50`** — session times and IDs (`schedule[]` embedded per event).
+- **`/seasons`** — year → UUID index. Resolve the season by ending year.
+- **`/seasons/{uuid}`** — full calendar plus driver and team standings in one 13.7KB call.
+- **`/events?limit=50&page=N`** — session times and IDs (`schedule[]` embedded per event). Filter client-side.
 - **`/events/{id}/sessions/{id}/results`** — per session.
 
-**Quota:** ~11 sessions × 21 rounds ≈ 231 calls/season for full capture. Comfortably inside the free tier — but the results-polling worker is the real consumer, not the capture. Bound polling to windows following a session's scheduled end, with backoff, and stop on success.
+**Quota:** ~11 sessions × 21 rounds ≈ 231 calls/season for full capture, plus 4–9 for the calendar join. Comfortably inside the free tier — but the results-polling worker is the real consumer. Bound polling to windows following a session's scheduled end, check session `status` first, back off, and stop on success.
+
+### `participationRounds` — corrected
+
+It lives **inside `driver.teams[]`**, not at driver level, and it is an **array of round numbers**, not a count:
+
+```json
+"teams": [{"id": "...", "name": "PORSCHE...", "participationRounds": [1, 2, ..., 17]}]
+```
+
+Two consequences. Being per-team, a mid-season driver switch is represented correctly — two entries with disjoint round arrays. And because it is exactly "rounds actually raced", **it is the source for the driver picker's rounds-participated figure**; the earlier instruction to compute this ourselves from results is unnecessary.
+
+It remains a live counter that grows during a season: the 14 August probe showed 15 rounds against a 17-event schedule because London had not yet run; the re-fetch after the finale shows 17. **So it is still not roster truth** — a driver who has not yet raced has an empty array. Use it for display, never to decide who is on the grid.
+
+### Sync conflict policy
+
+A resync must be trustworthy enough to run unattended twice a day, and must never half-apply. So changes are classified, and **each meeting syncs in its own transaction**.
+
+**Applied silently:** a new event appearing, a session time moving later, a name or status change, a result arriving.
+
+**Skipped and flagged:** a deadline that would move earlier (the monotonic rule in §2), a meeting regrouping differently than it did previously, a round disappearing from the calendar, a session count that does not match the expected bracket shape.
+
+An unsafe change rolls back that meeting untouched and records a `SyncConflict` row; the remaining meetings apply normally. The admin page lists outstanding conflicts; a clean run shows nothing. This gives blind trust in the sense that matters — nothing ever half-applies, and nothing surprising applies without saying so.
 
 ### Data quality
 
 Cross-validation passed. At Tokyo R2, points matched finishing order; Dennis's 16 for P3 confirmed the +1 fastest lap bonus; Mortara's 3.0 from a P18 DNF matched his Qual Final win and `gridPosition: 1`. Qualifying and race payloads agree.
-
-**`participationRounds` is a live counter, not a roster field.** All 20 S12 drivers showed exactly 15 entries against a 17-event schedule, because London (15–16 Aug 2026) had not yet run at probe time. The field counts rounds *actually raced* and grows during a season.
-
-**Never use it as roster truth for a live season.** It is reliable only retrospectively. Derive the active roster from results payloads instead, and compute rounds-participated ourselves for the driver picker.
 
 **Action:** spot-check driver–team pairings against a trusted source. Small vendors get lineups wrong; Cassidy at Citroën is worth an eyeball.
 
@@ -321,11 +356,11 @@ Cross-validation passed. At Tokyo R2, points matched finishing order; Dennis's 1
 
 Announced June 2026 for the Gen4 era. Three things matter here.
 
-1. **Qualifying now awards championship points.** The top eight — those reaching the Duels — score on a sliding scale, up to roughly 105 points across the season's 21 qualifying sessions. **This breaks the Appendix A ingest sanity check**, which assumes qualifying contributes only a 3-point pole bonus to the race-row `points` field. Make the sanity check season-scoped: apply the S12 distribution only to seasons before S13, and write a separate S13 expectation once a real payload is available. Do not let it fail loudly on every S13 round.
+1. **Qualifying now awards championship points.** The top eight — those reaching the Duels — score on a sliding scale, up to roughly 105 points across the season's 21 qualifying sessions. **This breaks the Appendix A ingest sanity check**, which assumes qualifying contributes only a 3-point pole bonus to the race-row `points` field. Make the sanity check season-scoped: apply the S12 distribution only to seasons before S13, and write a separate S13 expectation once a real payload is available.
 2. **Double-headers run two different race formats.** Race 1 is `E-Prix Unleashed` (30 minutes, high downforce, no Pit Boost, six-minute attack mode); race 2 is a standard `E-Prix` (45 minutes, with Pit Boost). See `Round.format` in §5.
-3. **A shakedown day precedes each weekend.** Expect unfamiliar entries in `schedule[]`. The parser must fail loudly only on unrecognised *qualifying* session names (Appendix A); unrecognised practice-class sessions can be ignored with a log line.
+3. **A shakedown day precedes each weekend.** Expect unfamiliar entries in `schedule[]`, most likely with `type: "other"`. The parser must fail loudly only on unrecognised *qualifying* session names (Appendix A); anything else is ignored with a log line.
 
-Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jeddah, Monaco, Berlin, Zandvoort, Brands Hatch, Jarama, Shanghai, Tokyo), new venues at COTA and Zandvoort and Brands Hatch, Miami returning. **The calendar is not frozen** — Mexico City is the stated fallback opener if Jeddah is judged unsafe. Do not treat the sync as a one-time operation.
+Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jeddah, Monaco, Berlin, Zandvoort, Brands Hatch, Jarama, Shanghai, Tokyo), new venues at COTA, Zandvoort and Brands Hatch, Miami returning. **The calendar is not frozen** — Mexico City is the stated fallback opener if Jeddah is judged unsafe. Do not treat the sync as a one-time operation.
 
 ---
 
@@ -337,7 +372,7 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Hosting | **Separate** Railway project with its own Postgres instance (fourth project on the account) |
 | Repo | Fresh repo, not a fork of `f1-predictions` |
 | Local dev | Raspberry Pi (Singularity), Debian 12, `~/projects/fe-fantasy` |
-| Python | **3.11.2** — no PEP 695 generics, no `type` statement, no 3.12+ syntax |
+| Python | **3.11.2** — no PEP 695 generics, no `type` statement, no 3.12+ syntax. Pinned for Nixpacks via `.python-version`. |
 | Postgres | **18.x in both environments** — local 18.4, Railway 18.6 and patched on their schedule. Same major version, so `pg_dump` restores in both directions; minor versions will drift. |
 | DB driver | **psycopg 3** (`psycopg[binary]`), URI scheme `postgresql+psycopg://`. Not psycopg2. |
 | Auth | Separate account system. Keep the `User` model shape close to the F1 app so a future merge or SSO handshake stays cheap. |
@@ -346,6 +381,15 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Season scoping | Put `season_id` on every season-scoped table from day one. Leagues are the exception — they are durable across seasons; scoping applies to standings computed over them. |
 
 **Consequence of the no-email policy:** all engagement pressure sits in the interface. The deadline state, unused transfer count, and "your lineup is unchanged since last meeting" condition need to be prominent on first load — there is no external nudge. This is workable precisely because the fantasy model degrades gracefully: a forgotten meeting still scores, so a missed reminder is not a lost player.
+
+### Deployment notes (learned in Phase 0)
+
+- **Migrations run as a Railway pre-deploy command** (`flask db upgrade`), not from application startup. Startup migration races across gunicorn workers, and a failure there puts a container with the wrong schema in front of traffic. Pre-deploy runs once and aborts the deploy on failure.
+- **Healthcheck path is `/health`**, set in `railway.toml` and in the service settings. Without it a deploy that boots but cannot reach Postgres reports "online".
+- **Cloudflare SSL/TLS must be Full (strict).** Flexible sends plaintext to Railway, so `SESSION_COOKIE_SECURE` cookies never return and login silently fails to persist — which presents as an auth bug, not a TLS setting.
+- **The Railway-generated `*.up.railway.app` domain is deleted** once the custom domain works. `CF-Connecting-IP` is only trustworthy for traffic that passed through Cloudflare, so leaving the direct route open lets anyone forge their own rate-limit key.
+- **`DATABASE_PUBLIC_URL` requires enabling the TCP proxy** on the Postgres service; new Railway Postgres instances are private-only by default. `DATABASE_URL` (private) stays as the application's variable — no egress cost, lower latency.
+- Production refuses to boot on a default `SECRET_KEY`, an unset `DATABASE_URL`, or a non-https `APP_BASE_URL`. A first-deploy crash loop showing `ConfigError` is that check working; the message names the variable.
 
 ### Lifting from the F1 app
 
@@ -358,14 +402,17 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Change | Reason |
 |---|---|
 | Drop `User.is_contributor` | F1-specific, tied to a blueprint this app does not have |
-| `League.created_by_id` becomes nullable, `ondelete="SET NULL"`; add a `role` column on `LeagueMembership` | In the F1 app the FK is `RESTRICT` and `NOT NULL`, so any user who has created a league gets an unhandled `IntegrityError` on account deletion. Administration should survive the creator leaving. **This is a live bug in the F1 app and worth patching there too.** |
+| Add `User.last_seen_at` | "Active in the last 30 days" cannot come from `last_login_at`: with remember-me sessions a user can be active daily for months without a login event. Updated once per calendar day per user by a before_request hook. |
+| `League.created_by_id` nullable, `ondelete="SET NULL"`; `role` column on `LeagueMembership` | In the F1 app the FK is `RESTRICT` and `NOT NULL`, so any user who has created a league gets an unhandled `IntegrityError` on account deletion. **This is a live bug in the F1 app and worth patching there too.** |
 | Add rate limiting to `/register` | The F1 app limits login and the invite landing but leaves public registration open |
-| Split `config.py` | The F1 config is four concerns in one file: Flask/environment, scoring values, palette, heatmap bands. Here: `app/config.py` for environment only, `app/scoring/rules.py` for point values (importable without Flask), CSS custom properties for design tokens |
-| Fresh dependency pins, psycopg 3 | The F1 pins date from mid-2024. A repo started in August 2026 should not begin two years behind |
+| **Client IP from `CF-Connecting-IP`, not `request.remote_addr`** | Railway's edge rebuilds `X-Forwarded-For` from its own peer address, so the chain reads `<cloudflare-edge>, <railway-edge>` and the client never appears in it. No `ProxyFix` hop count can recover it. Verified in production via `/admin/request-info`. Only rate limiting depends on this, and before the fix every visitor shared one bucket. |
+| **`session_protection = "basic"`, not `"strong"`** | `"strong"` pins a session to `request.remote_addr`, which here is a rotating Cloudflare edge address — a hard refresh landed on a different edge and logged the user out. Also wrong on principle for a mobile-first app: a phone moving between wifi and mobile data changes IP mid-session. |
+| Split `config.py` | The F1 config is four concerns in one file. Here: `app/config.py` for environment only, `app/scoring/rules.py` for point values (importable without Flask), CSS custom properties for design tokens |
+| SQLAlchemy 2.x `select()` throughout | The F1 app passes a Flask-SQLAlchemy `Query` into `session.execute()`, which is deprecated and slated for removal. Same pattern exists in the F1 `forms.py` and will break on a future bump. |
+| Fresh dependency pins, psycopg 3 | The F1 pins date from mid-2024 |
+| Dev dependencies split into `requirements-dev.txt` | pytest and responses were otherwise shipping into the production image |
 | Drop `pytest-flask` | Adds little over a plain app fixture in `conftest.py` |
 | Add `responses` | For mocking the OCB API in tests against the committed probe fixtures |
-| Client IP from `CF-Connecting-IP`, not `request.remote_addr` | Railway's edge rebuilds `X-Forwarded-For` from its own peer address, so the chain reads `<cloudflare-edge>, <railway-edge>` and the client never appears in it. `ProxyFix` hop counts cannot recover it. Only rate limiting depends on this, and it was bucketing every visitor together. |
-| `session_protection = "basic"`, not `"strong"` | `"strong"` pins a session to `request.remote_addr`, which is a rotating Cloudflare edge address here. Also wrong on principle for a mobile-first app: a phone moving between wifi and mobile data changes IP mid-session. |
 
 **Known limitation, accepted:** login rate limiting is in-memory and therefore per-process. With `gunicorn --workers 2` the effective allowance doubles and blocking is inconsistent between requests. Acceptable for an invite-scale app; revisit with a `login_attempts` table if the app is ever shared publicly.
 
@@ -375,35 +422,41 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 
 **Season 12 (2025-26) is complete and fully available** — 17 rounds of real data. The entire scoring engine can be validated against a finished season before December. Biggest de-risking asset available.
 
-### Phase 0 — Foundations
+### Phase 0 — Foundations, complete
 
 | # | Step | Checkpoint |
 |---|---|---|
-| 0.1 | Local scaffold, app factory, config, `/health` | `flask run`; `curl :5000/health` returns `{"status":"ok"}` |
-| 0.2 | Local Postgres role and database, `.env`, Alembic baseline | `flask db upgrade` clean; `\dt` shows users, password_reset_tokens, leagues, league_memberships, alembic_version |
-| 0.3 | Auth blueprint plus deliberately unstyled templates | Register → logout → login → forgot (link in console) → reset → change password → delete account, by hand |
-| 0.4 | pytest, `conftest.py`, auth tests | `pytest` green against a separate test database |
-| 0.5 | GitHub repo, first push | Repo exists, auto-deploy not yet wired |
-| 0.6 | Railway project, Postgres, web service, env vars | Railway-generated URL `/health` returns ok; register a user on production |
-| 0.7 | Cloudflare CNAME plus Railway custom domain | `https://fe.kitsniff.com/health`; valid cert; login session persists, proving `SESSION_COOKIE_SECURE` and ProxyFix |
-| 0.8 | Resend domain verification, live reset email | Reset email arrives with a working link |
+| 0.1 | Local scaffold, app factory, config, `/health` | done |
+| 0.2 | Local Postgres, `.env`, Alembic baseline | done — five tables |
+| 0.3 | Auth blueprint plus deliberately unstyled templates | done — all flows by hand |
+| 0.4 | pytest, `conftest.py`, auth tests | done |
+| 0.5 | GitHub repo, first push | done |
+| 0.6 | Railway project, Postgres, web service, env vars | done |
+| 0.7 | Cloudflare CNAME plus Railway custom domain | done — session persists |
+| 0.8 | Resend domain verification, live reset email | done |
 
-**No worker service until Phase 1.** There is nothing to poll, and an idle APScheduler process is a bill and a red herring in the logs.
-
-**Phase 0 templates are semantic HTML with a ~30-line stylesheet, black on white.** No layout decisions, no colour, no components. If Phase 0 templates look presentable, they will not get thrown away, and F1 habits will leak into a project whose entire point is not having them.
+**Phase 0 templates are semantic HTML with a ~30-line stylesheet, black on white.** No layout decisions, no colour, no components. They are replaced wholesale in Phase 3.
 
 ### Phase 1 — Data layer
-Provider abstraction with UA handling and 403 detection; envelope normalisation; season sync; Meeting derivation with admin override; `Round.format` derivation; models for Meeting/Round/Session/Driver/Team/Result. **Backfill all of S12.** Commit probe JSON as pytest fixtures.
+
+| # | Stage | Contents |
+|---|---|---|
+| 1.1 | Provider client — complete | `providers/base.py` (normalised dataclasses, `ResultsProvider` protocol), `providers/ocblacktop.py` (UA validation, 403 classification, envelope normalisation, pagination, retry/backoff, the two-step season join), 43 tests against committed fixtures with no network |
+| 1.2 | Ingestion models | Season, Meeting, Round, Session, Driver, Team, SeatEntry, Result, SyncConflict, plus the migration |
+| 1.3 | Season sync | Meeting derivation with admin override, `Round.format` derivation, deadline computation, conflict classification per §6 |
+| 1.4 | Backfill | All 17 rounds of S12 ingested and queryable |
+
+No worker service until 1.4 — there is nothing to poll before then.
 
 ### Phase 2 — Scoring simulation (standalone)
 See §9.
 
-**On the apparent Phase 1/2 ordering conflict:** Phase 2 must run before the *game* schema is fixed, not before all schema. The two are separable and should be kept so.
+**On the apparent Phase 1/2 ordering conflict:** Phase 2 must run before the *game* schema is fixed, not before all schema.
 
 - **Ingestion schema** — Meeting, Round, Session, Driver, Team, Result — is fixed in Phase 1. The simulation cannot run without it.
 - **Game schema** — LineupSnapshot, LineupPick, ScoringRuleset, PickScore — stays unfixed until the simulation lands.
 
-This works because `app/scoring/` imports nothing from Flask or SQLAlchemy: it takes plain result dicts and returns points, so `sim/` can exercise it without a web app.
+This works because `app/scoring/` imports nothing from Flask or SQLAlchemy: it takes plain result dicts and returns points, so `sim/` can exercise it without a web app. A test asserts this.
 
 ### Phase 3 — UI foundations
 Design language, typeface selection (open licence), typographic scale, colour system as CSS custom properties, layout primitives. Lands before the lineup UI so nothing needs restyling later. Mockups before implementation.
@@ -412,7 +465,7 @@ Design language, typeface selection (open licence), typographic scale, colour sy
 Staged-draft selection UI with client-side constraint validation and running transfer cost; server-side revalidation on commit; snapshot storage; transfer bank derivation; meeting deadline locking.
 
 ### Phase 5 — Scoring engine
-Production scoring worker with result completeness validation before scoring (mirroring the F1 app's `JolpicaTransientError` pattern). Idempotent rescoring against a recorded ruleset version.
+Production scoring worker with result completeness validation before scoring. Idempotent rescoring against a recorded ruleset version.
 
 ### Phase 6 — Leagues & social
 Multi-league membership, league creation and admin roles, invite links with caps, league tables, friend profiles. Scored once per user, projected into each league.
@@ -424,7 +477,7 @@ Points breakdown, dream team, qualifying bracket with personal highlighting, mee
 
 | Date | Milestone |
 |---|---|
-| Sept 2026 | Phases 0–1: S12 fully backfilled and queryable |
+| Sept 2026 | Phase 1: S12 fully backfilled and queryable |
 | Sept/Oct 2026 | Phase 2: scoring validated and tuned against S12 |
 | Oct 2026 | Phase 3: design language settled |
 | Nov 2026 | Phases 4–6 |
@@ -458,12 +511,13 @@ Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a da
 
 ## 10. Open decisions
 
-- **Late joiners:** a player starting at meeting 5 can never catch up on the season table. Options: a rolling "last 5 meetings" table alongside the season one, per-league season start dates, or accept it. `LeagueMembership.joined_at` already exists, so any of these stays available. Becomes more pressing if the app is shared publicly.
+- **Late joiners:** a player starting at meeting 5 can never catch up on the season table. Options: a rolling "last 5 meetings" table alongside the season one, per-league season start dates, or accept it. `LeagueMembership.joined_at` already exists, so any of these stays available.
 - **Places gained/lost cap and step:** ships at ±4 in steps of 5 places; confirm or adjust after the S12 simulation, then again after Jeddah.
 - **Team score rounding:** halves permitted (decimal storage). Revisit only if league tables look untidy in practice.
-- **Admin tooling scope:** how much of the F1 app's admin surface is genuinely needed?
+- **Admin surface:** read-mostly by design — usage counts, sync health, last successful poll, provider quota, outstanding sync conflicts. Mutating actions are added per phase, must be idempotent, and are logged with actor and timestamp. Deadlines may be pushed later before they pass (consistent with the monotonic rule in §2); a passed deadline is never unlocked through the interface, because a lineup edited with results known cannot be made legible to the rest of the league.
 - **Public/global table:** worth having alongside leagues if the app is shared online?
 - **S13 qualifying points sanity check:** what the replacement expectation should be, once a real S13 payload exists.
+- **S13 season UUID:** does not exist in `/seasons` yet. The sync resolves by ending year (2027) at run time; watch for it appearing.
 
 ### Resolved
 
@@ -473,7 +527,7 @@ Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a da
 | Season-start grace | Unlimited free edits until the first deadline of the season |
 | Long-term driver absence | Costs a normal transfer; no free move |
 | Grid size | 20 drivers, 10 teams — verified, but never hard-coded |
-| `participationRounds` | Live counter, not roster truth — do not rely on it in-season |
+| `participationRounds` | Nested per-team, an array of round numbers. Use it for the picker's rounds-participated; never as roster truth |
 | Viewport | Mobile-first; desktop as a wide tablet, not a sprawling dashboard |
 | Lineup visibility | Hidden until the meeting deadline, then visible to league co-members |
 | Email | Password reset only; no reminders or notifications |
@@ -484,10 +538,12 @@ Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a da
 | Design ground | Light |
 | Typography | Open licence only; chosen in Phase 3 |
 | Design tokens | CSS custom properties, not Python config |
-| Roster truth | Derived from results; no curated entry list; rounds-participated shown in the picker |
+| Roster truth | Derived from API data; no curated entry list; rounds-participated shown in the picker |
 | Deadline | Stored on Meeting, monotonic once published |
+| Sync conflicts | Safe changes apply silently; unsafe ones skip that meeting atomically and raise a flag |
 | Auth | Lifted from the F1 app with the divergences in §7 |
-| Runtime | Python 3.11.2, Postgres 18.4 both environments, psycopg 3 |
+| Runtime | Python 3.11.2, Postgres 18.x both environments, psycopg 3 |
+| Provider abstraction | Normalised dataclasses + protocol in `providers/base.py`; no vendor payload escapes the client |
 
 ---
 
@@ -500,6 +556,7 @@ Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a da
 - **No emojis.** Country flags are fine.
 - **Never migrate on race weekends.** S13 runs 18 Dec 2026 – 25 Jul 2027 across 13 meetings. Worker and scoring changes prefer the gaps; config and template changes are safe anytime.
 - **Multi-line terminal work:** write to `/tmp` via `cat >` and run with `PYTHONPATH=. python /tmp/script.py` to avoid paste mangling.
+- **Quote multi-word `.env` values.** python-dotenv tolerates `NAME=Formula E Fantasy`, but `source .env` reads it as a command invocation and fails obscurely.
 - **Integer inputs:** `type="text"` with `inputmode="numeric"` rather than `type="number"` with `step="1"` — better mobile behaviour.
 - This document lives at `docs/SPEC.md` and is the single source of truth. Re-upload to the Claude project whenever it changes materially.
 
@@ -513,29 +570,31 @@ fe-fantasy/
 │   ├── __init__.py          # application factory
 │   ├── config.py            # environment and Flask only
 │   ├── extensions.py
-│   ├── cli.py
-│   ├── utils.py
+│   ├── cli.py               # set-admin, config-check
+│   ├── utils.py             # admin_required, client_ip, touch_last_seen
 │   ├── auth/                # routes, forms, email, rate_limit
-│   ├── leagues/             # Phase 6
-│   ├── invite/              # Phase 6
+│   ├── admin/               # read-mostly; request-info diagnostic
+│   ├── leagues/  invite/    # Phase 6
 │   ├── lineups/             # Phase 4
 │   ├── meetings/            # meeting and round views, Phase 7
-│   ├── admin/
 │   ├── models/
 │   │   ├── user.py
 │   │   ├── league.py
-│   │   ├── calendar.py      # Season, Meeting, Round, Session
-│   │   ├── grid.py          # Driver, Team, SeatEntry
-│   │   ├── result.py
-│   │   ├── lineup.py        # LineupSnapshot, LineupPick
-│   │   └── score.py         # ScoringRuleset, PickScore
-│   ├── providers/           # base.py (protocol), ocblacktop.py, errors.py
-│   ├── ingest/              # sync_season, derive_meetings, sync_results
+│   │   ├── calendar.py      # Season, Meeting, Round, Session   (1.2)
+│   │   ├── grid.py          # Driver, Team, SeatEntry           (1.2)
+│   │   ├── result.py        # Result, SyncConflict              (1.2)
+│   │   ├── lineup.py        # LineupSnapshot, LineupPick        (Phase 4)
+│   │   └── score.py         # ScoringRuleset, PickScore         (Phase 5)
+│   ├── providers/
+│   │   ├── base.py          # normalised dataclasses + ResultsProvider protocol
+│   │   ├── ocblacktop.py    # the only module that sees a vendor payload
+│   │   └── errors.py        # Blocked / Auth / Request / Transient / Payload
+│   ├── ingest/              # sync_season, derive_meetings, sync_results  (1.3–1.4)
 │   ├── scoring/             # rules.py, engine.py — no Flask, no SQLAlchemy
 │   ├── templates/
-│   └── static/css/          # tokens.css, base.css, then Phase 3
+│   └── static/css/          # base.css now; tokens.css and the system in Phase 3
 ├── worker/
-│   └── scheduler.py
+│   └── scheduler.py         # from 1.4
 ├── sim/                     # Phase 2 standalone simulation
 ├── migrations/
 ├── tests/
@@ -543,29 +602,31 @@ fe-fantasy/
 ├── docs/SPEC.md
 ├── wsgi.py
 ├── requirements.txt
+├── requirements-dev.txt
 ├── railway.toml
 ├── Procfile
+├── .python-version
 ├── .env.example
 └── README.md
 ```
 
 Three deliberate choices:
 
-- **`providers/` exists from the first commit**, per the §6 mitigation. A vendor swap becomes a new module rather than a refactor.
-- **`scoring/` imports nothing from Flask or SQLAlchemy.** It takes plain result dicts and returns points. This is what resolves the Phase 1/2 ordering question and what lets the simulation run without a database.
+- **`providers/` exists from the first commit**, per the §6 mitigation. A vendor swap becomes a new module implementing `ResultsProvider`, rather than a refactor of everything that touches results.
+- **`scoring/` imports nothing from Flask or SQLAlchemy.** It takes plain result dicts and returns points. This resolves the Phase 1/2 ordering question and lets the simulation run without a database.
 - **`sim/` sits outside `app/`** so there is no route by which the web application can be imported into it.
 
 ---
 
 ## Appendix A — API field reference
 
-Observed from the 14 August 2026 probe of Season 12. Raw payloads are in `tests/fixtures/`.
+Observed 14 August 2026, corrected and extended 18 August 2026. Raw payloads are in `tests/fixtures/`.
 
 ### Session identification — read this before writing any parser
 
-`session.type` has only three values: `practice`, `qualifying`, `race`. **All nine qualifying sessions share `type: "qualifying"`**, so type alone cannot distinguish a group stage from a final. The bracket structure must be derived from `session.name`.
+`session.type` has four values: `practice`, `qualifying`, `race`, `other`. **All nine qualifying sessions share `type: "qualifying"`**, so type alone cannot distinguish a group stage from a final. The bracket structure must be derived from `session.name`.
 
-Observed names for one round (Tokyo R2, 26 July 2026), in schedule order:
+Observed names for one round, in schedule order:
 
 ```
 practice    Free Practice 3
@@ -581,9 +642,26 @@ qualifying  Qual Final
 race        Race
 ```
 
-Treat these strings as **unstable**. Match defensively (normalised, case-insensitive substring), and **fail loudly on an unrecognised qualifying session name** rather than skipping it silently — a silent skip would corrupt scoring without any visible error. Unrecognised practice-class sessions (Season 13 adds a shakedown day) may be ignored with a log line.
+Treat these strings as **unstable**. Match defensively (normalised, case-insensitive substring), and **fail loudly on an unrecognised qualifying session name** rather than skipping it silently — a silent skip would corrupt scoring without any visible error. Sessions of any other type may be ignored with a log line; Season 13's shakedown will most likely arrive as `other`.
 
 **Duel sessions return only their two participants.** A full bracket therefore requires all nine qualifying sessions to be fetched per round.
+
+### Seasons index — `/seasons`
+
+| Field | Notes |
+|---|---|
+| `id` | UUID. Required by `/seasons/{id}`; a numeric year returns 400. |
+| `year` | **The year the season ENDS.** S12 (Dec 2025 – Aug 2026) is `2026`; S13 (Dec 2026 – Jul 2027) will be `2027`. |
+| `status` | Null for every season observed. Not usable. |
+| `roundCount` | Null for every season observed. Not usable. |
+
+Twelve seasons present, 2026 back to 2015. **No 2027 entry as of 18 August 2026.**
+
+### Season detail — `/seasons/{uuid}`
+
+Bare object with four keys: `season`, `drivers` (20), `teams` (10), `schedule` (17).
+
+`schedule[]` entries are events **without `schedule[]` of their own** — no session times. Driver entries carry standings (`position`, `points`) plus `teams[]`, each with `participationRounds`.
 
 ### Event object
 
@@ -591,12 +669,20 @@ Treat these strings as **unstable**. Match defensively (normalised, case-insensi
 |---|---|
 | `id` | UUID |
 | `name` | Sponsor-polluted. Do not parse or group on it. |
-| `dateStart` / `dateEnd` | Equal for Formula E — each event is a single day |
+| `dateStart` / `dateEnd` | Equal for Formula E — each event is a single day. Plain dates (`"2025-12-06"`), no time component. |
 | `status` | `completed` \| `scheduled` |
 | `location` | `{id, name, city, country{name, twoCode, threeCode}}` — `location.id` is stable across seasons |
 | `schedule[]` | Embedded session array; only present via `/events`, not `/seasons/{uuid}` |
 
-Session times are ISO 8601 UTC with millisecond precision (`2026-07-26T06:40:00.000Z`).
+### Session object (inside `event.schedule[]`)
+
+| Field | Notes |
+|---|---|
+| `id` | UUID, needed for the results path |
+| `name` | The only way to identify a bracket stage |
+| `type` | `practice` \| `qualifying` \| `race` \| `other` |
+| `startTime` / `endTime` | **Note the naming — not `dateStart`/`dateEnd` as on the event.** ISO 8601 UTC with millisecond precision (`2026-07-26T06:40:00.000Z`) |
+| `status` | `scheduled` \| `ongoing` \| `completed`. Check before requesting results. |
 
 ### Result row
 
@@ -604,17 +690,28 @@ Session times are ISO 8601 UTC with millisecond precision (`2026-07-26T06:40:00.
 |---|---|
 | `id` | UUID of the **result row**, not the driver |
 | `position` | **String** (`"1"`) |
-| `gridPosition` | **Int** (`5`). Null in qualifying sessions. Null or zero in a race means no places gained/lost score — log it. |
-| `driver` | `{id, firstName, lastName, code, number}` — `code` frequently null, `id` is the stable key |
+| `gridPosition` | **Int** (`5`). Present-and-null in qualifying sessions. Null or zero in a race means no places gained/lost score — log it. |
+| `driver` | `{id, firstName, lastName, code, number}` — `code` null for 16 of 20; `id` is the only stable key |
 | `team` | `{id, name, shortName, color}` — `color` unreliable |
-| `status` | Null for classified finishers, `"DNF"` for retirements. Retirements still receive ranked positions. |
-| `points` | String decimal (`"25.0"`) — real FE championship points. **Season-dependent, see below.** |
+| `carNumber` | Top-level, alongside `driver.number` |
+| `status` | **Absent on qualifying rows.** Null for classified finishers, `"DNF"` for retirements. Retirements still receive ranked positions. |
+| `points` | **Absent on qualifying rows.** String decimal (`"25.0"`) elsewhere — real FE championship points, season-dependent, see below. |
 | `fastestLap` | `{rank, time, lap}` — `rank: 1` on the setter only; all null for everyone else. Use this for the fantasy FL point, not `points`. |
-| `lapTime` / `displayTime` | **Semantics differ by session type.** In a race, `lapTime` is a lap time and `displayTime` the total race time (`"1:01:13.217"`). In a qualifying duel, `lapTime` is null and `displayTime` carries the lap time (`"1:12.341"`). Never assume; branch on session type. |
+| `lapTime` / `displayTime` | **Semantics differ by session type.** In a race, `lapTime` is a lap time and `displayTime` the total race time. In a qualifying duel, `lapTime` is null and `displayTime` carries the lap time (`"1:12.341"`). **`displayTime` shape varies:** `"1:01:13.217"` over an hour, `"59:23.013"` under. Branch on session type; never split on `:` expecting a fixed part count. |
 
 **Always null in Formula E payloads** (populated for other series, so don't be misled by the schema): `laps`, `chassis`, `engineManufacturer`, `gap`, `interval`, `pitStops`, `bestLapTime`, `bestLapNumber`, `sectors`, `tireStrategy`, `q1Time`, `q2Time`, `q3Time`.
 
 The absence of `laps` is why **retirement ordering is unavailable** — there is no way to know who retired first.
+
+### Error shapes
+
+`/seasons/2026` (numeric where a UUID is expected):
+
+```json
+{"message": "Validation failed (uuid is expected)", "error": "Bad Request", "statusCode": 400}
+```
+
+A Cloudflare 1010 block returns an **HTML** body with HTTP 403, distinguishing it from an API credential rejection, which returns JSON.
 
 ### Real FE championship points (cross-validation, season-scoped)
 
@@ -628,14 +725,18 @@ The top ten still defines the "points finish" rule in §3, which is unaffected.
 
 | File | Contains |
 |---|---|
-| `events_bare.json` | 20 events with `meta` pagination block; mixed completed/scheduled |
+| `events_bare.json` | 20 events with `meta` pagination block; mixed completed/scheduled; all carry `schedule[]` |
 | `events_limit.json` | 50 events — demonstrates `?limit=` working |
-| `season_detail.json` | S12 calendar (17), driver standings (20), team standings (10) |
-| `results_race.json` | Tokyo R2 race — 20 rows, 4 DNFs, `fastestLap.rank: 1` on Dennis, null `driver.code` cases |
-| `results_qual_final.json` | 2 rows only — duel session shape, `gridPosition` null |
-| `results_saopaulo.json` | Season opener — 7 DNFs occupying P14–P20; the retirement-classification case |
-
-Re-fetch `season_detail` after the S12 finale (London, 15–16 August 2026) so the corpus covers all 17 rounds.
+| `events_page2.json` | Page 2 — for the client's page-walk test |
+| `events_param_season.json` | `?season=` — byte-identical to `events_bare.json`, proving the parameter is ignored |
+| `events_param_seasonid.json` | `?seasonId=` — same |
+| `events_param_perpage.json` | `?perPage=` — same |
+| `seasons_list.json` | 12 seasons, year → UUID; no 2027 |
+| `season_detail.json` | S12, re-fetched after the London finale: calendar (17), driver standings (20), team standings (10) |
+| `season_numeric_400.json` | The 400 "uuid is expected" error shape |
+| `results_race.json` | Tokyo R2 race — 20 rows, 4 DNFs, `fastestLap.rank: 1` on one row, 16 null `driver.code`, over-hour `displayTime` |
+| `results_qual_final.json` | 2 rows — duel session shape; `points` and `status` keys absent, `gridPosition` present-and-null |
+| `results_saopaulo.json` | Season opener — 7 DNFs occupying P14–P20; sub-hour `displayTime` |
 
 ### Probe helper
 
@@ -643,9 +744,9 @@ Re-fetch `season_detail` after the S12 finale (London, 15–16 August 2026) so t
 fe() {
   local path="$1" out="$2" dir="$HOME/projects/fe-fantasy/scratch"
   local code
-  code=$(curl -s -H "x-api-key: $FE_API_KEY" \
+  code=$(curl -s -H "x-api-key: $OCB_API_KEY" \
     -A 'KitsniffFEFantasy/0.1.0 (+https://fe.kitsniff.com)' \
-    "https://api.ocblacktop.com/v1$path" \
+    "https://api.ocblacktop.com/v1/formula-e$path" \
     -o "$dir/$out.json" -w '%{http_code}')
   echo "$out.json  HTTP $code  $(wc -c < "$dir/$out.json") bytes"
 }
