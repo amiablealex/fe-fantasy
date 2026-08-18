@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from app.extensions import db
 from app.models.league import League
 from app.models.user import User
-from app.utils import admin_required, utcnow
+from app.utils import admin_required, client_ip, utcnow
 
 admin_bp = Blueprint("admin", __name__, template_folder="../templates")
 
