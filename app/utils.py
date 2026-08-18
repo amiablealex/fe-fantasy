@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import abort
+from flask import abort, current_app, request
 from flask_login import current_user
 
 from app.extensions import db
@@ -52,3 +52,16 @@ def touch_last_seen() -> None:
 
     current_user.last_seen_at = now
     db.session.commit()
+
+def client_ip() -> str:
+    """The requesting client's address, as far as it can be trusted.
+
+    Only rate limiting depends on this. It is derived from a header, so it is
+    forgeable by anything reaching the app without passing through Cloudflare.
+    """
+    header = current_app.config.get("CLIENT_IP_HEADER")
+    if header:
+        value = request.headers.get(header)
+        if value:
+            return value.split(",")[0].strip()
+    return request.remote_addr or "?"

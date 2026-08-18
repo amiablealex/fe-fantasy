@@ -18,4 +18,4 @@ csrf = CSRFProtect()
 login_manager.login_view = "auth.login"
 login_manager.login_message = "Sign in to continue."
 login_manager.login_message_category = "info"
-login_manager.session_protection = "strong"
+login_manager.session_protection = "basic"

@@ -100,6 +100,12 @@ class Config:
     APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
     TIMEZONE = ZoneInfo(os.environ.get("DISPLAY_TIMEZONE", "Europe/London"))
 
+    # Cloudflare sets CF-Connecting-IP to the true client address. Railway's
+    # edge rebuilds X-Forwarded-For from its own peer, so the client never
+    # appears there — the chain reads "<cloudflare-edge>, <railway-edge>".
+    # Empty falls back to request.remote_addr, which is correct locally.
+    CLIENT_IP_HEADER = os.environ.get("CLIENT_IP_HEADER", "CF-Connecting-IP")
+
     # -------------------------------------------------------------------------
     # Database
     # -------------------------------------------------------------------------

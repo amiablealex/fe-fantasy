@@ -28,6 +28,7 @@ from app.auth.forms import (
 )
 from app.extensions import db
 from app.models.user import PasswordResetToken, User
+from app.utils import client_ip
 
 auth_bp = Blueprint("auth", __name__, template_folder="../templates")
 
@@ -53,7 +54,7 @@ def _utcnow() -> datetime:
 
 
 def _client_key() -> str:
-    return request.remote_addr or "?"
+    return client_ip()
 
 
 def _blocked_response(bucket: str, template: str, form, title: str):

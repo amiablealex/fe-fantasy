@@ -64,4 +64,5 @@ def request_info():
         "cf_connecting_ip": request.headers.get("CF-Connecting-IP"),
         "x_forwarded_proto": request.headers.get("X-Forwarded-Proto"),
         "scheme": request.scheme,
+        "client_ip": client_ip(),
     }
