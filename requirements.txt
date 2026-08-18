@@ -24,9 +24,5 @@ gunicorn==26.1.0
 # Config
 python-dotenv==1.2.3
 
-# Testing
-pytest==9.1.1
-responses==0.26.2
-
 # Utility
 python-dateutil==2.9.0.post0
