@@ -60,6 +60,21 @@ log = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://api.ocblacktop.com/v1/formula-e"
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RATE_LIMITED = 429
+# A rate limit needs a longer wait than a transient 5xx: retrying in one second
+# just spends another call against the same window.
+_RATE_LIMIT_BACKOFF_SECONDS = 15.0
+
+
+def _retry_after_seconds(response: requests.Response) -> float | None:
+    """Honour Retry-After when the server sends it."""
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return None
+    try:
+        return float(raw.strip())
+    except ValueError:
+        return None
 
 
 # -----------------------------------------------------------------------------
@@ -368,6 +383,7 @@ class OCBlacktopProvider:
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_retries + 1):
+            wait: float | None = None
             self._throttle()
             try:
                 response = self._session.get(url, params=params, timeout=self.timeout)
@@ -392,6 +408,9 @@ class OCBlacktopProvider:
                     last_error = ProviderTransientError(
                         f"HTTP {response.status_code} from {path}"
                     )
+                    wait = _retry_after_seconds(response)
+                    if wait is None and response.status_code == _RATE_LIMITED:
+                        wait = _RATE_LIMIT_BACKOFF_SECONDS * attempt
                 elif not response.ok:
                     raise ProviderRequestError(f"HTTP {response.status_code} from {path}")
                 else:
@@ -403,12 +422,13 @@ class OCBlacktopProvider:
                         ) from exc
 
             if attempt < self.max_retries:
-                backoff = 2 ** (attempt - 1)
+                if wait is None:
+                    wait = float(2 ** (attempt - 1))
                 log.warning(
                     "Retrying %s in %ss (attempt %s/%s): %s",
-                    path, backoff, attempt, self.max_retries, last_error,
+                    path, wait, attempt, self.max_retries, last_error,
                 )
-                time.sleep(backoff)
+                time.sleep(wait)
 
         raise last_error or ProviderTransientError(f"Failed to call {path}")
 

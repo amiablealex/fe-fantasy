@@ -92,3 +92,37 @@ def sync_season_command(ending_year: int, dry_run: bool) -> None:
         click.echo(f"  conflict: {conflict}")
     if not report.ok:
         raise SystemExit(1)
+
+@click.command("backfill-results")
+@click.argument("ending_year", type=int)
+@click.option("--force", is_flag=True, help="Re-ingest sessions already stored.")
+@click.option("--round", "round_numbers", type=int, multiple=True,
+              help="Limit to specific round numbers. Repeatable.")
+@with_appcontext
+def backfill_results_command(ending_year: int, force: bool, round_numbers) -> None:
+    """Ingest results for a season's qualifying and race sessions.
+
+    Roughly ten calls per round: nine qualifying sessions plus the race. Run
+    sync-season first, since this walks the sessions already in the database.
+    """
+    from flask import current_app
+
+    from app.ingest.results import backfill_season
+    from app.providers.ocblacktop import OCBlacktopProvider
+
+    if not current_app.config.get("OCB_API_KEY"):
+        raise click.ClickException("OCB_API_KEY is not set.")
+
+    provider = OCBlacktopProvider.from_config(current_app.config)
+    report = backfill_season(
+        provider, ending_year, force=force,
+        round_numbers=list(round_numbers) or None,
+    )
+
+    click.echo(report.summary())
+    for warning in report.warnings:
+        click.echo(f"  warning: {warning}")
+    for error in report.errors:
+        click.echo(f"  error: {error}")
+    if not report.ok:
+        raise SystemExit(1)

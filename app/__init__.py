@@ -113,8 +113,14 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def _register_cli(app: Flask) -> None:
-    from app.cli import config_check, set_admin, sync_season_command
+    from app.cli import (
+        backfill_results_command,
+        config_check,
+        set_admin,
+        sync_season_command,
+    )
 
     app.cli.add_command(set_admin)
     app.cli.add_command(config_check)
     app.cli.add_command(sync_season_command)
+    app.cli.add_command(backfill_results_command)
