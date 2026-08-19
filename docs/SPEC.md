@@ -243,7 +243,9 @@ This is lifted from the F1 app's `round_scoring_config` pattern, and this projec
 
 - **Lineup** — pick and manage the five slots; staged draft with explicit commit; transfer state, bank, and the running cost of the current draft clearly shown; rounds-participated shown per driver in the picker
 - **Meeting view** — points earned, split into clearly headed sections labelled by round format (`E-Prix Unleashed` / `E-Prix`), not "Race 1 / Race 2"
-- **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity.
+- **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity. Real ranges from S12: a driver-round scores −4 to 21 across up to seven
+  simultaneous rules; season totals ran 8 to 104. The dream team occasionally
+  ties — show "tied with 17 others" rather than implying a single answer.
 - **Dream team** — the highest-scoring valid lineup for each round, brute-forced across the actual roster (~20,160 combinations at current grid size — instant, no optimisation needed). A star marks any user pick that made it.
 - **League table** — season standings within a league
 - **Friend profile** — another player's season: lineups and points by meeting
@@ -520,12 +522,13 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 
 No worker service yet. There is nothing to poll until Season 13.
 
-### Phase 2 — Scoring engine, then simulation
+### Phase 2 — Scoring engine and simulation, complete
 
-Split deliberately. The simulation's conclusions are only as good as the engine underneath them: an off-by-one in places gained/lost would produce a confident recommendation for the wrong cap.
-
-- **2a — engine.** `app/scoring/engine.py`, pure functions over result dicts. Validated against the five worked examples in §3, plus the DNF, pit-lane and absent-driver cases.
-- **2b — simulation.** `sim/`, reading the backfilled S12 data. See §9.
+- **2a — engine.** `app/scoring/engine.py` and `lineups.py`, pure functions over
+  result dicts. Validated against the five worked examples in §3.
+- **2b — simulation.** `sim/`, run against all 17 backfilled S12 rounds.
+  **Outcome: no point values changed.** Ruleset promoted to `v1`; the evidence
+  is recorded in `app/scoring/rules.py` above `V1`.
 
 **On the apparent Phase 1/2 ordering conflict:** Phase 2 must run before the *game* schema is fixed, not before all schema.
 
@@ -585,6 +588,28 @@ Write a standalone script in `sim/` — no Flask, no database beyond a read — 
 
 Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a day.
 
+### Outcome (19 Aug 2026)
+
+Run against Season 12. No point values changed; ruleset promoted to `v1`.
+
+- **Places gained/lost is load-bearing**, firing on 55.6% of driver-rounds,
+  near-symmetrically. Cap 4 sits on the knee of the returns curve; a 3-place
+  step scores better on spread but breaks merit ordering (P20 to P11 would
+  outscore a podium).
+- **The depth is entirely in transfer timing.** The best fixed lineup for the
+  season and the obvious one are the same lineup, so there is no clever
+  set-and-forget pick. Transfers are worth +100 over a season against a
+  theoretical ceiling of +242.5.
+- **The team slot is the low-variance pick.** Its mean equals the driver mean
+  by construction (half the sum of two drivers is their average), but its
+  spread is ~30% lower — sd 3.35 against 4.79. Picking a team is the
+  conservative move; that is a feature, and worth making legible in the UI.
+- Race took 61.4% of points distributed; season driver totals ran 104 down to 8.
+- The dream team ties on 6 of 17 rounds, worst case 18 lineups out of 20,160.
+
+Unchanged caveat: none of this is validated for E-Prix Unleashed. Re-tune after
+Jeddah.
+
 ---
 
 ## 10. Open decisions
@@ -629,6 +654,7 @@ Outputs are point-value adjustments and a version-1 scoring ruleset. Budget a da
 | Auth | Lifted from the F1 app with the divergences in §7 |
 | Runtime | Python 3.11.2, Postgres 18.x both environments, psycopg 3 |
 | Provider abstraction | Normalised dataclasses + protocol in `providers/base.py`; no vendor payload escapes the client |
+| Scoring ruleset | **v1** — S12 simulation confirmed the provisional values unchanged |
 
 ---
 

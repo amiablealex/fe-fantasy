@@ -38,3 +38,23 @@ def test_race_ceiling_matches_the_spec():
     r = rules.get_ruleset().race
     win_from_the_back = r.win + r.podium + r.points_finish + r.fastest_lap + r.places_gained_cap
     assert win_from_the_back == 17
+
+
+def test_a_superseded_ruleset_still_resolves():
+    """A round records the version in force when it was created. Removing a
+    version would make that round's score unreproducible, so every version ever
+    used stays in the registry."""
+    superseded = rules.get_ruleset("v1-provisional")
+    assert superseded.version == "v1-provisional"
+    assert superseded is not rules.get_ruleset()
+
+
+def test_v1_confirms_rather_than_changes_the_provisional_values():
+    """The Season 12 simulation validated the numbers; it did not move them.
+    The version is separate so a round scored under one name does not silently
+    start reporting the other."""
+    current = rules.get_ruleset("v1")
+    previous = rules.get_ruleset("v1-provisional")
+    assert current.race == previous.race
+    assert current.qualifying == previous.qualifying
+    assert current.version != previous.version
