@@ -1,0 +1,205 @@
+/* Styleguide chrome only. DISPOSABLE.
+ *
+ * Everything that makes the styleguide navigable — section headers, the
+ * swatch grid, the ruler, the control bar — lives here so that tokens.css and
+ * primitives.css contain nothing that exists solely for this page.
+ *
+ * If you find yourself wanting a class from this file in a real template, that
+ * class is a primitive in disguise and should be promoted. */
+
+@layer styleguide {
+  .sg-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    padding-block: var(--space-4);
+    margin-block-end: var(--space-7);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+
+  .sg-bar__vp { margin-inline-start: auto; }
+
+  .sg-bar button,
+  .sg-bar a.sg-btn {
+    font-size: var(--step-1);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: var(--rule-hair) solid var(--rule-strong);
+    color: var(--text-mid);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1;
+  }
+
+  .sg-bar button[aria-pressed="true"],
+  .sg-bar a.sg-btn[aria-current="true"] {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--surface);
+  }
+
+  .sg-section { margin-block-end: var(--space-9); scroll-margin-top: 5rem; }
+
+  .sg-section__head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+    border-block-end: var(--rule-hair) solid var(--text);
+    padding-block-end: var(--space-2);
+    margin-block-end: var(--space-5);
+  }
+
+  .sg-section__index {
+    font-family: var(--face-display);
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--step-2);
+  }
+
+  .sg-section__title {
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .sg-note {
+    font-size: var(--step-2);
+    color: var(--text-mid);
+    line-height: var(--leading-prose);
+    max-width: var(--measure-prose);
+    margin-block-end: var(--space-5);
+  }
+
+  .sg-note code {
+    font-family: var(--face-text);
+    font-stretch: var(--width-narrow);
+    background: var(--surface-recessed);
+    padding: 0 0.2em;
+  }
+
+  /* Swatches: a bar of colour with its token name and resolved value. Bars
+     rather than squares, because every colour in this system is used as a rule
+     or as text, never as a fill. */
+  .sg-swatch {
+    display: grid;
+    grid-template-columns: 3rem 1fr auto;
+    align-items: center;
+    gap: var(--space-4);
+    padding-block: var(--space-2);
+    border-block-end: var(--rule-hair) solid var(--rule);
+  }
+
+  /* Team swatches show the real stripes at real proportions, just taller, so
+     what you judge here is what renders in a table row. */
+  .sg-swatch__stripes {
+    display: flex;
+    gap: var(--stripe-gap);
+    block-size: 1.6rem;
+  }
+
+  .sg-swatch__stripe {
+    inline-size: var(--stripe-width);
+    background: var(--team-neutral);
+  }
+
+  .sg-swatch__stripe.team-mark--dark  { background: var(--team-achromatic-dark); }
+  .sg-swatch__stripe.team-mark--light {
+    background: var(--team-achromatic-light);
+    box-shadow: inset 0 0 0 1px var(--ink-200);
+  }
+
+  @supports (color: oklch(from #123456 l c h)) {
+    .sg-swatch__stripe[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l) var(--team-c) h);
+    }
+    .sg-swatch__stripe.team-mark--bright[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-bright) var(--team-c-bright) h);
+    }
+    .sg-swatch__stripe.team-mark--tint[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-tint) var(--team-c-tint) h);
+    }
+  }
+
+  .sg-swatch__chip {
+    block-size: 1.1rem;
+    background: var(--chip);
+    border: var(--rule-hair) solid var(--ink-200);
+  }
+
+  .sg-swatch__name {
+    font-size: var(--step-2);
+    font-stretch: var(--width-narrow);
+  }
+
+  .sg-swatch__meta {
+    font-size: var(--step-1);
+    color: var(--text-low);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Type scale rows: the token name, its computed size, and a real sample. */
+  .sg-type {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+    padding-block: var(--space-4);
+    border-block-end: var(--rule-hair) solid var(--rule);
+  }
+
+  .sg-type__meta {
+    font-size: var(--step-1);
+    color: var(--text-low);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Spacing ruler: a bar whose width is the token, so the steps can be
+     compared by eye rather than by reading numbers. */
+  .sg-space {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    align-items: center;
+    gap: var(--space-4);
+    padding-block: var(--space-1);
+  }
+
+  .sg-space__bar {
+    block-size: 0.55rem;
+    inline-size: var(--w);
+    background: var(--ink-900);
+  }
+
+  /* Diagnostics. Loud on purpose: a silently unmatched override key is the
+     worst failure this table has. */
+  .sg-warn {
+    border-inline-start: var(--rule-mark) solid var(--text);
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface-recessed);
+    font-size: var(--step-2);
+    line-height: var(--leading-prose);
+    margin-block-end: var(--space-5);
+  }
+
+  .sg-warn strong { font-weight: var(--weight-semi); }
+
+  .sg-warn code {
+    font-family: var(--face-text);
+    font-stretch: var(--width-narrow);
+  }
+
+  .sg-empty {
+    border: var(--rule-hair) solid var(--rule-strong);
+    padding: var(--space-6);
+    font-size: var(--step-3);
+    line-height: var(--leading-prose);
+  }
+}

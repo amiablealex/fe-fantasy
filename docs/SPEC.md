@@ -43,6 +43,14 @@ The real goal of this project is learning UI, UX, and the clear, beautiful prese
 
 **Design tokens live in CSS, not Python.** Colour, spacing, and type scale belong in `static/css/tokens.css` as custom properties. The F1 app's approach — a `PALETTE` dict in `config.py` injected into Jinja — makes every colour tweak a Python edit and a redeploy, and blocks `color-mix()`, `light-dark()`, and relative colour syntax. Do not repeat it.
 
+**Typography** Archivo (OFL, variable, wght 100–900 / wdth 62–125) for all text and data. Anybody (OFL, variable) for display only, at width 100 and weight 700. Anybody's scope is round numbers, meeting mastheads, and pick or lineup totals — nothing else, never below 20px, never in a table cell. Both self-hosted and subset to Latin Extended; no font CDN.
+
+**Scale in rem**, data size 13px equivalent. Form inputs are pinned at 16px, because iOS Safari zooms the viewport on a smaller focused input.
+
+**No accent colour in v1**. Personal marking ("this is yours") is structural — full ink, heavier weight, and a rule in a reserved gutter. Team hue is the only chroma on the page.
+
+**Team colour is two stripes**, seeded from team.color for hue only; lightness and chroma come from tokens.css and are routed by hue to one of two clamp tiers, because yellows and cyans cannot hold chroma at the lightness reds and purples can. The secondary stripe carries a second, independent channel: solid, tint, dark, or light. Seeds and overrides live in app/palette.py — data repair, not design. An unseeded team degrades to a neutral rule.
+
 ### Viewport strategy
 
 **Mobile-first, with desktop treated as a wide tablet** — a constrained, centred column that expands moderately rather than a sprawling multi-panel layout.

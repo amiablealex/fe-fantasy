@@ -1,0 +1,353 @@
+/* Layout and component primitives.
+ *
+ * Everything here reads semantic tokens only. If you find a raw colour or a
+ * raw size in this file, it is a bug — the value belongs in tokens.css with a
+ * name.
+ *
+ * The set is deliberately small. Six layout primitives and seven components
+ * cover every screen in SPEC.md §4. Anything that needs a fourteenth is
+ * probably a screen-specific arrangement rather than a primitive. */
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body, h1, h2, h3, h4, p, ul, ol, li, dl, dt, dd, figure, table, fieldset {
+    margin: 0;
+    padding: 0;
+  }
+
+  ul, ol { list-style: none; }
+  table { border-collapse: collapse; width: 100%; }
+  button, input, select { font: inherit; color: inherit; }
+  img, svg { display: block; max-width: 100%; }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--face-text);
+    font-size: var(--step-3);
+    font-weight: var(--weight-regular);
+    line-height: var(--leading-data);
+    color: var(--text);
+    background: var(--surface);
+    font-variant-numeric: lining-nums;
+  }
+
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: var(--focus-offset);
+  }
+
+  /* iOS Safari zooms the viewport when a focused input is under 16px. This is
+     not negotiable and not a place to apply the type scale. */
+  input, select, textarea {
+    font-size: 16px;
+    font-family: var(--face-text);
+  }
+
+  ::selection { background: var(--ink-900); color: var(--ink-000); }
+}
+
+@layer layout {
+  /* Constrained centred column. Desktop is a wide tablet, never a dashboard. */
+  .measure {
+    width: 100%;
+    max-width: var(--measure);
+    margin-inline: auto;
+    padding-inline: var(--space-6);
+  }
+
+  /* Vertical rhythm without margin collapse guesswork. The gap is settable
+     per instance via --stack-gap. */
+  .stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-5)); }
+  .stack--tight { --stack-gap: var(--space-3); }
+  .stack--loose { --stack-gap: var(--space-7); }
+
+  /* Two things on one baseline, pushed apart. The single most reused
+     arrangement in the app: label left, figure right. */
+  .split {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  /* Label/value pairs in two columns, values right-aligned and tabular. This
+     is what a rule stack is made of. */
+  .pairs {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: var(--space-4);
+    row-gap: var(--space-1);
+  }
+  .pairs > :nth-child(even) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Rows separated by hairlines rather than by cards. Cards spaced on a grid
+     are the generated-dashboard look; a ruled list is denser and quieter. */
+  .ruled > * {
+    border-block-end: var(--rule-hair) solid var(--rule);
+    padding-block: var(--space-4);
+  }
+  .ruled > :first-child { border-block-start: var(--rule-hair) solid var(--rule); }
+  .ruled--tight > * { padding-block: var(--space-3); }
+
+  .prose {
+    font-size: var(--step-4);
+    line-height: var(--leading-prose);
+    max-width: var(--measure-prose);
+  }
+  .prose > * + * { margin-block-start: 0.6em; }
+}
+
+@layer components {
+  /* ---- Micro-label -------------------------------------------------------
+     Uppercase, tracked, --step-1. The only place --step-1 is permitted: at
+     11px, lowercase prose stops being comfortable but tracked caps stay
+     perfectly readable, because caps have no descenders to crush. */
+  .label {
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+    font-feature-settings: "case" 1;
+  }
+
+  /* ---- Team name ---------------------------------------------------------
+     Condensed caps at --step-2. Thirty characters on a 360px phone, no
+     truncation, no ellipsis, no tooltip. */
+  .team-name {
+    font-size: var(--step-2);
+    font-stretch: var(--width-condensed);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-mid);
+    font-feature-settings: "case" 1;
+    white-space: nowrap;
+  }
+
+  /* ---- Team mark ---------------------------------------------------------
+     Two stripes per team. The pair roughly squares how many teams can be told
+     apart at a glance, which matters on a grid with four red brands.
+
+     Rules, never fills and never dots: a rule aligns with the row it belongs
+     to and reads at 2px, where a dot needs 8px and starts looking like
+     decoration.
+
+     The hue comes from the provider's hex via relative colour syntax — we take
+     its hue channel and impose our own lightness and chroma, so all ten teams
+     land at identical visual weight. `app/palette.py` supplies the seed; every
+     visual value is here.
+
+     Colour never carries meaning alone: the team name is always present. This
+     is a recognition aid, not an encoding. */
+  .team-marks {
+    display: inline-flex;
+    gap: var(--stripe-gap);
+    vertical-align: -0.12em;
+    flex: none;
+  }
+
+  .team-mark {
+    display: block;
+    inline-size: var(--stripe-width);
+    block-size: 1em;
+    background: var(--team-neutral);
+  }
+
+  .team-mark--dark  { background: var(--team-achromatic-dark); }
+  .team-mark--light {
+    background: var(--team-achromatic-light);
+    /* The only stripe light enough to vanish against the paper. */
+    box-shadow: inset 0 0 0 1px var(--ink-200);
+  }
+
+  @supports (color: oklch(from #123456 l c h)) {
+    .team-mark[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l) var(--team-c) h);
+    }
+    .team-mark--bright[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-bright) var(--team-c-bright) h);
+    }
+    /* The tint is already light enough for any hue, so it wins over the
+       bright tier and needs no variant of its own. */
+    .team-mark--tint[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-tint) var(--team-c-tint) h);
+    }
+  }
+
+  /* ---- Figures -----------------------------------------------------------
+     Any number the reader compares against another number is tabular. That is
+     nearly all of them. */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Display numerals. Anybody, per the scope rule: totals, round numbers,
+     mastheads. Nothing else, and never below --step-5. */
+  .figure {
+    font-family: var(--face-display);
+    font-weight: var(--display-weight);
+    font-stretch: var(--display-width);
+    font-variant-numeric: tabular-nums lining-nums;
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
+  }
+  .figure--total { font-size: var(--step-6); }
+  .figure--round {
+    font-size: var(--step-7);
+    font-weight: calc(var(--display-weight) + 100);
+    line-height: 0.82;
+  }
+
+  /* A negative score is marked by the true minus glyph and by tabular
+     alignment, not by an alarm-red fill. On a light ground that is enough,
+     which is one of the reasons the ground is light. */
+  .is-negative { font-feature-settings: "case" 1; }
+
+  /* ---- Yours -------------------------------------------------------------
+     Structural personal marking, applied to a row rather than to a word.
+
+     The mark lives in a reserved gutter inside the page's own inline padding,
+     so a marked row keeps exactly the same left edge as an unmarked one and
+     the mark never crowds the team stripes beside it. Set `--mark` to change
+     what colour it is; set it to a hue only after looking at it against the
+     team palette, because an eleventh hue has ten to compete with. */
+  .is-yours {
+    font-weight: var(--weight-semi);
+    color: var(--text);
+  }
+
+  .is-yours > :first-child { position: relative; }
+
+  .is-yours > :first-child::before {
+    content: "";
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-start: calc(-1 * var(--mark-gutter));
+    inline-size: var(--mark-width);
+    background: var(--mark);
+  }
+
+  /* In a table the mark hangs off the first cell, whose own box is only as
+     wide as the position number, so the row needs the marker to clear it. */
+  tr.is-yours > :first-child::before { inset-block: 0; }
+
+  /* ---- Data table --------------------------------------------------------
+     Hairlines, no zebra striping, no vertical rules. Alignment does the
+     separating; anything more is noise at this density. */
+  .table th {
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+    text-align: start;
+    white-space: nowrap;
+    border-block-end: var(--rule-hair) solid var(--text);
+    padding: 0 var(--space-3) var(--space-2) 0;
+  }
+
+  .table td {
+    padding: var(--space-3) var(--space-3) var(--space-3) 0;
+    border-block-end: var(--rule-hair) solid var(--rule);
+    vertical-align: baseline;
+  }
+
+  .table th:last-child,
+  .table td:last-child { padding-inline-end: 0; }
+
+  /* Numeric columns shrink to their content and align right. `width: 1px` with
+     `white-space: nowrap` is the standard table trick for "as narrow as
+     possible": the browser treats it as a minimum and the content overrides. */
+  .table .c-num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    inline-size: 1px;
+    white-space: nowrap;
+  }
+
+  .table .c-pos {
+    font-family: var(--face-display);
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    inline-size: 1px;
+  }
+
+  .table .c-time {
+    font-variant-numeric: tabular-nums;
+    font-stretch: var(--width-narrow);
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  .table .c-name { font-weight: var(--weight-medium); white-space: nowrap; }
+
+  /* ---- Status ------------------------------------------------------------
+     DNF and similar. Condensed, tracked, low ink — present but never
+     competing with a position. */
+  .status {
+    font-size: var(--step-2);
+    font-stretch: var(--width-narrow);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+  }
+
+  /* ---- Masthead ----------------------------------------------------------
+     The round number set large against the venue. The one place the display
+     face is allowed to be loud. */
+  .masthead {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--space-5);
+    align-items: end;
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-3);
+  }
+
+  .masthead__venue {
+    font-family: var(--face-display);
+    font-size: var(--step-5);
+    font-weight: var(--display-weight);
+    font-stretch: var(--display-width);
+    line-height: 1;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .masthead__meta { grid-column: 2; margin-block-start: var(--space-2); }
+}
+
+@layer utilities {
+  .u-mid { color: var(--text-mid); }
+  .u-low { color: var(--text-low); }
+  .u-nowrap { white-space: nowrap; }
+  .u-caps { text-transform: uppercase; letter-spacing: var(--tracking-caps); font-feature-settings: "case" 1; }
+  .u-condensed { font-stretch: var(--width-condensed); }
+  .u-narrow { font-stretch: var(--width-narrow); }
+  .u-semi { font-weight: var(--weight-semi); }
+
+  .visually-hidden {
+    position: absolute;
+    inline-size: 1px; block-size: 1px;
+    overflow: hidden; clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
