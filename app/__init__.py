@@ -43,7 +43,7 @@ def _configure_logging(app: Flask) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     app.logger.setLevel(level)
-
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 def _init_extensions(app: Flask) -> None:
     db.init_app(app)
@@ -113,7 +113,8 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def _register_cli(app: Flask) -> None:
-    from app.cli import config_check, set_admin
+    from app.cli import config_check, set_admin, sync_season_command
 
     app.cli.add_command(set_admin)
     app.cli.add_command(config_check)
+    app.cli.add_command(sync_season_command)
