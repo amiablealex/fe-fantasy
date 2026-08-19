@@ -1,0 +1,141 @@
+Season 12 (2026) — ruleset v1-provisional
+17 rounds loaded, 17 with both qualifying and race data
+
+========================================================================
+1. Is qualifying dominating the race?
+========================================================================
+  qualifying distributed: 442
+  race distributed:       703
+  race share of all points: 61.4%
+  mean race points per round: 41.4 (qualifying is 26 by construction)
+
+  round   quali    race   race share
+      1      26      45    63.4%
+      2      26      45    63.4%
+      3      26      43    62.3%
+      4      26      41    61.2%
+      5      26      41    61.2%
+      6      26      41    61.2%
+      7      26      41    61.2%
+      8      26      41    61.2%
+      9      26      37    58.7%
+     10      26      41    61.2%
+     11      26      45    63.4%
+     12      26      39    60.0%
+     13      26      41    61.2%
+     14      26      39    60.0%
+     15      26      39    60.0%
+     16      26      41    61.2%
+     17      26      43    62.3%
+
+========================================================================
+2. What are the right magnitudes for places gained/lost?
+========================================================================
+  driver-rounds scored: 340
+  with a places component: 189 (55.6%)
+  gained 98, lost 91, mean magnitude 2.70
+
+  variant                     stdev   distinct   mean
+  shipped (step 5, cap 4)     4.79        20   3.37
+  cap 2                       4.49        17   3.39
+  cap 6                       4.90        23   3.34
+  step 3, cap 4               5.22        20   3.42
+  step 3, cap 6               5.76        23   3.33
+  disabled                    4.13        17   3.35
+
+  Higher stdev and more distinct values mean finer resolution.
+  Compare 'disabled' against the rest: that gap is what the rule buys.
+
+========================================================================
+3. Would a sensible lineup have beaten a random one?
+========================================================================
+  valid lineups: 20160, sampled 500
+  random:    mean 288.8, sd 49.7, range 158 to 439
+  consensus: 463.0 — beats 100.0% of random lineups
+    Dennis, Mortara, Rowland, Wehrlein + JAGUAR TCS RACING
+  best fixed lineup: 463.0
+    Dennis, Mortara, Rowland, Wehrlein + JAGUAR TCS RACING
+
+  If the consensus lineup does not clear ~90%, the scoring is not
+  rewarding judgement enough to be worth playing.
+
+========================================================================
+4. What does the score distribution look like?
+========================================================================
+  round    mean  median    min    max   stdev   <=0
+      1     3.5     2.0     -2     16    4.90     9
+      2     3.5     3.0     -2     16    4.58     8
+      3     3.5     2.0     -2     15    4.55     8
+      4     3.4     2.0     -2     15    4.61     7
+      5     3.4     2.0     -2     15    4.49     8
+      6     3.4     3.0     -4     15    4.15     5
+      7     3.4     2.0     -1     16    4.42     8
+      8     3.4     2.0     -4     16    5.25     7
+      9     3.1     3.0     -2     16    4.66     8
+     10     3.4     4.0     -4     16    4.64     9
+     11     3.5     3.0     -2     20    5.38     9
+     12     3.2     2.5     -2     20    5.10     9
+     13     3.4     2.0     -4     16    4.99     9
+     14     3.2     2.0     -4     17    5.36     8
+     15     3.2     3.0     -4     14    4.47     7
+     16     3.4     2.0     -2     20    4.82     8
+     17     3.5     2.5     -2     16    4.91     8
+
+  season driver totals: leader 104, median 55, last 8, sd 27.0
+
+========================================================================
+5. How much would the transfer bank have mattered?
+========================================================================
+  best single lineup, never transfers: 463.0
+    Dennis, Mortara, Rowland, Wehrlein + JAGUAR TCS RACING
+  greedy transfers (hindsight, myopic): 563.0
+  gain from transferring: +100.0
+  unconstrained ceiling (fresh lineup every meeting): 705.5
+  headroom the transfer rule denies: 142.5
+
+  meeting                  spent  bank  score
+   1. São Paulo                0     1    52.0
+   2. Mexico City              2     0    46.0
+   3. Miami                    1     0    37.0
+   4. Jeddah                   1     0    75.5
+   5. Madrid                   1     0    29.5
+   6. Berlin                   1     0    78.0
+   7. Monte Carlo              1     0    49.0
+   8. Sanya                    1     0    17.0
+   9. Shanghai                 1     0    51.5
+  10. Tokyo                    1     0    63.5
+  11. London                   1     0    64.0
+
+========================================================================
+6. Does the team slot pull its weight?
+========================================================================
+  driver round scores: mean 3.37, sd 4.79
+  team round scores:   mean 3.37, sd 3.35
+  team pick was the weakest of the five in 9 of 17 dream teams
+
+========================================================================
+7. How often does the dream team tie?
+========================================================================
+  rounds with a tied dream team: 6 of 17
+  mean tied lineups per round: 2.8, max 18
+
+  round   total   tied  best lineup
+      1    52.0      1  Cassidy, Dennis, Rowland, Wehrlein + ENVISION RACING
+      2    47.0      2  Cassidy, Martí, Mortara, Rowland + PORSCHE FORMULA E TEAM
+      3    44.5      1  Buemi, Dennis, Evans, Müller + MAHINDRA RACING
+      4    49.0      1  Buemi, Evans, Mortara, Wehrlein + CITROËN RACING
+      5    49.0      1  Buemi, Da Costa, Mortara, Rowland + CUPRA KIRO
+      6    36.0      6  Da Costa, Dennis, Mortara, Wehrlein + ENVISION RACING
+      7    48.0      1  Cassidy, Mortara, Müller, Rowland + JAGUAR TCS RACING
+      8    51.0      2  Evans, Rowland, Vergne, Wehrlein + ANDRETTI FORMULA E
+      9    46.0      6  De Vries, Drugovich, Evans, Martí + ENVISION RACING
+     10    47.0      1  Da Costa, Drugovich, Mortara, Rowland + LOLA YAMAHA ABT FORMULA E TEAM
+     11    53.0      1  De Vries, Dennis, Di Grassi, Martí + DS PENSKE
+     12    48.5      2  Da Costa, Dennis, Vergne, Wehrlein + MAHINDRA RACING
+     13    50.5      1  Di Grassi, Drugovich, Eriksson, Vergne + PORSCHE FORMULA E TEAM
+     14    51.5      1  Cassidy, Dennis, Mortara, Ticktum + JAGUAR TCS RACING
+     15    46.0      1  Barnard, Cassidy, De Vries, Dennis + NISSAN FORMULA E TEAM
+     16    47.0      1  Da Costa, Dennis, Mortara, Wehrlein + DS PENSKE
+     17    43.0     18  Barnard, Cassidy, De Vries, Evans + NISSAN FORMULA E TEAM
+
+Done in 8.9s.
