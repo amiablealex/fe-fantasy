@@ -1136,17 +1136,12 @@
     min-inline-size: 0;
   }
 
-  /* The venue is the headline. The meeting sequence is our own bookkeeping —
-     Meeting is derived by grouping events on location and date (SPEC §5), so
-     "11" is an implementation detail where "rounds 16 and 17" is a fact. It
-     stays in the weekend list, where it reads as ordering rather than as a
-     claim. */
   .mnav__label {
     font-family: var(--face-display);
     font-size: var(--step-6);
     font-weight: var(--weight-bold);
     font-stretch: var(--display-width);
-    letter-spacing: var(--tracking-display);
+    letter-spacing: var(--tracking-caps);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1234,6 +1229,10 @@
     margin-block-start: var(--space-5);
   }
 
+  /* The switch is chrome; what follows is the content. Butted together they
+     read as one crowded block. */
+  .rswitch--stage { margin-block-end: var(--space-7); }
+
   .rswitch__tab {
     display: flex;
     flex-direction: column;
@@ -1277,4 +1276,181 @@
     text-align: end;
     white-space: nowrap;
   }
+}
+
+@layer components {
+  /* ---- Profile table -----------------------------------------------------
+     Eleven columns on a 360px viewport. One table, not two: the question is
+     how a driver has scored across the season, and splitting by contest would
+     give two grand totals instead of one.
+
+     What makes it readable is not the width but the suppressed zeros. Nine
+     columns of "0" is noise; a faint mark for nothing lets the cells that
+     fired carry the page. Every row's rule cells sum to its TP, and every
+     column's foot sums to the grand total. */
+  .ptable__scroll { overflow-x: auto; margin-block-start: var(--space-5); }
+
+  .ptable {
+    inline-size: 100%;
+    font-size: var(--step-1);
+    font-stretch: var(--width-condensed);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Symmetric horizontal padding, so a divider between two columns sits in
+     space rather than against the digits either side of it. */
+  .ptable th {
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-caps);
+    color: var(--text-low);
+    text-align: end;
+    padding: 0 var(--space-2) var(--space-2);
+    border-block-end: var(--rule-hair) solid var(--text);
+    white-space: nowrap;
+  }
+
+  .ptable td {
+    text-align: end;
+    padding: var(--space-2);
+    border-block-end: var(--rule-hair) solid var(--rule);
+    white-space: nowrap;
+  }
+
+  /* A divider with nothing naming what it separates reads as a rendering
+     fault. The group row is what turns two vertical lines into structure. */
+  .ptable__groups th {
+    text-align: start;
+    font-size: var(--step-1);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-mid);
+    border-block-end: 0;
+    padding-block-end: var(--space-1);
+  }
+
+  .ptable__rnd { text-align: start !important; padding-inline-start: 0 !important; color: var(--text-low); }
+
+  /* The answer sits immediately after the round, before the rules that explain
+     it, and is separated by a rule so it reads as their sum. */
+  .ptable__tp {
+    font-weight: var(--weight-semi);
+    color: var(--text);
+  }
+
+  .ptable__split {
+    border-inline-start: var(--rule-hair) solid var(--rule-strong);
+    padding-inline-start: var(--space-3);
+  }
+
+  /* On a team profile TEAM is the last column, so a divider after it would
+     draw a line down the outer edge of the table. It takes the divider on its
+     leading edge instead, where it still separates the sum from its halves. */
+  .ptable--team .ptable__tp {
+    border-inline-start: var(--rule-hair) solid var(--rule-strong);
+    padding-inline-start: var(--space-3);
+  }
+
+  .ptable--team th:last-child,
+  .ptable--team td:last-child { padding-inline-end: 0; }
+
+  .ptable tfoot td {
+    font-weight: var(--weight-bold);
+    color: var(--text);
+    border-block-start: var(--rule-mark) solid var(--text);
+    border-block-end: 0;
+    padding-block-start: var(--space-3);
+  }
+
+  .ptable tfoot .ptable__tp { font-size: var(--step-3); }
+
+  .pcell__nil { color: var(--ink-100); }
+
+  .ptable--team { font-size: var(--step-2); font-stretch: var(--width-narrow); }
+
+  .pprofile__head {
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-3);
+  }
+
+  /* ---- Column key --------------------------------------------------------
+     A two-letter header with no legend is hostile to a new player, and the
+     labels here are the same words the breakdown uses, so the vocabulary is
+     learnt once. */
+  .pkey {
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    gap: var(--space-1) var(--space-4);
+    margin-block-start: var(--space-6);
+    padding-block-start: var(--space-4);
+    border-block-start: var(--rule-hair) solid var(--rule);
+    font-size: var(--step-2);
+    color: var(--text-mid);
+  }
+
+  .pkey dd { margin: 0; }
+  .pkey__note {
+    font-size: var(--step-2);
+    color: var(--text-mid);
+    line-height: var(--leading-prose);
+    margin-block-start: var(--space-5);
+  }
+
+  /* ---- Information control -----------------------------------------------
+     Functional rather than decorative: a glyph from the display face in a
+     ruled circle, matching the error mark. No icon asset enters the project. */
+  .infomark {
+    display: grid;
+    place-items: center;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    flex: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    border-radius: 50%;
+    font-size: var(--step-2);
+    line-height: 1;
+    color: var(--text-mid);
+    text-decoration: none;
+  }
+
+  .infomark:hover, .infomark:focus-visible { color: var(--text); border-color: var(--text); }
+
+  /* ---- Picker row --------------------------------------------------------
+     The pick target and the information control are siblings, not nested: a
+     link inside a link is invalid and breaks keyboard navigation. */
+  .option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    position: relative;
+  }
+
+  .option__pick {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex: 1;
+    min-inline-size: 0;
+    padding-block: var(--space-3);
+    color: var(--text-mid);
+    text-decoration: none;
+  }
+
+  .option__pick[aria-pressed="true"] { color: var(--text); }
+  .option__pick[aria-pressed="true"] .option__name { font-weight: var(--weight-semi); }
+
+  .option__pick[aria-pressed="true"]::before {
+    content: "";
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-start: calc(-1 * var(--mark-gutter));
+    inline-size: var(--mark-width);
+    background: var(--mark);
+  }
+
+  .option--noted .option__pick .option__body { opacity: 0.45; }
+
+  /* A driver's name in a classification opens their season. */
+  .c-driver { color: inherit; text-decoration: none; border-block-end: var(--rule-hair) solid var(--rule-strong); }
+  .c-driver:hover, .c-driver:focus-visible { border-block-end-color: var(--text); }
 }

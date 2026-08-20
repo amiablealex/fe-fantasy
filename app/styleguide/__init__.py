@@ -115,17 +115,35 @@ def lineup():
     shown = next(
         (r for r in ordered_rounds if r.round_number == chosen), ordered_rounds[0]
     )
+    # Profiles open over whatever is already on screen, and close by dropping
+    # the parameter — so closing one returns the picker exactly as it was.
+    raw_profile = request.args.get("profile")
+    ctx["profile"] = None
+    ctx["profile_close"] = request.url.split("&profile=")[0]
+    if raw_profile and len(raw_profile) > 1 and raw_profile[1:].isdigit():
+        subject_id = int(raw_profile[1:])
+        if raw_profile[0] == "d":
+            ctx["profile"] = scoring_bridge.driver_profile(season, subject_id)
+        elif raw_profile[0] == "t":
+            ctx["profile"] = scoring_bridge.team_profile(season, subject_id)
+
     ctx.update(
         results=scoring_bridge.round_results(shown),
         schedule=scoring_bridge.round_schedule(shown),
         shown_round=shown,
         stage=request.args.get("stage", "race"),
-    results_open=request.args.get("results") == "open",
+        results_open=request.args.get("results") == "open",
+        profile_base=(
+            f"{url_for('styleguide.lineup')}?m={sequence}"
+            f"&r={shown.round_number}&stage={request.args.get('stage', 'race')}"
+            f"&results=open"
+        ),
+        profile_hx=url_for("styleguide.lineup_profile"),
     )
 
-    # The roster is a per-round question, so it is resolved against the
-    # meeting's first round — a mid-season team switch means "which team is
-    # this driver on" has no answer at meeting level.
+    # The roster is a per-round question, so it resolves against the meeting's
+    # first round: a mid-season team switch means "which team is this driver
+    # on" has no answer at meeting level.
     first_round = ordered_rounds[0].round_number
     roster = scoring_bridge.roster_for_round(season, first_round)
     committed = scoring_bridge.demo_lineup(roster)
@@ -194,6 +212,43 @@ def lineup():
     return render_template("styleguide/lineup.html", **ctx)
 
 
+@bp.route("/lineup/profile")
+def lineup_profile():
+    """A profile sheet on its own, for HTMX to drop into the page.
+
+    Opening a profile used to be a full navigation, which reloaded the meeting
+    page and threw away the reader's position — tapping a driver halfway down a
+    classification sent them back to the top. Swapping the dialog in leaves the
+    page exactly where it was, so closing returns you to the row you tapped.
+
+    The links keep their plain href, so this still works without JavaScript;
+    that path navigates, as it did before.
+    """
+    season = queries.get_season()
+    raw = request.args.get("subject", "")
+    if season is None or len(raw) < 2 or not raw[1:].isdigit():
+        return "", 204
+
+    subject_id = int(raw[1:])
+    if raw[0] == "d":
+        profile = scoring_bridge.driver_profile(season, subject_id)
+    elif raw[0] == "t":
+        profile = scoring_bridge.team_profile(season, subject_id)
+    else:
+        profile = None
+
+    if profile is None:
+        return "", 204
+
+    return render_template(
+        "styleguide/_profile_sheet.html",
+        bridge=scoring_bridge,
+        palette=palette,
+        profile=profile,
+        close_url=request.args.get("back") or url_for("styleguide.lineup"),
+    )
+
+
 @bp.route("/lineup/results")
 def lineup_results():
     """The Results disclosure body, on its own.
@@ -223,6 +278,12 @@ def lineup_results():
         stage=request.args.get("stage", "race"),
         results=scoring_bridge.round_results(shown),
         schedule=scoring_bridge.round_schedule(shown),
+        profile_base=(
+            f"{url_for('styleguide.lineup')}?m={sequence}"
+            f"&r={shown.round_number}&stage={request.args.get('stage', 'race')}"
+            f"&results=open"
+        ),
+        profile_hx=url_for("styleguide.lineup_profile"),
     )
 
 

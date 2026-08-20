@@ -1061,3 +1061,197 @@ def round_schedule(round_obj: Round) -> list[ScheduledSession]:
         )
         for session in sorted(round_obj.sessions, key=lambda s: s.ordinal)
     ]
+
+
+# -----------------------------------------------------------------------------
+# Profiles
+# -----------------------------------------------------------------------------
+#
+# One wide table: every scoring route as a column, every round as a row, totals
+# in bold at the foot. Not split by contest, because the question the page
+# exists to answer is "how has this driver scored across the season" and a
+# split gives two grand totals instead of one.
+#
+# Eleven columns fit a 360px viewport at --step-1 in condensed tabular figures
+# — measured, not assumed. What makes it readable is not the width but
+# suppressing zeros: nine columns of "0" is noise, and a blank makes the cells
+# that fired legible at a glance.
+
+# Column order groups qualifying then race, so the conceptual split survives
+# without the table being cut in two.
+PROFILE_COLUMNS = [
+    (engine.RULE_GROUP_PROGRESS, "GRP", "Reached the Duels"),
+    (engine.RULE_DUEL_WIN, "DW", "Duel wins"),
+    (engine.RULE_POLE, "POL", "Pole position"),
+    (engine.RULE_WIN, "WIN", "Race win"),
+    (engine.RULE_PODIUM, "POD", "Podium"),
+    (engine.RULE_POINTS_FINISH, "PTS", "Points finish"),
+    (engine.RULE_FASTEST_LAP, "FL", "Fastest lap"),
+    ("places", "±PL", "Places gained or lost"),
+]
+
+# Where the qualifying columns end, for the divider rule.
+PROFILE_QUALIFYING_COLUMNS = 3
+
+# Places gained and lost are one mechanic with a sign, so they share a column.
+# Two columns, one of which is always empty, wastes width for no information.
+_PLACES_RULES = (engine.RULE_PLACES_GAINED, engine.RULE_PLACES_LOST)
+
+
+@dataclass
+class ProfileRow:
+    round_number: int
+    format_label: str
+    total: Decimal
+    cells: dict           # column key -> Decimal
+    took_part: bool
+
+
+@dataclass
+class Profile:
+    subject: Any
+    team: Team | None
+    kind: str                     # "driver" | "team"
+    rows: list[ProfileRow]
+    totals: dict
+    grand_total: Decimal
+    # Team profiles only: the two cars, and their per-round scores.
+    cars: list = None
+    car_rows: list = None
+
+
+def season_scores(season: Season) -> dict:
+    """Every round of a season, scored once.
+
+    Phase 5 stores `PickScore` per round and this becomes a read. Until then
+    the profile computes it, which is acceptable at seventeen rounds on a
+    development machine and would not be in production.
+    """
+    stmt = (
+        select(Round)
+        .where(Round.season_id == season.id)
+        .options(selectinload(Round.sessions).selectinload(Session.results))
+        .order_by(Round.round_number)
+    )
+    out = {}
+    for round_obj in db.session.scalars(stmt).unique():
+        qualifying, race_rows = round_payload(round_obj)
+        if not race_rows and not qualifying:
+            continue
+        out[round_obj.round_number] = (
+            round_obj,
+            engine.score_round(qualifying, race_rows),
+        )
+    return out
+
+
+def _cells_for(score) -> dict:
+    """One round's components, collapsed onto the profile's columns."""
+    cells = {key: Decimal(0) for key, _, _ in PROFILE_COLUMNS}
+    for component in score.components:
+        key = "places" if component.rule in _PLACES_RULES else component.rule
+        if key in cells:
+            cells[key] += component.points
+    return cells
+
+
+def driver_profile(season: Season, driver_id: Any) -> Profile | None:
+    scored = season_scores(season)
+    if not scored:
+        return None
+
+    driver = db.session.get(Driver, driver_id)
+    if driver is None:
+        return None
+
+    rows: list[ProfileRow] = []
+    totals = {key: Decimal(0) for key, _, _ in PROFILE_COLUMNS}
+    grand = Decimal(0)
+    team = None
+
+    for round_number in sorted(scored):
+        round_obj, score = scored[round_number]
+        took_part = driver_id in score.drivers
+        driver_score = score.score_for(driver_id)
+        cells = _cells_for(driver_score)
+
+        for key, value in cells.items():
+            totals[key] += value
+        grand += driver_score.total
+
+        rows.append(ProfileRow(
+            round_number=round_number,
+            format_label=round_obj.format_label,
+            total=driver_score.total,
+            cells=cells,
+            took_part=took_part,
+        ))
+
+        if team is None:
+            roster = roster_for_round(season, round_number)
+            team = roster.team_for(driver_id)
+
+    return Profile(
+        subject=driver, team=team, kind="driver",
+        rows=rows, totals=totals, grand_total=grand,
+    )
+
+
+def team_profile(season: Season, team_id: Any) -> Profile | None:
+    """A team's season: both cars per round, and what the pick scored.
+
+    Three columns plus the team's own figure. Showing the halves beside the sum
+    makes the half-sum rule explain itself, which is the same trick the
+    breakdown's "Half of Cassidy 9, Vergne 0" line does.
+    """
+    scored = season_scores(season)
+    if not scored:
+        return None
+
+    team = db.session.get(Team, team_id)
+    if team is None:
+        return None
+
+    car_ids: list = []
+    rows: list[ProfileRow] = []
+    car_rows: list = []
+    grand = Decimal(0)
+
+    for round_number in sorted(scored):
+        round_obj, score = scored[round_number]
+        roster = roster_for_round(season, round_number)
+        cars = roster.drivers_by_team.get(team_id, [])
+        for car in cars:
+            if car not in car_ids:
+                car_ids.append(car)
+
+        team_total = engine.score_team(score, cars)
+        grand += team_total
+
+        car_rows.append({
+            "round_number": round_number,
+            "format_label": round_obj.format_label,
+            "cars": {car: score.total_for(car) for car in cars},
+            "total": team_total,
+        })
+        rows.append(ProfileRow(
+            round_number=round_number,
+            format_label=round_obj.format_label,
+            total=team_total,
+            cells={},
+            took_part=bool(cars),
+        ))
+
+    roster = roster_for_round(season, min(scored))
+    cars = [roster.drivers.get(c) for c in car_ids]
+
+    car_totals = {
+        car_id: sum((r["cars"].get(car_id, Decimal(0)) for r in car_rows), Decimal(0))
+        for car_id in car_ids
+    }
+
+    return Profile(
+        subject=team, team=team, kind="team",
+        rows=rows, totals=car_totals, grand_total=grand,
+        cars=[c for c in cars if c], car_rows=car_rows,
+    )

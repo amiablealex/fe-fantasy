@@ -1,0 +1,7 @@
+{# The profile dialog on its own, for HTMX to swap into the page.
+
+   Rendered by the partial route only; the full page uses the same macro
+   directly. One macro, two callers — the alternative is two that drift. #}
+{% import "styleguide/_profile.html" as prof %}
+{% import "styleguide/_lineup.html" as ui %}
+{{ prof.profile_sheet(bridge, palette, ui, profile, close_url) }}

@@ -218,7 +218,7 @@
 {% endmacro %}
 
 
-{% macro breakdown(bridge, palette, pick, index, best_url=none) %}
+{% macro breakdown(bridge, palette, pick, index, best_url=none, profile_url=none, profile_hx=none) %}
 <dialog class="sheet sheet--narrow" id="bd-{{ index }}">
   <div class="sheet__head sheet__head--pick">
     {{ band(palette, pick.team, split = pick.is_team) }}
@@ -228,6 +228,11 @@
       <span class="team-name">{{ pick.team.name }}</span>
       {% endif %}
     </span>
+    {% if profile_url %}
+    <a class="infomark figure" href="{{ profile_url }}"
+       {% if profile_hx %}hx-get="{{ profile_hx }}" hx-target="#profile-host" hx-swap="innerHTML"{% endif %}
+       aria-label="Season stats" title="Season stats">i</a>
+    {% endif %}
     <button type="button" class="sheet__close" data-closes>Close</button>
   </div>
   <div class="sheet__body breakdown">

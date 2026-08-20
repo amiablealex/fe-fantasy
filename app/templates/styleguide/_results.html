@@ -41,7 +41,7 @@
 {% endmacro %}
 
 
-{% macro classification(ui, palette, rows, fastest_id=none) %}
+{% macro classification(ui, palette, rows, fastest_id=none, profile_base=none, profile_hx=none) %}
 <table class="table">
   <thead>
     <tr>
@@ -59,7 +59,12 @@
     <tr>
       <td class="c-pos num">{{ r.position or '—' }}</td>
       <td class="c-name">
-        {{ r.driver.short_label }}{% if fastest_id and r.id == fastest_id %} <span class="star">&#9733;</span>{% endif %}
+        {% if profile_base %}
+        <a class="c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
+           hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+           hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
+        {% else %}{{ r.driver.short_label }}{% endif %}
+        {%- if fastest_id and r.id == fastest_id %} <span class="star">&#9733;</span>{% endif %}
         <br>{{ ui.stripes(palette, r.team) }} <span class="team-name">{{ r.team.name if r.team }}</span>
       </td>
       <td class="c-num">{{ r.grid_position if r.has_grid_position else '—' }}</td>
@@ -80,7 +85,7 @@
    piece of work and replaces everything inside this macro. What is here is
    honest and readable in the meantime — every session, in bracket order, with
    its classification. #}
-{% macro qualifying(ui, palette, stages) %}
+{% macro qualifying(ui, palette, stages, profile_base=none, profile_hx=none) %}
 {% for s in stages %}
 <section class="qstage">
   <div class="qstage__head">
@@ -91,7 +96,11 @@
     <div class="split">
       <span>
         <span class="u-low num">{{ r.position or '—' }}</span>
-        <span class="u-semi">{{ r.driver.short_label }}</span>
+        {% if profile_base %}
+        <a class="c-driver u-semi" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
+           hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+           hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
+        {% else %}<span class="u-semi">{{ r.driver.short_label }}</span>{% endif %}
         <br>{{ ui.stripes(palette, r.team) }}
         <span class="team-name">{{ r.team.name if r.team }}</span>
       </span>

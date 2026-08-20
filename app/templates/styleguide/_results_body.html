@@ -12,13 +12,13 @@
   {{ res.stage_switch(stage, shown_round, sequence, base) }}
   {% if stage == 'qualifying' %}
     {% if results.qualifying %}
-      {{ res.qualifying(ui, palette, results.qualifying) }}
+      {{ res.qualifying(ui, palette, results.qualifying, profile_base, profile_hx) }}
     {% else %}
       <div class="sg-empty">No qualifying results stored for this round.</div>
     {% endif %}
   {% else %}
     {% if results.race %}
-      {{ res.classification(ui, palette, results.race) }}
+      {{ res.classification(ui, palette, results.race, none, profile_base, profile_hx) }}
     {% else %}
       <div class="sg-empty">No race classification stored for this round.</div>
     {% endif %}
