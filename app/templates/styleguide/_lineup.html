@@ -1,0 +1,318 @@
+{# The lineup component.
+
+   One component, three states. This is the app's signature layout and the one
+   shape a player learns: four driver slots in a 2x2 grid, the team slot as a
+   wider band beneath. Identical geometry every time, so the arrangement itself
+   carries meaning before any number is read.
+
+     empty    slots are empty; tapping one opens the picker
+     edit     slots are filled; tapping one opens the picker to swap
+     scored   slots carry a meeting total; tapping one discloses the breakdown
+
+   Slot order never re-sorts by score. A layout that reshuffles by performance
+   cannot be read at a glance, which is the only thing this component is for.
+
+   Phase 4 imports this file rather than reimplementing it.
+#}
+
+{% macro stripes(palette, team, block=false) -%}
+<span class="team-marks{{ ' team-marks--block' if block }}">
+{%- set marks = palette.team_marks(team) if team else [] -%}
+{%- if marks -%}
+{%- for m in marks %}<span class="team-mark {{ m.modifier }}" style="{{ m.style }}"></span>{% endfor -%}
+{%- else -%}<span class="team-mark"></span>{%- endif -%}
+</span>
+{%- endmacro %}
+
+{% macro signed(value) -%}
+{%- if value is none -%}&#183;
+{%- elif value < 0 -%}&#8722;{{ -value }}
+{%- else -%}{{ value }}
+{%- endif -%}
+{%- endmacro %}
+
+
+{# The team band. The primary hue is the band; the secondary is a thinner
+   accent inside it. At slot scale two equal stripes read as a pattern, where a
+   band with an accent reads as a livery — which is what it is. #}
+{% macro band(palette, team, split=false) -%}
+{%- set marks = palette.team_marks(team) if team else [] -%}
+<span class="band{{ ' band--split' if split }}" aria-hidden="true">
+  {%- if marks -%}
+  <span class="band__primary {{ marks[0].modifier }}" style="{{ marks[0].style }}"></span>
+  {%- if marks | length > 1 -%}
+  <span class="band__accent {{ marks[1].modifier }}" style="{{ marks[1].style }}"></span>
+  {%- endif -%}
+  {%- else -%}
+  <span class="band__primary"></span>
+  {%- endif -%}
+</span>
+{%- endmacro %}
+
+
+{% macro slot_inner(palette, pick, state, index, kind, placeholder, changed=false, bridge=none) %}
+  {% if not pick %}
+    <span class="slot__empty">
+      <span class="slot__plus figure" aria-hidden="true">+</span>
+      <span class="label">{{ placeholder }}</span>
+    </span>
+  {% else %}
+    {# On a team slot the two stripes are equal, because the pick is both cars.
+       On a driver slot the primary is the band and the secondary an accent. #}
+    {{ band(palette, pick.team, split = kind == 'team') }}
+    {# The car number, set large and barely inked behind the name. Formula E
+       cars carry their numbers; borrowing that as a typographic ground gives
+       the slot depth without a graphic, an icon or a gradient. #}
+    {% if kind == 'driver' and pick.number %}
+    <span class="slot__ghost figure num" aria-hidden="true">{{ pick.number }}</span>
+    {% endif %}
+    <span class="slot__body">
+      {% if kind == 'team' %}<span class="label">Team</span>{% endif %}
+      <span class="slot__name{{ ' slot__name--team' if kind == 'team' }}">{{ pick.label }}</span>
+      {% if kind == 'driver' %}
+      <span class="team-name slot__team">{{ pick.team.name if pick.team }}</span>
+      {% endif %}
+    </span>
+    {% if state == 'scored' %}
+      <span class="slot__figure">
+        {% if pick.in_dream_team %}
+        <span class="star slot__star" title="In the {{ bridge.DREAM_TEAM_NAME }} lineup">&#9733;</span>
+        {% endif %}
+        <span class="slot__score figure num">{{ bridge.fmt(pick.total) }}</span>
+      </span>
+    {% endif %}
+    {# A pending change is marked structurally — heavy ink and a label — never
+       in the error colour. A transferred-in pick is the thing you wanted, not
+       a fault, and sharing red with broken rules would empty red of meaning. #}
+    {% if changed %}<span class="slot__tag label">In</span>{% endif %}
+  {% endif %}
+{% endmacro %}
+
+
+{% macro slot(palette, pick, state, index, kind, base_url, changed=false, bridge=none) %}
+{%- set classes = 'slot slot--' ~ kind ~ (' is-empty' if not pick else '') ~ (' is-changed' if changed else '') -%}
+{%- set placeholder = 'Team' if kind == 'team' else 'Driver ' ~ (index + 1) -%}
+{% if state == 'scored' and pick %}
+<button type="button" class="{{ classes }}" data-opens="bd-{{ index }}">
+  {{ slot_inner(palette, pick, state, index, kind, placeholder, changed, bridge) }}
+</button>
+{% elif state in ('empty', 'edit') %}
+<a class="{{ classes }}" href="{{ base_url }}&amp;open={{ 'team' if kind == 'team' else index }}">
+  {{ slot_inner(palette, pick, state, index, kind, placeholder, changed, bridge) }}
+</a>
+{% else %}
+<div class="{{ classes }}">
+  {{ slot_inner(palette, pick, state, index, kind, placeholder, changed, bridge) }}
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{% macro lineup(palette, drivers, team, state='scored', total=none, invalid_slots=[], base_url='', changed_ids=[], bridge=none, heading=none) %}
+<div class="lineup lineup--{{ state }}">
+  <div class="lineup__grid">
+    {% for i in range(4) %}
+      {%- set pick = drivers[i] if i < drivers | length else none -%}
+      {{ slot(palette, pick, state, i, 'driver', base_url,
+              changed = pick is not none and pick.id in changed_ids, bridge=bridge) }}
+    {% endfor %}
+  </div>
+
+  {{ slot(palette, team, state, 4, 'team', base_url,
+          changed = team is not none and team.id in changed_ids, bridge=bridge) }}
+
+
+</div>
+{% endmacro %}
+
+
+{# The headline figure, above the lineup rather than below it: it is the answer
+   the screen exists to give, and an answer belongs at the top. Its own row,
+   with the lineup beneath.
+
+   The only dark element in the app — the page ground stays paper, so §1 holds.
+   Built as a stack so later lines (this week's average, the highest score in
+   the league) drop in beneath the headline without a redesign. #}
+{% macro verdict(bridge, total, heading=none) %}
+<div class="verdict">
+  <div class="verdict__main">
+    <span class="verdict__label label">{{ heading or 'Your weekend' }}</span>
+    <span class="verdict__figure figure num">{{ bridge.fmt(total) }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+
+{# Disclosed on tap, never shown by default. Split by round, then qualifying
+   against race: two separate contests with different ceilings, and merging
+   them hides which half of the weekend went well. #}
+{# The headline figure, above the lineup rather than below it: it is the answer
+   the screen exists to give, and an answer belongs at the top. Its own row,
+   with the lineup beneath.
+
+   The only dark element in the app — the page ground stays paper, so §1 holds.
+   Built as a stack so later lines (this week's average, the highest score in
+   the league) drop in beneath the headline without a redesign. #}
+{% macro verdict(bridge, total, heading=none) %}
+<div class="verdict">
+  <div class="verdict__main">
+    <span class="verdict__label label">{{ heading or 'Your weekend' }}</span>
+    <span class="verdict__figure figure num">{{ bridge.fmt(total) }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+
+{# Disclosed on tap, never shown by default.
+
+   Both sections always render when the driver took part, even at zero, each
+   led by a plain sentence about what happened. A zero has to be legible as a
+   result — "eliminated in Group A P15" — rather than as an absence, because
+   "no rules fired" cannot tell those apart. #}
+{# The headline figure, above the lineup rather than below it: it is the answer
+   the screen exists to give, and an answer belongs at the top. Its own row,
+   with the lineup beneath.
+
+   The only dark element in the app — the page ground stays paper, so §1 holds.
+   Built as a stack so later lines (this week's average, the highest score in
+   the league) drop in beneath the headline without a redesign. #}
+{% macro verdict(bridge, total, heading=none) %}
+<div class="verdict">
+  <div class="verdict__main">
+    <span class="verdict__label label">{{ heading or 'Your weekend' }}</span>
+    <span class="verdict__figure figure num">{{ bridge.fmt(total) }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+
+{# Disclosed on tap, never shown by default.
+
+   Each round is its own block with its own heading, because a double-header
+   otherwise reads as one long list and the two races blur together.
+
+   Within a round, each section leads with a heading — the stage, its subtotal,
+   and a sentence of context — then a rule, then the rows that scored. The
+   context has to sit inside the heading rather than above the rows: styled
+   like a row it reads as a rule that failed to score, which is precisely
+   backwards. #}
+{% macro stage(bridge, label, components, context, fallback) %}
+<div class="stage">
+  <div class="stage__head">
+    <div class="split">
+      <span class="label">{{ label }}</span>
+      <span class="num u-semi">{{ bridge.fmt(components | sum(attribute='points') or 0) }}</span>
+    </div>
+    <p class="stage__context">{{ context or fallback }}</p>
+  </div>
+  {% if components %}
+  <div class="pairs stage__rules">
+    {% for c in components %}
+    <span class="u-mid">{{ bridge.rule_label(c.rule) }}{% set d = bridge.component_detail(c) %}{% if d %} <span class="u-low">{{ d }}</span>{% endif %}</span>
+    <span>{{ signed(c.points) }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro breakdown(bridge, palette, pick, index, best_url=none) %}
+<dialog class="sheet sheet--narrow" id="bd-{{ index }}">
+  <div class="sheet__head sheet__head--pick">
+    {{ band(palette, pick.team, split = pick.is_team) }}
+    <span class="sheet__title">
+      <span class="u-semi">{{ pick.label }}</span>
+      {% if not pick.is_team and pick.team %}
+      <span class="team-name">{{ pick.team.name }}</span>
+      {% endif %}
+    </span>
+    <button type="button" class="sheet__close" data-closes>Close</button>
+  </div>
+  <div class="sheet__body breakdown">
+  <div class="breakdown__head">
+    <span class="label">Weekend</span>
+    <span class="figure figure--total num">{{ bridge.fmt(pick.total) }}</span>
+  </div>
+
+  {% for detail in pick.rounds %}
+  <section class="round-block">
+    <header class="round-block__head">
+      <span class="round-block__number figure num">{{ detail.round.round_number }}</span>
+      <span class="round-block__format label">{{ detail.round.format_label }}</span>
+      <span class="round-block__total figure figure--total num">{{ detail.total }}</span>
+    </header>
+
+    {% if pick.is_team %}
+      <p class="stage__context round-block__body">Half of {{ detail.team_detail or pick.detail or 'both cars' }}</p>
+    {% elif not detail.took_part %}
+      <p class="stage__context round-block__body u-low">Did not take part in this round.</p>
+    {% else %}
+      <div class="round-block__body">
+        {{ stage(bridge, 'Qualifying', detail.qualifying, detail.quali_context, 'Did not qualify') }}
+        {{ stage(bridge, 'Race', detail.race, detail.race_context, 'Did not start') }}
+      </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if pick.in_dream_team and best_url %}
+  <a class="breakdown__link" href="{{ best_url }}">
+    <span class="star">&#9733;</span> In this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }} lineup
+  </a>
+  {% endif %}
+  </div>
+</dialog>
+{% endmacro %}
+
+
+{# A broken constraint, stated once above the lineup. The mark is a glyph from
+   the display face inside a ruled square — a character we already ship, not an
+   icon asset. #}
+{% macro problem(message) %}
+<p class="problem problem--error">
+  <span class="problem__mark figure" aria-hidden="true">!</span>
+  <span>{{ message }}</span>
+</p>
+{% endmacro %}
+
+
+{# ---- Transfer confirmation ----------------------------------------------
+   Out and in, then the cost. Reuses the breakdown's heading language rather
+   than inventing a second one: the reader has already learnt to read a bold
+   heading with a figure on the right. #}
+{% macro transfer_summary(palette, diff) %}
+<div class="summary">
+  {% if diff.drivers_out or diff.team_out %}
+  <div class="summary__side">
+    <p class="label">Out</p>
+    {% for v in diff.drivers_out %}
+    <p class="summary__row">{{ band(palette, v.team) }} <span>{{ v.label }}</span></p>
+    {% endfor %}
+    {% if diff.team_out %}
+    <p class="summary__row">{{ band(palette, diff.team_out.team, split=true) }}
+      <span class="u-caps u-condensed">{{ diff.team_out.label }}</span></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if diff.drivers_in or diff.team_in %}
+  <div class="summary__side">
+    <p class="label">In</p>
+    {% for v in diff.drivers_in %}
+    <p class="summary__row u-semi">{{ band(palette, v.team) }} <span>{{ v.label }}</span></p>
+    {% endfor %}
+    {% if diff.team_in %}
+    <p class="summary__row u-semi">{{ band(palette, diff.team_in.team, split=true) }}
+      <span class="u-caps u-condensed">{{ diff.team_in.label }}</span></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="summary__cost">
+    <span class="label">This uses</span>
+    <span><span class="figure figure--total num">{{ diff.cost }}</span>
+      <span class="label">transfer{{ '' if diff.cost == 1 else 's' }}</span></span>
+  </div>
+</div>
+{% endmacro %}

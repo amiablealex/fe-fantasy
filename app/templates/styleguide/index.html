@@ -1,17 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Styleguide — Formula E Fantasy</title>
-<link rel="preload" href="{{ url_for('static', filename='fonts/Archivo.woff2') }}" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/primitives.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/styleguide.css') }}">
-</head>
-<body>
-<div class="measure">
+{% extends "styleguide/_shell.html" %}
+{% block title %}Tokens{% endblock %}
 
+{% block content %}
 {% macro sect(n, title) %}
 <div class="sg-section__head">
   <span class="sg-section__index">{{ '%02d' % n }}</span>
@@ -345,8 +335,9 @@
 </section>
 
 {% endif %}
+{% endblock %}
 
-</div>
+{% block scripts %}
 <script>
 (function () {
   var root = document.documentElement;
@@ -364,5 +355,4 @@
   window.addEventListener('resize', report);
 })();
 </script>
-</body>
-</html>
+{% endblock %}

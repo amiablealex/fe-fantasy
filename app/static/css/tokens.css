@@ -84,6 +84,12 @@
     --team-l-tint: 0.88;
     --team-c-tint: 0.070;
 
+    /* The team band on a lineup slot: the primary as a solid band, the
+       secondary as a thinner accent inside it. At slot scale two equal stripes
+       read as a pattern; a band with an accent reads as a livery. */
+    --band-width: 0.55rem;
+    --band-accent-width: 0.2rem;
+
     /* Achromatic seeds, for a team whose identity genuinely has no hue.
        Jaguar is black; forcing black through the hue clamp produced a green
        that was simply wrong. These sit outside the clamp on purpose. */
@@ -160,13 +166,18 @@
     --measure: 100%;
     --measure-prose: 34em;
 
+    /* Three rule weights, used as a hierarchy rather than interchangeably:
+       hair separates rows, mark separates sections, heavy separates a screen's
+       major regions. A page where every rule is the same weight has no
+       hierarchy at all — which was the "newspaper" problem. */
     --rule-hair: 1px;
     --rule-mark: 2px;
-    /* Two stripes per team. Zero gap reads as one banded rule rather than as
-       two marks, which is the intent. */
+    --rule-heavy: 3px;
     /* Team stripes are heavier than a structural rule: they carry identity at
        a glance, where a rule only needs to separate. */
     --stripe-width: 3px;
+    /* Two stripes per team. Zero gap reads as one banded rule rather than as
+       two marks, which is the intent. */
     --stripe-gap: 0;
 
     /* ----------------------------------------------------------------------
@@ -198,6 +209,14 @@
 
     /* Fallback for a team with no usable seed. */
     --team-neutral: var(--ink-400);
+
+    /* The one non-team chroma in the system, and only for a broken rule.
+       Deliberately outside the team clamp — darker and more saturated than any
+       stripe can be — because three teams on this grid are red and an error
+       must never be mistakable for an identity. Used as text and as a heavy
+       rule; never as a stripe. */
+    --error: oklch(0.42 0.19 27);
+    --error-recessed: oklch(0.96 0.02 27);
 
     --focus: var(--ink-900);
     --focus-offset: 2px;

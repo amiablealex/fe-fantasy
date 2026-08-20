@@ -1,0 +1,286 @@
+{% extends "styleguide/_shell.html" %}
+{% import "styleguide/_lineup.html" as ui %}
+{% block title %}Lineup{% endblock %}
+
+{% block content %}
+
+{% if not season %}
+<div class="sg-empty">
+  <p><strong>No Season 12 data found.</strong></p>
+  <p class="u-mid">This screen reads the local database directly.</p>
+</div>
+{% else %}
+
+{% macro draft_url(drivers, team, open=none) -%}
+?state={{ state }}&m={{ sequence }}&d={{ drivers | join(',') }}&t={{ team if team is not none else '' }}{% if open %}&open={{ open }}{% endif %}
+{%- endmacro %}
+
+<div class="sg-bar" style="position: static; border: 0">
+  <span class="label">State</span>
+  <a class="sg-btn" href="?state=empty&m={{ sequence }}&d=&t=" {% if state == 'empty' %}aria-current="true"{% endif %}>Empty</a>
+  <a class="sg-btn" href="?state=edit&m={{ sequence }}" {% if state == 'edit' %}aria-current="true"{% endif %}>Transfers</a>
+  <a class="sg-btn" href="?state=scored&m={{ sequence }}" {% if state == 'scored' %}aria-current="true"{% endif %}>Scored</a>
+</div>
+
+{% if state == 'scored' %}
+<div class="sg-bar" style="position: static; border: 0; flex-wrap: wrap">
+  {% for m in meetings %}
+  <a class="sg-btn" href="?state=scored&m={{ m.sequence }}"
+     {% if m.sequence == sequence %}aria-current="true"{% endif %}>{{ m.sequence }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if meeting %}
+<div class="masthead">
+  <span class="figure figure--round num">{{ meeting.sequence }}</span>
+  <span class="masthead__venue">{{ meeting.display_name }}</span>
+  <span class="masthead__meta label">
+    {%- set nums = meeting.rounds | map(attribute='round_number') | sort | list -%}
+    {%- if nums | length > 1 -%}
+      Double-header &middot; rounds {{ nums | join(' and ') }}
+    {%- else -%}
+      Round {{ nums[0] if nums }}
+    {%- endif -%}
+  </span>
+</div>
+{% endif %}
+
+{# ================= EMPTY / TRANSFERS ================= #}
+{% if state in ('empty', 'edit') %}
+
+{% for message in problems %}{{ ui.problem(message) }}{% endfor %}
+
+{% set invalid = [] %}
+{% if problems %}
+  {% for slot in edit_drivers %}{% if slot %}{{ invalid.append(slot.label) or '' }}{% endif %}{% endfor %}
+{% endif %}
+
+{{ ui.lineup(palette, edit_drivers, edit_team, state=state,
+             invalid_slots=(invalid if problems else []),
+             base_url=draft_url(draft_drivers, draft_team),
+             changed_ids=diff.changed_ids) }}
+
+{% if state == 'edit' %}
+{# The transfer budget, stated loudly. It decides whether an edit is legal at
+   all, so it cannot be a caption. #}
+<div class="budget{{ ' is-over' if diff.cost > available }}">
+  <div class="budget__figure">
+    <span class="figure figure--round num">{{ diff.cost }}</span>
+    <span class="label">
+      {%- if diff.cost == 0 %}No changes{% else %}transfer{{ '' if diff.cost == 1 else 's' }} used{% endif -%}
+    </span>
+  </div>
+  <div class="budget__figure budget__figure--quiet">
+    <span class="figure figure--total num">{{ available }}</span>
+    <span class="label">available</span>
+  </div>
+</div>
+
+<div class="actions">
+  {% if diff.has_changes %}
+  <a class="actions__reset" href="?state=edit&amp;m={{ sequence }}">Reset all</a>
+  {% else %}
+  <span></span>
+  {% endif %}
+  {% if diff.has_changes and not problems %}
+  <a class="actions__commit" href="{{ draft_url(draft_drivers, draft_team) }}&amp;confirm=commit">
+    Commit transfer{{ '' if diff.cost == 1 else 's' }}
+  </a>
+  {% else %}
+  <span class="actions__commit is-disabled" aria-disabled="true">
+    {%- if problems %}Fix the lineup first{% else %}No changes to commit{% endif -%}
+  </span>
+  {% endif %}
+</div>
+{% else %}
+<div class="actions">
+  <span class="label">{{ filled }} of 5 slots filled</span>
+  {% if filled == 5 and not problems %}
+  <a class="actions__commit" href="{{ draft_url(draft_drivers, draft_team) }}&amp;confirm=commit">Save lineup</a>
+  {% else %}
+  <span class="actions__commit is-disabled" aria-disabled="true">Save lineup</span>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ---- Confirmations --------------------------------------------------- #}
+{% if confirm == 'commit' %}
+<dialog class="sheet sheet--narrow" data-modal>
+  <div class="sheet__head">
+    <span class="u-semi">{{ 'Confirm transfers' if state == 'edit' else 'Save lineup' }}</span>
+    <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Cancel</a>
+  </div>
+  <div class="sheet__body">
+    {% if state == 'edit' %}
+      {{ ui.transfer_summary(palette, diff) }}
+    {% else %}
+      <p class="stage__context">Your lineup is set for the season opener. You
+        can still change it freely until the first deadline.</p>
+    {% endif %}
+    <div class="actions">
+      <span></span>
+      <span class="actions__commit">Confirm</span>
+    </div>
+    <p class="stage__context u-low">Nothing is stored yet — snapshots arrive in
+      Phase 4.</p>
+  </div>
+</dialog>
+{% endif %}
+
+
+
+{# ---- Picker ---------------------------------------------------------- #}
+{% if open_slot %}
+{% set is_team_slot = open_slot == 'team' %}
+<dialog class="sheet" data-modal>
+  <div class="sheet__head">
+    <span class="u-semi">{{ 'Pick a team' if is_team_slot else 'Pick a driver' }}</span>
+    <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Close</a>
+  </div>
+  <div class="sheet__body">
+    {% set restorable = (([diff.team_out] if diff.team_out else []) if is_team_slot else diff.drivers_out) %}
+    {% if restorable %}
+    {# Which original replaced which is genuinely ambiguous once more than one
+       slot has moved, so every outgoing pick is offered rather than a guess at
+       the pairing. Usually there is exactly one. #}
+    <div class="restore">
+      <p class="label">Put back</p>
+      <div class="ruled ruled--tight">
+        {% for v in restorable %}
+          {% if is_team_slot %}
+            {% set target = draft_url(draft_drivers, v.id) %}
+          {% else %}
+            {% set index = open_slot | int %}
+            {% set kept = draft_drivers[:index] + draft_drivers[index + 1:] %}
+            {% set target = draft_url(kept + [v.id], draft_team) %}
+          {% endif %}
+        <a class="option" href="{{ target }}">
+          <span class="option__body">
+            {% if not is_team_slot %}<span class="option__name">{{ v.label }}</span><br>{% endif %}
+            {{ ui.stripes(palette, v.team) }}
+            <span class="team-name">{{ v.team.name if v.team }}</span>
+          </span>
+          <span class="option__meta"><span class="label">Restore</span></span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="ruled ruled--tight">
+      {% for option in (options.teams if is_team_slot else options.drivers) %}
+        {% if is_team_slot %}
+          {% set target = draft_url(draft_drivers, none if option.selected else option.id) %}
+        {% else %}
+          {% set index = open_slot | int %}
+          {% set kept = draft_drivers[:index] + draft_drivers[index + 1:] %}
+          {% set target = draft_url(kept if option.selected else (kept + [option.id]), draft_team) %}
+        {% endif %}
+
+        <a class="option{{ ' option--noted' if option.note }}" href="{{ target }}"
+           aria-pressed="{{ 'true' if option.selected else 'false' }}">
+          <span class="option__body">
+            {% if not is_team_slot %}
+            <span class="option__name">{{ option.label }}</span>
+            {% if option.number %}<span class="u-low num">{{ option.number }}</span>{% endif %}
+            <br>
+            {% endif %}
+            {{ ui.stripes(palette, option.team) }}
+            <span class="team-name">{{ option.team.name if option.team }}</span>
+          </span>
+          <span class="option__meta">
+            {%- if option.note -%}
+            <span class="option__note">{{ option.note }}</span>
+            {%- elif not is_team_slot -%}
+            <span class="label num">{{ option.rounds }} rounds</span>
+            {%- endif -%}
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</dialog>
+{% endif %}
+
+{% endif %}
+
+{# ================= SCORED ================= #}
+{% if state == 'scored' %}
+{% if not picks %}
+<div class="sg-empty" style="margin-block-start: var(--space-6)">
+  No results stored for this meeting.
+</div>
+{% else %}
+
+{% set best_url = '?state=scored&m=' ~ sequence ~ '&view=best' %}
+
+{% if view == 'best' %}
+<p class="sg-note">
+  The highest-scoring valid lineup for this weekend, brute-forced across the
+  whole grid.
+  {%- if best.tied > 1 %} Tied across {{ best.tied }} lineups; this is one of
+  them.{% endif %}
+</p>
+{% endif %}
+
+{{ ui.verdict(bridge, meeting_total,
+               heading=(bridge.DREAM_TEAM_NAME if view == 'best' else 'Your weekend')) }}
+
+{{ ui.lineup(palette, picks[:4], picks[4] if picks | length > 4 else none,
+             state='scored', total=none, bridge=bridge) }}
+
+<div class="aside">
+  {% if view == 'best' %}
+  <a class="aside__link" href="?state=scored&amp;m={{ sequence }}">Back to your lineup</a>
+  {% else %}
+  <a class="aside__link" href="{{ best_url }}">
+    <span class="star">&#9733;</span> View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}
+  </a>
+  {% endif %}
+</div>
+
+{% for pick in picks %}
+{{ ui.breakdown(bridge, palette, pick, loop.index0, best_url=(none if view == 'best' else best_url)) }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // A <dialog> with the `open` attribute renders inline: no backdrop, no focus
+  // trap, no escape-to-close. showModal() is what makes it a modal, and this
+  // is the whole reason the picker was appearing in the flow of the page.
+  document.querySelectorAll('dialog[data-modal]').forEach(function (d) {
+    if (!d.open) d.showModal();
+  });
+
+  // Scored state: a slot opens its breakdown over the page rather than pushing
+  // it below the fold. The panel's layout is unchanged; only the vessel is.
+  document.querySelectorAll('.slot[data-opens]').forEach(function (slot) {
+    slot.addEventListener('click', function () {
+      var panel = document.getElementById(slot.dataset.opens);
+      if (panel && !panel.open) panel.showModal();
+    });
+  });
+
+  document.querySelectorAll('[data-closes]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var d = button.closest('dialog');
+      if (d) d.close();
+    });
+  });
+
+  // Clicking the backdrop closes, which is what people expect on a phone.
+  document.querySelectorAll('dialog').forEach(function (d) {
+    d.addEventListener('click', function (event) {
+      if (event.target === d) d.close();
+    });
+  });
+})();
+</script>
+{% endblock %}
