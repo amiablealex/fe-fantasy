@@ -11,6 +11,8 @@
 
 > **Revision note 3 (19 Aug 2026).** Phase 1 complete: provider client, ingestion schema, season sync and results backfill. Season 12 is fully ingested locally — 11 meetings, 17 rounds, 187 sessions, 880 result rows. **§3's fastest-lap rule is corrected: derive it from the minimum `lap_time`, not from `fastestLap.rank`, which encodes Formula E's top-ten restriction and disagrees on eight of seventeen S12 rounds.** Also: `gridPosition` is the post-penalty starting slot, not the qualifying result (Appendix A); the provider rate-limits at roughly two requests per second (§6); practice and `other` sessions are never ingested (§6); Phase 2 splits into engine then simulation (§8, §9).
 
+> **Revision note 6 (20 August 2026).** Phase 3 complete. The design language is settled and recorded in §1: Archivo and Anybody, a seven-step rem scale, CSS-native tokens in two tiers under cascade layers, and a two-stripe hue-seeded team palette. §4.1 records the lineup component as an architectural commitment; §4.2 records the driver and team profile. HTMX is in use (§7). The qualifying bracket is deferred to Phase 7, where the roadmap already places it; the interim is a linear stage list, and the open risk is recorded in §8.
+
 ---
 
 ## 1. Concept
@@ -547,8 +549,54 @@ No worker service yet. There is nothing to poll until Season 13.
 
 This works because `app/scoring/` imports nothing from Flask or SQLAlchemy: it takes plain result dicts and returns points, so `sim/` can exercise it without a web app. A test asserts this.
 
-### Phase 3 — UI foundations
-Design language, typeface selection (open licence), typographic scale, colour system as CSS custom properties, layout primitives. Lands before the lineup UI so nothing needs restyling later. Mockups before implementation.
+### Phase 3 — UI foundations, complete
+ 
+| # | Stage | Contents |
+|---|---|---|
+| 3.1 | Typeface | Specimen against real S12 data at 12/13/15px on hardware. Archivo for text and data, Anybody for display, both OFL, self-hosted, subset. |
+| 3.2 | Tokens and primitives | `tokens.css`, `primitives.css`, cascade layers, `app/palette.py`, DB-backed styleguide |
+| 3.3 | Palette | Two stripes per team, hue-seeded with a hue-aware lightness clamp, four secondary treatments, collision reporting |
+| 3.4 | Lineup component | One component, three states (§4.1). Staged draft, forced relocation held legibly, picker as a modal |
+| 3.5 | Meeting navigation | Arrow nav with the venue as headline, weekend list, results as a disclosure swapped in place with HTMX |
+| 3.6 | Profiles | Driver and team season tables (§4.2), three entry points, opened without losing scroll position |
+ 
+**Deliberately not built: the qualifying bracket.** The roadmap places it in
+Phase 7 with the rest of the visualisation work, and Phase 3's stated
+deliverables — typeface, scale, colour system, layout primitives — are complete
+without it. The interim is a linear list of every qualifying session in bracket
+order with its classification, which is honest and readable.
+ 
+**Open risk, recorded rather than resolved.** §1 argues for solving the bracket
+early on the grounds that if the primitives cannot express it, they were chosen
+wrong. That check has not been run. The intended design — one row per driver
+ordered by qualifying result, with a four-cell progression trace after the name
+— is built from `.ruled`, the team band and the three rule weights, so it
+should need no new primitive. That is an argument, not a demonstration. If it
+proves wrong in Phase 7, the cost is a new primitive rather than a new design
+
+### Entry conditions for Phase 4
+ 
+Three pieces of Phase 3 are prototypes living in a debug-only blueprint and
+must be promoted rather than rebuilt:
+ 
+- **`app/templates/styleguide/_lineup.html`** is the real lineup component.
+  Phase 4 imports it; it does not reimplement it.
+- **`app/styleguide/scoring_bridge.py`** is the adapter between the ORM and the
+  engine's plain-dict contract. Phase 5 promotes it to `app/meetings/`
+  unchanged in shape — the scoring worker needs exactly this translation, and
+  writing it twice is how the two quietly disagree.
+- **The draft-in-the-URL pattern.** Constraint checks and transfer costs come
+  from `app/scoring/lineups.py`, the same module the server enforces on commit,
+  rather than from a mirrored copy in JavaScript. Phase 4 replaces the full
+  reload with an HTMX partial and keeps that property.
+Two stand-ins are removed in Phase 4, both currently in `scoring_bridge.py`:
+`demo_lineup()`, which fabricates a lineup because none are stored yet, and
+`season_scores()`, which rescores a whole season on request because
+`PickScore` does not exist until Phase 5.
+ 
+**Also outstanding: the Phase 0 auth templates.** `base.html` and `base.css`
+are still the deliberately unstyled scaffold. They are replaced using the
+design system as part of Phase 4, not left until Phase 7.
 
 ### Phase 4 — Lineup & transfers
 Staged-draft selection UI with client-side constraint validation and running transfer cost; server-side revalidation on commit; snapshot storage; transfer bank derivation; meeting deadline locking.
@@ -568,13 +616,16 @@ Consider loading Season 12 into production for this phase: rehearsing the visual
 
 | Date | Milestone |
 |---|---|
-| Aug 2026 | Phases 0–1 complete; S12 backfilled |
-| Sept 2026 | Phase 2: scoring engine validated, simulation run, ruleset tuned |
-| Oct 2026 | Phase 3: design language settled |
-| Nov 2026 | Phases 4–6 |
-| Early Dec 2026 | Phase 7; S13 calendar synced; friends registered; lineups locked in |
+| Aug 2026 | Phases 0–2 complete; S12 backfilled; **Phase 3 complete** |
+| Sept 2026 | Phase 4: lineups and transfers |
+| Oct 2026 | Phase 5: scoring in production |
+| Nov 2026 | Phase 6: leagues and social |
+| Early Dec 2026 | Phase 7 including the qualifying bracket; S13 calendar synced; friends registered |
 | **18–19 Dec 2026** | **Jeddah — first live round** |
 | Late Dec 2026 | Re-tune places gained/lost against the first real Unleashed race |
+ 
+Phase 3 landed in August rather than October. The gained month goes to Phase 7,
+which §8 already flags as the main event and which now carries the bracket.
 
 Season 13: 21 races, 13 meetings. Gen4 debuts; Opel replaces DS; new venues at COTA, Zandvoort and Brands Hatch. Expect unpredictable early form.
 
@@ -665,6 +716,11 @@ Jeddah.
 | Runtime | Python 3.11.2, Postgres 18.x both environments, psycopg 3 |
 | Provider abstraction | Normalised dataclasses + protocol in `providers/base.py`; no vendor payload escapes the client |
 | Scoring ruleset | **v1** — S12 simulation confirmed the provisional values unchanged |
+| Decision | Outcome |
+|---|---|
+| Qualifying bracket | Deferred to Phase 7 with the rest of the visualisation work; linear stage list is the interim |
+| Phase 3 promotion path | `_lineup.html` and `scoring_bridge.py` are promoted into Phase 4 and 5, not rebuilt |
+| Auth templates | Restyled in Phase 4 using the design system |
 
 ---
 
@@ -681,6 +737,15 @@ Jeddah.
 - **Verify a hand-written migration by autogenerating twice.** Alembic silently omits `use_alter` foreign keys, so the first pass can look clean and be wrong. A second `flask db migrate` against the migrated database should report no changes.
 - **Integer inputs:** `type="text"` with `inputmode="numeric"` rather than `type="number"` with `step="1"` — better mobile behaviour.
 - This document lives at `docs/SPEC.md` and is the single source of truth. Re-upload to the Claude project whenever it changes materially.
+- **Run `pyflakes` over any route you have edited before committing.** Rendering
+  templates in isolation does not catch a name the view function never defined,
+  and that class of error reaches the browser as a 500 rather than a failing
+  test.
+- **Interactive fragments keep a working `href` alongside their `hx-get`.** The
+  page functions without JavaScript and HTMX enhances it. Click handlers are
+  delegated from the document rather than bound per element, so swapped-in
+  markup behaves like markup present at load.
+
 
 ---
 
@@ -717,8 +782,17 @@ fe-fantasy/
 │   │   ├── results.py       # per-session result ingest
 │   │   └── checks.py        # championship points sanity check
 │   ├── scoring/             # rules.py, engine.py — no Flask, no SQLAlchemy
-│   ├── templates/
-│   └── static/css/          # base.css now; tokens.css and the system in Phase 3
+│   ├── palette.py           # team hue seeds — data repair, no design
+│   ├── styleguide/          # debug-only: tokens, lineup states, results, profiles
+│   │   ├── queries.py
+│   │   └── scoring_bridge.py  # ORM -> engine dicts; promoted in Phase 5
+│   ├── static/
+│   │   ├── css/             # tokens.css, primitives.css — the design system
+│   │   ├── fonts/           # Archivo, Anybody, subset woff2 + OFL
+│   │   └── js/htmx.min.js   # self-hosted; no CDN
+│   └── templates/styleguide/
+│       ├── _lineup.html     # the lineup component — Phase 4 imports this
+│       ├── _nav.html  _results.html  _profile.html
 ├── worker/
 │   └── scheduler.py         # Phase 5
 ├── sim/                     # Phase 2b standalone simulation

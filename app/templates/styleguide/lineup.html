@@ -2,6 +2,7 @@
 {% import "styleguide/_lineup.html" as ui %}
 {% import "styleguide/_nav.html" as nav_ui %}
 {% import "styleguide/_results.html" as res %}
+{% import "styleguide/_profile.html" as prof %}
 {% set base = url_for("styleguide.lineup") %}
 {% block title %}Lineup{% endblock %}
 
@@ -171,25 +172,32 @@
           {% set target = draft_url(kept if option.selected else (kept + [option.id]), draft_team) %}
         {% endif %}
 
-        <a class="option{{ ' option--noted' if option.note }}" href="{{ target }}"
-           aria-pressed="{{ 'true' if option.selected else 'false' }}">
-          <span class="option__body">
-            {% if not is_team_slot %}
-            <span class="option__name">{{ option.label }}</span>
-            {% if option.number %}<span class="u-low num">{{ option.number }}</span>{% endif %}
-            <br>
-            {% endif %}
-            {{ ui.stripes(palette, option.team) }}
-            <span class="team-name">{{ option.team.name if option.team }}</span>
-          </span>
-          <span class="option__meta">
-            {%- if option.note -%}
-            <span class="option__note">{{ option.note }}</span>
-            {%- elif not is_team_slot -%}
-            <span class="label num">{{ option.rounds }} rounds</span>
-            {%- endif -%}
-          </span>
-        </a>
+        <div class="option{{ ' option--noted' if option.note }}">
+          <a class="option__pick" href="{{ target }}"
+             aria-pressed="{{ 'true' if option.selected else 'false' }}">
+            <span class="option__body">
+              {% if not is_team_slot %}
+              <span class="option__name">{{ option.label }}</span>
+              {% if option.number %}<span class="u-low num">{{ option.number }}</span>{% endif %}
+              <br>
+              {% endif %}
+              {{ ui.stripes(palette, option.team) }}
+              <span class="team-name">{{ option.team.name if option.team }}</span>
+            </span>
+            <span class="option__meta">
+              {%- if option.note -%}
+              <span class="option__note">{{ option.note }}</span>
+              {%- elif not is_team_slot -%}
+              <span class="label num">{{ option.rounds }} rounds</span>
+              {%- endif -%}
+            </span>
+          </a>
+          {%- set subject = ('t' if is_team_slot else 'd') ~ option.id -%}
+          {{ prof.info_link(
+               draft_url(draft_drivers, draft_team, open=open_slot) ~ '&profile=' ~ subject,
+               (option.label if not is_team_slot else option.team.name) ~ ' season stats',
+               hx = base ~ '/profile?subject=' ~ subject) }}
+        </div>
       {% endfor %}
     </div>
   </div>
@@ -234,7 +242,12 @@
 </div>
 
 {% for pick in picks %}
-{{ ui.breakdown(bridge, palette, pick, loop.index0, best_url=(none if view == 'best' else best_url)) }}
+{{ ui.breakdown(bridge, palette, pick, loop.index0,
+                best_url=(none if view == 'best' else best_url),
+                profile_url=(base ~ '?m=' ~ sequence ~ '&state=scored&profile='
+                             ~ ('t' if pick.is_team else 'd') ~ pick.subject.id),
+                profile_hx=(base ~ '/profile?subject='
+                            ~ ('t' if pick.is_team else 'd') ~ pick.subject.id)) }}
 {% endfor %}
 
 <details class="disclosure" id="results" {% if results_open %}open{% endif %}>
@@ -249,6 +262,14 @@
 {% endif %}{# picks #}
 {% endif %}{# state == scored #}
 
+{# Host for an HTMX-loaded profile. The server-rendered one below is the
+   no-JavaScript path. #}
+<div id="profile-host"></div>
+
+{% if profile %}
+{{ prof.profile_sheet(bridge, palette, ui, profile, profile_close) }}
+{% endif %}
+
 {% endif %}{# meeting #}
 {% endif %}{# season #}
 {% endblock %}
@@ -257,33 +278,49 @@
 <script>
 (function () {
   // A <dialog> with the `open` attribute renders inline: no backdrop, no focus
-  // trap, no escape-to-close. showModal() is what makes it a modal, and this
-  // is the whole reason the picker was appearing in the flow of the page.
-  document.querySelectorAll('dialog[data-modal]').forEach(function (d) {
-    if (!d.open) d.showModal();
+  // trap, no escape-to-close. showModal() is what makes it a modal.
+  function openAll(root) {
+    (root || document).querySelectorAll('dialog[data-modal]').forEach(function (d) {
+      if (!d.open) d.showModal();
+    });
+  }
+  openAll(document);
+
+  // HTMX swaps a profile in without leaving the page, which is what preserves
+  // the reader's position in a long classification. Handlers are delegated
+  // rather than bound per element, so swapped-in markup behaves like markup
+  // that was there at load.
+  document.body.addEventListener('htmx:afterSwap', function (event) {
+    openAll(event.target);
   });
 
-  // Scored state: a slot opens its breakdown over the page rather than pushing
-  // it below the fold. The panel's layout is unchanged; only the vessel is.
-  document.querySelectorAll('.slot[data-opens]').forEach(function (slot) {
-    slot.addEventListener('click', function () {
+  document.addEventListener('click', function (event) {
+    var slot = event.target.closest('.slot[data-opens]');
+    if (slot) {
       var panel = document.getElementById(slot.dataset.opens);
       if (panel && !panel.open) panel.showModal();
-    });
-  });
+      return;
+    }
 
-  document.querySelectorAll('[data-closes]').forEach(function (button) {
-    button.addEventListener('click', function () {
-      var d = button.closest('dialog');
-      if (d) d.close();
-    });
-  });
+    var closer = event.target.closest('[data-closes]');
+    if (closer) {
+      var dialog = closer.closest('dialog');
+      if (dialog) {
+        // Only intercept when the dialog is a live modal; otherwise let the
+        // link navigate, which is the no-JavaScript path.
+        event.preventDefault();
+        dialog.close();
+        var host = document.getElementById('profile-host');
+        if (host && host.contains(dialog)) host.innerHTML = '';
+      }
+      return;
+    }
 
-  // Clicking the backdrop closes, which is what people expect on a phone.
-  document.querySelectorAll('dialog').forEach(function (d) {
-    d.addEventListener('click', function (event) {
-      if (event.target === d) d.close();
-    });
+    if (event.target.tagName === 'DIALOG') {
+      event.target.close();
+      var h = document.getElementById('profile-host');
+      if (h && h.contains(event.target)) h.innerHTML = '';
+    }
   });
 })();
 </script>

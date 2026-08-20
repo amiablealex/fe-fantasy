@@ -1,0 +1,157 @@
+{# Driver and team profiles.
+
+   One wide table, not two: the question this page exists to answer is how a
+   driver has scored across the season, and splitting it by contest would give
+   two grand totals instead of one.
+
+   TP sits immediately after the round, before the rules, so the first column a
+   reader scans is the answer and everything to its right is the explanation.
+   Every row's rule cells sum to its TP; every column's foot sums to the grand
+   total.
+
+   Zeros are suppressed to a faint mark. Nine columns of "0" is noise, and a
+   blank is what makes the cells that fired legible at a glance — which is what
+   turns eleven columns from unreadable into scannable. #}
+
+{% macro cell(bridge, value) -%}
+{%- if not value -%}<span class="pcell__nil">&middot;</span>
+{%- elif value < 0 -%}&#8722;{{ -value }}
+{%- else -%}{{ bridge.fmt(value) }}
+{%- endif -%}
+{%- endmacro %}
+
+
+{% macro driver_table(bridge, profile) %}
+<div class="ptable__scroll">
+  <table class="ptable">
+    <thead>
+      <tr class="ptable__groups">
+        <th colspan="2"></th>
+        <th colspan="{{ bridge.PROFILE_QUALIFYING_COLUMNS }}" class="ptable__split">Qualifying</th>
+        <th colspan="{{ bridge.PROFILE_COLUMNS | length - bridge.PROFILE_QUALIFYING_COLUMNS }}"
+            class="ptable__split">Race</th>
+      </tr>
+      <tr>
+        <th class="ptable__rnd">R</th>
+        <th class="ptable__tp">TP</th>
+        {% for key, code, label in bridge.PROFILE_COLUMNS %}
+        <th class="{{ 'ptable__split' if loop.index0 == 0 or loop.index0 == bridge.PROFILE_QUALIFYING_COLUMNS }}"
+            title="{{ label }}">{{ code }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in profile.rows %}
+      <tr>
+        <td class="ptable__rnd num">{{ row.round_number }}</td>
+        <td class="ptable__tp num">
+          {%- if row.took_part %}{{ cell(bridge, row.total) }}{% else %}<span class="pcell__nil">&ndash;</span>{% endif -%}
+        </td>
+        {% for key, code, label in bridge.PROFILE_COLUMNS %}
+        <td class="num {{ 'ptable__split' if loop.index0 == 0 or loop.index0 == bridge.PROFILE_QUALIFYING_COLUMNS }}">
+          {{- cell(bridge, row.cells.get(key)) -}}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="ptable__rnd label">All</td>
+        <td class="ptable__tp num">{{ bridge.fmt(profile.grand_total) }}</td>
+        {% for key, code, label in bridge.PROFILE_COLUMNS %}
+        <td class="num {{ 'ptable__split' if loop.index0 == 0 or loop.index0 == bridge.PROFILE_QUALIFYING_COLUMNS }}">
+          {{- cell(bridge, profile.totals.get(key)) -}}
+        </td>
+        {% endfor %}
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<dl class="pkey">
+  {% for key, code, label in bridge.PROFILE_COLUMNS %}
+  <dt class="label">{{ code }}</dt><dd>{{ label }}</dd>
+  {% endfor %}
+  <dt class="label">TP</dt><dd>Total points for the round</dd>
+</dl>
+{% endmacro %}
+
+
+{% macro team_table(bridge, profile) %}
+<div class="ptable__scroll">
+  <table class="ptable ptable--team">
+    <thead>
+      <tr>
+        <th class="ptable__rnd">R</th>
+        {% for car in profile.cars %}
+        <th>{{ car.short_label }}</th>
+        {% endfor %}
+        <th class="ptable__tp">TEAM</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in profile.car_rows %}
+      <tr>
+        <td class="ptable__rnd num">{{ row.round_number }}</td>
+        {% for car in profile.cars %}
+        <td class="num">{{ cell(bridge, row.cars.get(car.id)) }}</td>
+        {% endfor %}
+        <td class="ptable__tp num">{{ cell(bridge, row.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="ptable__rnd label">All</td>
+        {% for car in profile.cars %}
+        <td class="num">{{ bridge.fmt(profile.totals.get(car.id) or 0) }}</td>
+        {% endfor %}
+        <td class="ptable__tp num">{{ bridge.fmt(profile.grand_total) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<p class="pkey__note">The team pick scores half the sum of both cars, so the
+right-hand column is always the average of the two beside it. Halves are kept
+rather than rounded.</p>
+{% endmacro %}
+
+
+{% macro profile_sheet(bridge, palette, ui, profile, close_url) %}
+<dialog class="sheet" data-modal>
+  <div class="sheet__head sheet__head--pick">
+    {{ ui.stripes(palette, profile.team) }}
+    <span class="sheet__title">
+      <span class="u-semi">
+        {{- profile.subject.short_label if profile.kind == 'driver' else profile.subject.name -}}
+      </span>
+      {% if profile.kind == 'driver' and profile.team %}
+      <span class="team-name">{{ profile.team.name }}</span>
+      {% endif %}
+    </span>
+    <a class="sheet__close" href="{{ close_url }}" data-closes>Close</a>
+  </div>
+  <div class="sheet__body">
+    <div class="split pprofile__head">
+      <span class="label">Season total</span>
+      <span class="figure figure--total num">{{ bridge.fmt(profile.grand_total) }}</span>
+    </div>
+    {% if profile.kind == 'driver' %}
+      {{ driver_table(bridge, profile) }}
+    {% else %}
+      {{ team_table(bridge, profile) }}
+    {% endif %}
+  </div>
+</dialog>
+{% endmacro %}
+
+
+{# Functional, not decorative: a glyph from the display face in a ruled circle,
+   matching the error mark's treatment. No icon asset enters the project. #}
+{% macro info_link(url, label, hx=none) %}
+<a class="infomark figure" href="{{ url }}"
+   {% if hx %}hx-get="{{ hx }}" hx-target="#profile-host" hx-swap="innerHTML"{% endif %}
+   aria-label="{{ label }}" title="{{ label }}">i</a>
+{% endmacro %}
