@@ -702,7 +702,9 @@
 
   .round-block__head {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    /* Two children now that the round number lives inside the label, so the
+       total keeps the right edge instead of butting against the text. */
+    grid-template-columns: 1fr auto;
     align-items: baseline;
     column-gap: var(--space-4);
     background: var(--surface-recessed);
@@ -1080,5 +1082,199 @@
     gap: var(--space-1);
     min-inline-size: 0;
     margin-inline-end: auto;
+  }
+}
+
+@layer components {
+  /* ---- Meeting nav -------------------------------------------------------
+     Previous, name, next. A player moves by one almost every time, so arrows
+     are the primary action and the jump case lives behind the name — which
+     keeps the bar to three elements instead of four.
+
+     An arrow at either end is flat, not absent. A control that disappears
+     shifts the layout and teaches nothing. */
+  .mnav {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 2.5rem;
+    align-items: center;
+    gap: var(--space-3);
+    border-block-end: var(--rule-heavy) solid var(--text);
+    padding-block: var(--space-3);
+  }
+
+  /* Which rounds this weekend contains, and whether it is a double-header.
+     The arrow nav removed the numbered strip and took this context with it;
+     the name alone does not say that London is rounds 16 and 17. */
+  .mnav__context {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: center;
+    margin-block-start: var(--space-1);
+  }
+
+  .mnav__arrow {
+    display: grid;
+    place-items: center;
+    block-size: 2.5rem;
+    font-family: var(--face-display);
+    font-size: var(--step-6);
+    line-height: 1;
+    color: var(--text);
+    text-decoration: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+  }
+
+  .mnav__arrow.is-flat { color: var(--ink-100); border-color: var(--ink-100); }
+
+  .mnav__name {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-3);
+    text-decoration: none;
+    color: inherit;
+    min-inline-size: 0;
+  }
+
+  /* The venue is the headline. The meeting sequence is our own bookkeeping —
+     Meeting is derived by grouping events on location and date (SPEC §5), so
+     "11" is an implementation detail where "rounds 16 and 17" is a fact. It
+     stays in the weekend list, where it reads as ordering rather than as a
+     claim. */
+  .mnav__label {
+    font-family: var(--face-display);
+    font-size: var(--step-6);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--display-width);
+    letter-spacing: var(--tracking-display);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .option--current .option__name { font-weight: var(--weight-semi); }
+
+  /* ---- View switch -------------------------------------------------------
+     Two peers inside one meeting. One thin row, so it costs almost nothing to
+     keep both views one tap apart. */
+  .vswitch {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+  }
+
+  /* ---- Disclosure --------------------------------------------------------
+     Results, collapsed until asked for. A native <details>, so it needs no
+     JavaScript, is keyboard and screen-reader correct by default, and costs
+     nothing on a screen the reader opened to see their own score. */
+  .disclosure {
+    border-block-start: var(--rule-heavy) solid var(--text);
+    margin-block-start: var(--space-7);
+  }
+
+  .disclosure > summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-5);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .disclosure > summary::-webkit-details-marker { display: none; }
+
+  .disclosure__title {
+    font-family: var(--face-display);
+    font-size: var(--step-5);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--display-width);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .disclosure__hint { color: var(--text-low); }
+
+  .disclosure[open] .disclosure__hint::after { content: "Hide"; }
+  .disclosure:not([open]) .disclosure__hint::after { content: "Show"; }
+
+  .disclosure__body { padding-block-end: var(--space-8); }
+
+  .vswitch__tab {
+    text-align: center;
+    padding-block: var(--space-4);
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+    text-decoration: none;
+    border-block-end: var(--rule-mark) solid transparent;
+    margin-block-end: calc(-1 * var(--rule-hair));
+  }
+
+  .vswitch__tab[aria-current="true"] {
+    color: var(--text);
+    border-block-end-color: var(--text);
+  }
+
+  /* ---- Round and stage switches -----------------------------------------
+     Two thin levels rather than one flat four-way: "Round 16 Qualifying" alone
+     is most of a 360px viewport. The round level is absent entirely for a
+     single-header, which is the common case. */
+  /* Underline tabs, not filled boxes. A filled tab beside an unfilled one puts
+     a large black rectangle in the middle of a results page, which reads as
+     more important than the results. An underline marks the current tab and
+     stops there. */
+  .rswitch {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    margin-block-start: var(--space-5);
+  }
+
+  .rswitch__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding-block: var(--space-3);
+    color: var(--text-low);
+    text-decoration: none;
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    border-block-end: var(--rule-mark) solid transparent;
+    margin-block-end: calc(-1 * var(--rule-hair));
+  }
+
+  .rswitch__tab[aria-current="true"] {
+    color: var(--text);
+    border-block-end-color: var(--text);
+  }
+
+  .rswitch__format {
+    font-size: var(--step-1);
+    font-stretch: var(--width-condensed);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  /* ---- Qualifying stage --------------------------------------------------
+     Placeholder shape. The bracket replaces this. */
+  .qstage { margin-block-start: var(--space-6); }
+
+  .qstage__head {
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-2);
+    margin-block-end: var(--space-2);
+  }
+
+  .schedule__when {
+    font-size: var(--step-2);
+    font-stretch: var(--width-narrow);
+    text-align: end;
+    white-space: nowrap;
   }
 }

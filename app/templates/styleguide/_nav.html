@@ -1,0 +1,73 @@
+{# Meeting navigation.
+
+   One row: previous, the meeting name, next. Arrows because a player moves by
+   one almost every time; the name is a button because the jump case still has
+   to exist, and putting the list behind it keeps the bar to three elements
+   instead of adding a "back to current".
+
+   An arrow at either end is shown flat rather than removed. A control that
+   disappears makes the layout shift and teaches nothing; a flat one says you
+   are at the end. #}
+
+{% macro meeting_nav(nav, refs, sequence, base, keep="") %}
+<nav class="mnav" aria-label="Meeting">
+  {% if nav.previous %}
+  <a class="mnav__arrow" href="{{ base }}?m={{ nav.previous }}{{ keep }}"
+     aria-label="Previous meeting">&#8249;</a>
+  {% else %}
+  <span class="mnav__arrow is-flat" aria-hidden="true">&#8249;</span>
+  {% endif %}
+
+  <a class="mnav__name" href="{{ base }}?m={{ sequence }}&amp;menu=1{{ keep }}">
+    <span class="mnav__label">{{ nav.current.name if nav.current else '—' }}</span>
+  </a>
+
+  <span class="mnav__context label">
+    {%- if nav.current and nav.current.is_double_header -%}
+      Double-header &middot; rounds {{ nav.current.rounds | join(' and ') }}
+    {%- elif nav.current and nav.current.rounds -%}
+      Round {{ nav.current.rounds[0] }}
+    {%- endif -%}
+  </span>
+
+  {% if nav.next %}
+  <a class="mnav__arrow" href="{{ base }}?m={{ nav.next }}{{ keep }}"
+     aria-label="Next meeting">&#8250;</a>
+  {% else %}
+  <span class="mnav__arrow is-flat" aria-hidden="true">&#8250;</span>
+  {% endif %}
+</nav>
+{% endmacro %}
+
+
+{% macro meeting_menu(refs, sequence, latest, base, keep="") %}
+<dialog class="sheet sheet--narrow" data-modal>
+  <div class="sheet__head">
+    <span class="u-semi">Weekends</span>
+    <a class="sheet__close" href="{{ base }}?m={{ sequence }}{{ keep }}">Close</a>
+  </div>
+  <div class="sheet__body">
+    <div class="ruled ruled--tight">
+      {% for ref in refs %}
+      <a class="option{{ ' option--current' if ref.sequence == sequence }}"
+         href="{{ base }}?m={{ ref.sequence }}{{ keep }}"
+         {% if ref.sequence == sequence %}aria-current="true"{% endif %}>
+        <span class="option__body">
+          <span class="u-low num">{{ ref.sequence }}</span>
+          <span class="option__name">{{ ref.name }}</span>
+        </span>
+        <span class="option__meta">
+          <span class="label">
+            {%- if ref.is_double_header %}Rounds {{ ref.rounds | join('–') }}
+            {%- else %}Round {{ ref.rounds[0] if ref.rounds }}{% endif -%}
+          </span>
+          {% if not ref.scored %}<span class="option__note">Not raced</span>{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</dialog>
+{% endmacro %}
+
+

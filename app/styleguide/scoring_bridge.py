@@ -902,3 +902,162 @@ def mark_best(picks: list[PickMeetingScore], best: lineups.Lineup | None) -> Non
     for pick in picks:
         subject_id = getattr(pick.subject, "id", None)
         pick.in_dream_team = subject_id in members
+
+
+# -----------------------------------------------------------------------------
+# Navigation
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class MeetingRef:
+    """One entry in the meeting nav."""
+
+    sequence: int
+    name: str
+    scored: bool
+    rounds: list[int]
+
+    @property
+    def is_double_header(self) -> bool:
+        return len(self.rounds) > 1
+
+
+def meeting_refs(season: Season) -> list[MeetingRef]:
+    """Every meeting, in calendar order, and whether it has results.
+
+    Cheap enough to run on every page: eleven rows in S12, thirteen in S13.
+    """
+    refs = []
+    for meeting in meetings(season):
+        rounds = sorted(r.round_number for r in meeting.rounds)
+        scored = any(
+            s.results_ingested_at is not None
+            for r in meeting.rounds
+            for s in r.sessions
+        )
+        refs.append(MeetingRef(
+            sequence=meeting.sequence,
+            name=meeting.display_name,
+            scored=scored,
+            rounds=rounds,
+        ))
+    return refs
+
+
+def latest_scored(refs: list[MeetingRef]) -> int | None:
+    scored = [r.sequence for r in refs if r.scored]
+    return max(scored) if scored else None
+
+
+@dataclass
+class Neighbours:
+    previous: int | None
+    next: int | None
+    current: MeetingRef | None
+
+
+def neighbours(refs: list[MeetingRef], sequence: int) -> Neighbours:
+    """Previous and next meeting, or None at either end.
+
+    None means the arrow is shown flat rather than removed. A control that
+    disappears makes the layout jump and teaches nothing; a flat one says you
+    are at the end.
+    """
+    order = [r.sequence for r in refs]
+    current = next((r for r in refs if r.sequence == sequence), None)
+    if sequence not in order:
+        return Neighbours(None, None, current)
+    index = order.index(sequence)
+    return Neighbours(
+        previous=order[index - 1] if index > 0 else None,
+        next=order[index + 1] if index < len(order) - 1 else None,
+        current=current,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Results and schedule
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class StageResults:
+    """One qualifying session's classification, in bracket order."""
+
+    stage: str
+    stage_index: int | None
+    name: str
+    rows: list
+
+
+@dataclass
+class RoundResults:
+    round: Round
+    qualifying: list[StageResults]
+    race: list
+    has_results: bool
+
+
+# Bracket order, so a round reads groups then duels regardless of how the
+# provider ordered its schedule.
+_STAGE_ORDER = {
+    "group": 0,
+    "quarter_final": 1,
+    "semi_final": 2,
+    "final": 3,
+}
+
+
+def round_results(round_obj: Round) -> RoundResults:
+    qualifying: list[StageResults] = []
+    race: list = []
+
+    for session in sorted(round_obj.sessions, key=lambda s: s.ordinal):
+        rows = sorted(
+            session.results,
+            key=lambda r: (r.position is None, r.position or 0),
+        )
+        if session.stage == STAGE_RACE:
+            race = rows
+        elif session.is_scoring_qualifying and rows:
+            qualifying.append(StageResults(
+                stage=session.stage,
+                stage_index=session.stage_index,
+                name=session.name,
+                rows=rows,
+            ))
+
+    qualifying.sort(key=lambda s: (_STAGE_ORDER.get(s.stage, 9), s.stage_index or 0))
+    return RoundResults(
+        round=round_obj,
+        qualifying=qualifying,
+        race=race,
+        has_results=bool(race or qualifying),
+    )
+
+
+@dataclass
+class ScheduledSession:
+    name: str
+    type: str
+    start_time: Any
+    status: str | None
+
+
+def round_schedule(round_obj: Round) -> list[ScheduledSession]:
+    """Every session of a round in schedule order, results or not.
+
+    What a meeting has to show before it has been raced. Practice and shakedown
+    sessions are included here even though they are never ingested for results
+    — the reader wants the weekend, not the scoring surface.
+    """
+    return [
+        ScheduledSession(
+            name=session.name,
+            type=session.type,
+            start_time=session.start_time,
+            status=session.status,
+        )
+        for session in sorted(round_obj.sessions, key=lambda s: s.ordinal)
+    ]

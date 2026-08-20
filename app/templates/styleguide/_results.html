@@ -1,0 +1,125 @@
+{# Results: what happened, as opposed to how you did.
+
+   Two thin levels of nav rather than one flat four-way. "Round 16 Qualifying"
+   alone is most of a 360px viewport, and the round level disappears entirely
+   for a single-header, which is the common case. #}
+
+{% macro round_switch(rounds, shown, stage, sequence, base) %}
+{% if rounds | length > 1 %}
+<div class="rswitch">
+  {% for r in rounds %}
+  <a class="rswitch__tab"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}&amp;results=open#results"
+     hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}"
+     hx-target="#results-body" hx-swap="innerHTML"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}&amp;results=open"
+     {% if r.round_number == shown.round_number %}aria-current="true"{% endif %}>
+    <span class="num">Round {{ r.round_number }}</span>
+    <span class="rswitch__format">{{ r.format_label }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{% macro stage_switch(stage, shown, sequence, base) %}
+<div class="rswitch rswitch--stage">
+  <a class="rswitch__tab"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying&amp;results=open#results"
+     hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying"
+     hx-target="#results-body" hx-swap="innerHTML"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying&amp;results=open"
+     {% if stage == 'qualifying' %}aria-current="true"{% endif %}>Qualifying</a>
+  <a class="rswitch__tab"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race&amp;results=open#results"
+     hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race"
+     hx-target="#results-body" hx-swap="innerHTML"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race&amp;results=open"
+     {% if stage == 'race' %}aria-current="true"{% endif %}>Race</a>
+</div>
+{% endmacro %}
+
+
+{% macro classification(ui, palette, rows, fastest_id=none) %}
+<table class="table">
+  <thead>
+    <tr>
+      <th class="c-pos">P</th>
+      <th>Driver</th>
+      <th class="c-num">Gr</th>
+      <th class="c-num">&Delta;</th>
+      <th class="c-time">Best lap</th>
+      <th class="c-num">Pts</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    {% set delta = (r.grid_position - r.position) if (r.has_grid_position and r.position) else none %}
+    <tr>
+      <td class="c-pos num">{{ r.position or '—' }}</td>
+      <td class="c-name">
+        {{ r.driver.short_label }}{% if fastest_id and r.id == fastest_id %} <span class="star">&#9733;</span>{% endif %}
+        <br>{{ ui.stripes(palette, r.team) }} <span class="team-name">{{ r.team.name if r.team }}</span>
+      </td>
+      <td class="c-num">{{ r.grid_position if r.has_grid_position else '—' }}</td>
+      <td class="c-num">{{ ui.signed(delta) }}</td>
+      <td class="c-time">
+        {%- if r.is_retirement %}<span class="status">{{ r.status }}</span>
+        {%- else %}{{ r.lap_time or '—' }}{% endif -%}
+      </td>
+      <td class="c-num">{{ (r.points | round(0) | int) if r.points else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# Qualifying, stage by stage. A placeholder shape: the bracket is the next
+   piece of work and replaces everything inside this macro. What is here is
+   honest and readable in the meantime — every session, in bracket order, with
+   its classification. #}
+{% macro qualifying(ui, palette, stages) %}
+{% for s in stages %}
+<section class="qstage">
+  <div class="qstage__head">
+    <span class="label">{{ s.name }}</span>
+  </div>
+  <div class="ruled ruled--tight">
+    {% for r in s.rows %}
+    <div class="split">
+      <span>
+        <span class="u-low num">{{ r.position or '—' }}</span>
+        <span class="u-semi">{{ r.driver.short_label }}</span>
+        <br>{{ ui.stripes(palette, r.team) }}
+        <span class="team-name">{{ r.team.name if r.team }}</span>
+      </span>
+      <span class="c-time num">{{ r.display_time or r.lap_time or '—' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endmacro %}
+
+
+{# Before a weekend has been raced. The schedule is already ingested, so this
+   costs nothing and is the most useful thing the page can say in the days
+   before a race. #}
+{% macro schedule(sessions) %}
+<div class="ruled ruled--tight">
+  {% for s in sessions %}
+  <div class="split">
+    <span>
+      <span class="u-semi">{{ s.name }}</span>
+      <br><span class="label">{{ s.type }}</span>
+    </span>
+    <span class="schedule__when num">
+      {%- if s.start_time %}{{ s.start_time.strftime('%a %d %b · %H:%M') }}
+      {%- else %}<span class="u-low">Time to be confirmed</span>{% endif -%}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
