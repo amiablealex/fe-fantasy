@@ -14,7 +14,7 @@ JavaScript that can drift out of step with them. Phase 4 replaces the full
 reload with an HTMX partial and keeps everything else.
 """
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, url_for
 
 from app import palette
 from app.styleguide import queries, scoring_bridge
@@ -86,13 +86,47 @@ def lineup():
     if season is None:
         return render_template("styleguide/lineup.html", **ctx)
 
-    ctx["meetings"] = scoring_bridge.meetings(season)
+    refs = scoring_bridge.meeting_refs(season)
+    latest = scoring_bridge.latest_scored(refs)
+    if "m" not in request.args and latest:
+        sequence = latest
+        ctx["sequence"] = sequence
+
+    ctx.update(
+        refs=refs,
+        latest=latest,
+        nav=scoring_bridge.neighbours(refs, sequence),
+        menu=request.args.get("menu"),
+    )
+
     meeting = scoring_bridge.get_meeting(season, sequence)
     ctx["meeting"] = meeting
     if not meeting or not meeting.rounds:
         return render_template("styleguide/lineup.html", **ctx)
 
-    first_round = min(r.round_number for r in meeting.rounds)
+    ordered_rounds = sorted(meeting.rounds, key=lambda r: r.round_number)
+    ctx["meeting_rounds"] = ordered_rounds
+
+    # Results sit in a disclosure on the same page rather than behind a tab:
+    # collapsed, they cost a reader who came for their own score nothing, and
+    # the round and stage switches keep the section open by carrying a marker
+    # in the URL rather than needing script to remember it.
+    chosen = request.args.get("r", type=int) or ordered_rounds[0].round_number
+    shown = next(
+        (r for r in ordered_rounds if r.round_number == chosen), ordered_rounds[0]
+    )
+    ctx.update(
+        results=scoring_bridge.round_results(shown),
+        schedule=scoring_bridge.round_schedule(shown),
+        shown_round=shown,
+        stage=request.args.get("stage", "race"),
+    results_open=request.args.get("results") == "open",
+    )
+
+    # The roster is a per-round question, so it is resolved against the
+    # meeting's first round — a mid-season team switch means "which team is
+    # this driver on" has no answer at meeting level.
+    first_round = ordered_rounds[0].round_number
     roster = scoring_bridge.roster_for_round(season, first_round)
     committed = scoring_bridge.demo_lineup(roster)
     ctx["roster"] = roster
@@ -158,6 +192,38 @@ def lineup():
         filled=len(draft_drivers) + (1 if draft_team is not None else 0),
     )
     return render_template("styleguide/lineup.html", **ctx)
+
+
+@bp.route("/lineup/results")
+def lineup_results():
+    """The Results disclosure body, on its own.
+
+    HTMX swaps this fragment in rather than reloading the meeting page, which
+    is what stops a round or stage switch throwing away the reader's scroll
+    position. It renders the same template the full page includes, so the two
+    cannot drift.
+    """
+    season = queries.get_season()
+    sequence = request.args.get("m", DEFAULT_MEETING, type=int)
+    meeting = scoring_bridge.get_meeting(season, sequence) if season else None
+    if not meeting or not meeting.rounds:
+        return "", 204
+
+    ordered = sorted(meeting.rounds, key=lambda r: r.round_number)
+    chosen = request.args.get("r", type=int) or ordered[0].round_number
+    shown = next((r for r in ordered if r.round_number == chosen), ordered[0])
+
+    return render_template(
+        "styleguide/_results_body.html",
+        palette=palette,
+        base=url_for("styleguide.lineup"),
+        sequence=sequence,
+        meeting_rounds=ordered,
+        shown_round=shown,
+        stage=request.args.get("stage", "race"),
+        results=scoring_bridge.round_results(shown),
+        schedule=scoring_bridge.round_schedule(shown),
+    )
 
 
 @bp.route("/meeting")

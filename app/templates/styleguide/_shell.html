@@ -8,14 +8,14 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/primitives.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/styleguide.css') }}">
+<script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
 </head>
 <body>
 <div class="measure">
 
 <nav class="sg-nav">
   <a class="sg-btn" href="{{ url_for('styleguide.index') }}" {% if page == 'tokens' %}aria-current="true"{% endif %}>Tokens</a>
-  <a class="sg-btn" href="{{ url_for('styleguide.lineup') }}" {% if page == 'lineup' %}aria-current="true"{% endif %}>Lineup</a>
-  <a class="sg-btn" href="{{ url_for('styleguide.meeting') }}" {% if page == 'meeting' %}aria-current="true"{% endif %}>Results</a>
+  <a class="sg-btn" href="{{ url_for('styleguide.lineup') }}" {% if page == 'lineup' %}aria-current="true"{% endif %}>Meeting</a>
   <span class="sg-bar__vp label num" id="vp"></span>
 </nav>
 

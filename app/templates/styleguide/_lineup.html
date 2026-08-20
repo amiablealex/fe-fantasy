@@ -198,11 +198,12 @@
    backwards. #}
 {% macro stage(bridge, label, components, context, fallback) %}
 <div class="stage">
+  {# No subtotal here, deliberately. The round heading carries the total and
+     every row below carries what it scored, so the small figures add up to the
+     large one. A section subtotal made "-2" appear twice on the same screen,
+     which invites the reader to check the arithmetic and find it wrong. #}
   <div class="stage__head">
-    <div class="split">
-      <span class="label">{{ label }}</span>
-      <span class="num u-semi">{{ bridge.fmt(components | sum(attribute='points') or 0) }}</span>
-    </div>
+    <span class="label">{{ label }}</span>
     <p class="stage__context">{{ context or fallback }}</p>
   </div>
   {% if components %}
@@ -238,8 +239,7 @@
   {% for detail in pick.rounds %}
   <section class="round-block">
     <header class="round-block__head">
-      <span class="round-block__number figure num">{{ detail.round.round_number }}</span>
-      <span class="round-block__format label">{{ detail.round.format_label }}</span>
+      <span class="round-block__format label">Round {{ detail.round.round_number }} &middot; {{ detail.round.format_label }}</span>
       <span class="round-block__total figure figure--total num">{{ detail.total }}</span>
     </header>
 

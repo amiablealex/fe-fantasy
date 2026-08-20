@@ -1,0 +1,31 @@
+{# The inside of the Results disclosure.
+
+   Rendered both by the full page and by the HTMX partial route, so switching
+   round or stage swaps this fragment in place instead of reloading the page
+   and throwing away the scroll position. One template, two callers — the
+   alternative is two that drift. #}
+{% import "styleguide/_results.html" as res %}
+{% import "styleguide/_lineup.html" as ui %}
+
+{% if results.has_results %}
+  {{ res.round_switch(meeting_rounds, shown_round, stage, sequence, base) }}
+  {{ res.stage_switch(stage, shown_round, sequence, base) }}
+  {% if stage == 'qualifying' %}
+    {% if results.qualifying %}
+      {{ res.qualifying(ui, palette, results.qualifying) }}
+    {% else %}
+      <div class="sg-empty">No qualifying results stored for this round.</div>
+    {% endif %}
+  {% else %}
+    {% if results.race %}
+      {{ res.classification(ui, palette, results.race) }}
+    {% else %}
+      <div class="sg-empty">No race classification stored for this round.</div>
+    {% endif %}
+  {% endif %}
+{% else %}
+  {{ res.round_switch(meeting_rounds, shown_round, stage, sequence, base) }}
+  <p class="sg-note" style="margin-block-start: var(--space-5)">
+    Not raced yet. The weekend&#8217;s schedule, as published.</p>
+  {{ res.schedule(schedule) }}
+{% endif %}

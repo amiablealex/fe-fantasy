@@ -1,5 +1,8 @@
 {% extends "styleguide/_shell.html" %}
 {% import "styleguide/_lineup.html" as ui %}
+{% import "styleguide/_nav.html" as nav_ui %}
+{% import "styleguide/_results.html" as res %}
+{% set base = url_for("styleguide.lineup") %}
 {% block title %}Lineup{% endblock %}
 
 {% block content %}
@@ -15,36 +18,26 @@
 ?state={{ state }}&m={{ sequence }}&d={{ drivers | join(',') }}&t={{ team if team is not none else '' }}{% if open %}&open={{ open }}{% endif %}
 {%- endmacro %}
 
+{# Carry an open Results section across a meeting change: collapsing it on
+   every arrow tap would punish exactly the reader who is browsing results. #}
+{% set keep = '&results=open&stage=' ~ stage if results_open else '' %}
+{{ nav_ui.meeting_nav(nav, refs, sequence, base, keep) }}
+
+{% if menu %}
+{{ nav_ui.meeting_menu(refs, sequence, latest, base, keep) }}
+{% endif %}
+
+{% if not meeting %}
+<div class="sg-empty">No meeting {{ sequence }} in this season.</div>
+{% else %}
+
+{# ---- the styleguide's own state switch ---- #}
 <div class="sg-bar" style="position: static; border: 0">
   <span class="label">State</span>
-  <a class="sg-btn" href="?state=empty&m={{ sequence }}&d=&t=" {% if state == 'empty' %}aria-current="true"{% endif %}>Empty</a>
-  <a class="sg-btn" href="?state=edit&m={{ sequence }}" {% if state == 'edit' %}aria-current="true"{% endif %}>Transfers</a>
-  <a class="sg-btn" href="?state=scored&m={{ sequence }}" {% if state == 'scored' %}aria-current="true"{% endif %}>Scored</a>
+  <a class="sg-btn" href="{{ base }}?m={{ sequence }}&amp;state=empty&amp;d=&amp;t=" {% if state == 'empty' %}aria-current="true"{% endif %}>Empty</a>
+  <a class="sg-btn" href="{{ base }}?m={{ sequence }}&amp;state=edit" {% if state == 'edit' %}aria-current="true"{% endif %}>Transfers</a>
+  <a class="sg-btn" href="{{ base }}?m={{ sequence }}&amp;state=scored" {% if state == 'scored' %}aria-current="true"{% endif %}>Scored</a>
 </div>
-
-{% if state == 'scored' %}
-<div class="sg-bar" style="position: static; border: 0; flex-wrap: wrap">
-  {% for m in meetings %}
-  <a class="sg-btn" href="?state=scored&m={{ m.sequence }}"
-     {% if m.sequence == sequence %}aria-current="true"{% endif %}>{{ m.sequence }}</a>
-  {% endfor %}
-</div>
-{% endif %}
-
-{% if meeting %}
-<div class="masthead">
-  <span class="figure figure--round num">{{ meeting.sequence }}</span>
-  <span class="masthead__venue">{{ meeting.display_name }}</span>
-  <span class="masthead__meta label">
-    {%- set nums = meeting.rounds | map(attribute='round_number') | sort | list -%}
-    {%- if nums | length > 1 -%}
-      Double-header &middot; rounds {{ nums | join(' and ') }}
-    {%- else -%}
-      Round {{ nums[0] if nums }}
-    {%- endif -%}
-  </span>
-</div>
-{% endif %}
 
 {# ================= EMPTY / TRANSFERS ================= #}
 {% if state in ('empty', 'edit') %}
@@ -243,10 +236,21 @@
 {% for pick in picks %}
 {{ ui.breakdown(bridge, palette, pick, loop.index0, best_url=(none if view == 'best' else best_url)) }}
 {% endfor %}
-{% endif %}
-{% endif %}
 
-{% endif %}
+<details class="disclosure" id="results" {% if results_open %}open{% endif %}>
+  <summary>
+    <span class="disclosure__title">Results</span>
+    <span class="disclosure__hint label"></span>
+  </summary>
+  <div class="disclosure__body" id="results-body">
+    {% include "styleguide/_results_body.html" %}
+  </div>
+</details>
+{% endif %}{# picks #}
+{% endif %}{# state == scored #}
+
+{% endif %}{# meeting #}
+{% endif %}{# season #}
 {% endblock %}
 
 {% block scripts %}

@@ -281,6 +281,8 @@ Derived automatically at season sync with admin confirm/override (`Meeting.group
 
 `location.id` is stable across seasons, enabling multi-season location records.
 
+Meeting.sequence is never surfaced as a headline. It is derived bookkeeping — the API has no meeting concept — so a regrouping would renumber every later weekend while the round numbers stayed fixed. The venue name leads; round numbers give the context; the sequence appears only in the weekend list, where it reads as ordering.
+
 ### Round numbering
 
 **Not in the payload.** There is no round field anywhere in the API. Round numbers are inferred from position within `season_detail.schedule`, which is also what the provider's `participationRounds` arrays refer to — so calendar order is used as given rather than re-sorted by date, since re-sorting would desynchronise the two.
