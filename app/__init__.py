@@ -59,6 +59,10 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
+    if app.debug:
+        from app.styleguide import bp as styleguide_bp
+        app.register_blueprint(styleguide_bp)
+
     @app.route("/health")
     def health():
         from sqlalchemy import text

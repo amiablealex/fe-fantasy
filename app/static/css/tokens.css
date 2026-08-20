@@ -1,0 +1,228 @@
+/* Design tokens. The only place colour, type and spacing are defined.
+ *
+ * SPEC.md §1: tokens live in CSS, never in Python. A colour change is an edit
+ * to this file and a hard refresh — no Python edit, no redeploy, and the
+ * browser's own colour functions stay available to us.
+ *
+ * Two tiers, and only two:
+ *
+ *   Primitives  --ink-700, --step-3, --space-4     raw values, named by what
+ *                                                  they are
+ *   Semantics   --text-mid, --rule, --surface      named by what they do
+ *
+ * Components reference semantics. Components never reference primitives. If a
+ * component needs a value that has no semantic name, the value is missing a
+ * name, not the rule is wrong.
+ *
+ * Layer order is declared here because this file loads first. Anything not in
+ * a layer beats everything in one, so unlayered CSS is the escape hatch and
+ * should stay empty. */
+
+@layer reset, tokens, base, layout, components, utilities;
+
+/* --------------------------------------------------------------------------
+   Faces
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Archivo";
+  src: url("../fonts/Archivo.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+/* Display only. See the scope rule in SPEC.md §1: round numbers, meeting
+   mastheads, and totals. Never below --step-5, never in a table cell. */
+@font-face {
+  font-family: "Anybody";
+  src: url("../fonts/Anybody.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 50% 150%;
+  font-display: swap;
+}
+
+@layer tokens {
+  :root {
+    /* ----------------------------------------------------------------------
+       Primitives — ink
+       ----------------------------------------------------------------------
+       An OKLCH ramp, so the lightness steps are perceptually even rather than
+       merely numerically even. Greys carry the hierarchy in this app, which
+       means an uneven ramp shows up immediately as one step doing too much
+       work. A whisper of blue in the hue keeps it from reading as sepia. */
+
+    --ink-000: oklch(0.988 0.002 265);   /* paper */
+    --ink-050: oklch(0.960 0.003 265);   /* recessed fill */
+    --ink-100: oklch(0.910 0.004 265);   /* hairline */
+    --ink-200: oklch(0.830 0.005 265);   /* rule with intent */
+    --ink-400: oklch(0.680 0.006 265);   /* lowest legible text */
+    --ink-600: oklch(0.520 0.008 265);   /* secondary text */
+    --ink-900: oklch(0.215 0.012 265);   /* primary text */
+
+    /* Team colour clamps. Provider hex values are brand primaries chosen
+       against Formula E's very dark identity, so their own lightness is
+       useless here — some are near-black, one is fluorescent, two are
+       literally 000000. We keep the hue and impose our own lightness and
+       chroma, which is what makes ten teams read as one designed set.
+
+       These two numbers are the entire team palette. Tune them here. */
+    --team-l: 0.56;
+    --team-c: 0.135;
+
+    /* Yellows through cyans cannot hold --team-c at --team-l: at hue 100 the
+       sRGB gamut tops out around 0.118, so a yellow seed rendered as olive.
+       Hues in that band take these values instead, routed automatically by
+       app/palette.py. Perceptual weight is not lightness alone — a saturated
+       yellow at 0.72 and a red at 0.56 read as equally present. */
+    --team-l-bright: 0.72;
+    --team-c-bright: 0.115;
+
+    /* The second stripe when a team has no declared secondary: same hue,
+       lighter and quieter. Derived in the browser, so it costs nothing to
+       maintain and keeps every team looking like part of one set. */
+    --team-l-tint: 0.88;
+    --team-c-tint: 0.070;
+
+    /* The team band on a lineup slot: the primary as a solid band, the
+       secondary as a thinner accent inside it. At slot scale two equal stripes
+       read as a pattern; a band with an accent reads as a livery. */
+    --band-width: 0.55rem;
+    --band-accent-width: 0.2rem;
+
+    /* Achromatic seeds, for a team whose identity genuinely has no hue.
+       Jaguar is black; forcing black through the hue clamp produced a green
+       that was simply wrong. These sit outside the clamp on purpose. */
+    --team-achromatic-dark: oklch(0.30 0 0);
+    --team-achromatic-light: oklch(0.88 0 0);
+
+    /* ----------------------------------------------------------------------
+       Primitives — type
+       ----------------------------------------------------------------------
+       In rem, not px. A person who has raised their phone's text size gets a
+       larger app rather than an app that ignores them. The one exception is
+       form inputs, which are pinned at 16px in base.css — below that, iOS
+       Safari zooms the viewport on focus and every layout decision here stops
+       being true. */
+
+    --step-1: 0.6875rem;   /* 11px — uppercase micro-labels only */
+    --step-2: 0.750rem;    /* 12px — secondary data, team names */
+    --step-3: 0.8125rem;   /* 13px — the data size. The app's default. */
+    --step-4: 0.9375rem;   /* 15px — prose, and only prose */
+    --step-5: 1.25rem;     /* 20px — display floor */
+    --step-6: 1.75rem;     /* 28px — a pick total */
+    --step-7: 2.75rem;     /* 44px — a round number */
+
+    --face-text: "Archivo", system-ui, sans-serif;
+    --face-display: "Anybody", "Archivo", sans-serif;
+
+    /* Width axis. The reason this app needs no ellipsis anywhere: the longest
+       team name on the grid is thirty characters and --width-condensed holds
+       it on one line at --step-2 on a 360px phone. */
+    /* The display face's own settings, isolated because they are the last
+       open typographic decision (see the tuner in the styleguide). Anybody's
+       width axis runs 50-150 and its weight 100-900; these two values decide
+       whether it reads as an instrument cluster or as costume. */
+    --display-width: 100%;
+    --display-weight: 700;
+
+    --width-condensed: 62%;
+    --width-narrow: 78%;
+    --width-normal: 100%;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semi: 600;
+    --weight-bold: 700;
+    --weight-display: 800;
+
+    --leading-tight: 1.15;   /* display */
+    --leading-data: 1.3;     /* tables, rule stacks */
+    --leading-prose: 1.55;
+
+    --tracking-label: 0.06em;
+    --tracking-caps: 0.03em;
+    --tracking-display: -0.015em;
+
+    /* ----------------------------------------------------------------------
+       Primitives — space
+       ----------------------------------------------------------------------
+       A 4px grid expressed in rem so it scales with the type. Nine steps is
+       enough; a tenth would be a decision nobody can make consistently. */
+
+    --space-0: 0;
+    --space-1: 0.125rem;   /*  2px */
+    --space-2: 0.25rem;    /*  4px */
+    --space-3: 0.375rem;   /*  6px */
+    --space-4: 0.5rem;     /*  8px */
+    --space-5: 0.75rem;    /* 12px */
+    --space-6: 1rem;       /* 16px */
+    --space-7: 1.5rem;     /* 24px */
+    --space-8: 2rem;       /* 32px */
+    --space-9: 3rem;       /* 48px */
+
+    /* Design target 390px, floor 360px. Desktop is a wide tablet: the measure
+       relaxes, the layout does not reflow into panels. */
+    --measure: 100%;
+    --measure-prose: 34em;
+
+    /* Three rule weights, used as a hierarchy rather than interchangeably:
+       hair separates rows, mark separates sections, heavy separates a screen's
+       major regions. A page where every rule is the same weight has no
+       hierarchy at all — which was the "newspaper" problem. */
+    --rule-hair: 1px;
+    --rule-mark: 2px;
+    --rule-heavy: 3px;
+    /* Team stripes are heavier than a structural rule: they carry identity at
+       a glance, where a rule only needs to separate. */
+    --stripe-width: 3px;
+    /* Two stripes per team. Zero gap reads as one banded rule rather than as
+       two marks, which is the intent. */
+    --stripe-gap: 0;
+
+    /* ----------------------------------------------------------------------
+       Semantics
+       ---------------------------------------------------------------------- */
+
+    --surface: var(--ink-000);
+    --surface-recessed: var(--ink-050);
+
+    --text: var(--ink-900);
+    --text-mid: var(--ink-600);
+    --text-low: var(--ink-400);
+
+    --rule: var(--ink-100);
+    --rule-strong: var(--ink-200);
+
+    /* "This is yours" is structural, not chromatic. There is no accent colour
+       in v1, deliberately: ten team hues already occupy the colour space, and
+       an eleventh hue for personal marking would either lose to them or shout
+       over them. Your picks get full ink, a heavier weight, and a rule in the
+       margin — a treatment nothing else on the page has, which survives being
+       screenshotted, printed, or read by someone colour-blind. */
+    --mark: var(--ink-900);
+    --mark-width: var(--rule-mark);
+    /* Reserved gutter to the left of a marked row. The mark sits inside the
+       page's own inline padding, so marked and unmarked rows keep the same
+       left edge and the mark never crowds the content. */
+    --mark-gutter: var(--space-5);
+
+    /* Fallback for a team with no usable seed. */
+    --team-neutral: var(--ink-400);
+
+    /* The one non-team chroma in the system, and only for a broken rule.
+       Deliberately outside the team clamp — darker and more saturated than any
+       stripe can be — because three teams on this grid are red and an error
+       must never be mistakable for an identity. Used as text and as a heavy
+       rule; never as a stripe. */
+    --error: oklch(0.42 0.19 27);
+    --error-recessed: oklch(0.96 0.02 27);
+
+    --focus: var(--ink-900);
+    --focus-offset: 2px;
+  }
+
+  @media (min-width: 48rem) {
+    :root { --measure: 46rem; }
+  }
+}

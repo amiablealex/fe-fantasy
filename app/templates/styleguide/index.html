@@ -1,0 +1,358 @@
+{% extends "styleguide/_shell.html" %}
+{% block title %}Tokens{% endblock %}
+
+{% block content %}
+{% macro sect(n, title) %}
+<div class="sg-section__head">
+  <span class="sg-section__index">{{ '%02d' % n }}</span>
+  <h2 class="sg-section__title">{{ title }}</h2>
+</div>
+{% endmacro %}
+
+{% macro signed(v) -%}
+{%- if v is none -%}&#183;
+{%- elif v > 0 -%}+{{ v }}
+{%- elif v < 0 -%}<span class="is-negative">&#8722;{{ -v }}</span>
+{%- else -%}&#183;
+{%- endif -%}
+{%- endmacro %}
+
+{% macro stripes(team) -%}
+<span class="team-marks">
+{%- set marks = palette.team_marks(team) -%}
+{%- if marks -%}
+{%- for m in marks %}<span class="team-mark {{ m.modifier }}" style="{{ m.style }}"></span>{% endfor -%}
+{%- else -%}<span class="team-mark"></span>{%- endif -%}
+</span>
+{%- endmacro %}
+
+{% macro team_cell(team) -%}
+{%- if team -%}{{ stripes(team) }} <span class="team-name">{{ team.name }}</span>{%- endif -%}
+{%- endmacro %}
+
+<div class="sg-bar">
+  <span class="label">Gap</span>
+  <button type="button" data-var="--stripe-gap" data-val="0" aria-pressed="true">0</button>
+  <button type="button" data-var="--stripe-gap" data-val="0.05rem">1</button>
+  <button type="button" data-var="--stripe-gap" data-val="0.1rem">2</button>
+  <span class="label">Width</span>
+  <button type="button" data-var="--stripe-width" data-val="2px">2</button>
+  <button type="button" data-var="--stripe-width" data-val="3px" aria-pressed="true">3</button>
+  <button type="button" data-var="--stripe-width" data-val="4px">4</button>
+  <span class="sg-bar__vp label num" id="vp"></span>
+</div>
+
+{% if not season %}
+<div class="sg-empty">
+  <p><strong>No Season 12 data found.</strong></p>
+  <p class="u-mid">The styleguide reads the local database directly, so it needs
+  the S12 backfill present. Run the season sync and results backfill, then
+  reload.</p>
+</div>
+{% else %}
+
+<!-- 01 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(1, 'Ink') }}
+  <p class="sg-note">An OKLCH ramp with perceptually even lightness steps. Greys
+    carry the hierarchy in this app, so an uneven ramp shows up immediately as
+    one step doing too much work. There is no accent colour: personal marking is
+    structural, and team hue is the only chroma on the page.</p>
+
+  {% for name, token in [
+      ('--ink-000', 'surface'), ('--ink-050', 'surface-recessed'),
+      ('--ink-100', 'rule'), ('--ink-200', 'rule-strong'),
+      ('--ink-400', 'text-low'), ('--ink-600', 'text-mid'),
+      ('--ink-900', 'text')] %}
+  <div class="sg-swatch">
+    <span class="sg-swatch__chip" style="--chip: var({{ name }})"></span>
+    <span class="sg-swatch__name">{{ name }}</span>
+    <span class="sg-swatch__meta">{{ token }}</span>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- 02 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(2, 'Team palette') }}
+  <p class="sg-note">Every team in the database. The provider's hex is used for
+    its <em>hue only</em>; lightness and chroma come from <code>--team-l</code>
+    and <code>--team-c</code>, so all ten land at identical visual weight.
+    Two stripes per team: the primary, then either a declared secondary or a
+    lighter tint of the same hue. Edit <code>TEAM_COLOURS</code> in
+    <code>app/palette.py</code> — a team showing <strong>neutral</strong> needs an
+    entry. A seed may be a hex, or <code>dark</code> / <code>light</code> for a
+    team with no hue at all, or <code>None</code> in the first slot to keep the
+    provider's colour and set only a secondary. Only a hex's <em>hue</em> is
+    used — the degree shown on the right is the number that matters, and the
+    one collisions are measured in.</p>
+
+  {% set unmatched = palette.unmatched_overrides(teams) %}
+  {% if unmatched %}
+  <div class="sg-warn">
+    <strong>Override keys matching no team:</strong>
+    {% for key in unmatched %}<code>{{ key }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+    <br>Names in the database:
+    {% for team in teams %}<code>{{ team.name | lower }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+  </div>
+  {% endif %}
+
+  {% set clashes = palette.collisions(teams) %}
+  {% if clashes %}
+  <div class="sg-warn">
+    <strong>Hues too close to tell apart:</strong>
+    {% for a, b, degrees in clashes %}
+    <br>{{ a.name }} and {{ b.name }} &mdash; {{ degrees }}&deg; apart
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% for team in teams %}
+  <div class="sg-swatch">
+    <span class="sg-swatch__stripes">
+      {%- set marks = palette.team_marks(team) -%}
+      {%- if marks -%}
+      {%- for m in marks %}<span class="sg-swatch__stripe {{ m.modifier }}" style="{{ m.style }}"></span>{% endfor -%}
+      {%- else -%}<span class="sg-swatch__stripe"></span>{%- endif -%}
+    </span>
+    <span class="sg-swatch__name">{{ team.name }}</span>
+    <span class="sg-swatch__meta">
+      {%- set h = palette.team_hue(team) -%}
+      {{ ('%.0f' % h) ~ '°' if h is not none else '—' }} / {{ palette.seed_source(team) }}</span>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- 03 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(3, 'Type scale') }}
+  <p class="sg-note">Seven steps in <code>rem</code>, so a raised phone text size
+    enlarges the app rather than being ignored. Steps 1 to 4 are Archivo, 5 to 7
+    are Anybody. Step 1 is permitted for tracked caps only.</p>
+
+  <div class="sg-type">
+    <span class="sg-type__meta">step-1 &middot; 11px &middot; caps only</span>
+    <span class="label">Round 14 &middot; E-Prix &middot; Deadline passed</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-2 &middot; 12px &middot; secondary</span>
+    <span class="team-name">LOLA YAMAHA ABT FORMULA E TEAM</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-3 &middot; 13px &middot; data default</span>
+    <span>Wehrlein took pole and started P4</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-4 &middot; 15px &middot; prose</span>
+    <span style="font-size: var(--step-4)">One transfer per meeting, banked up to two.</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-5 &middot; 20px &middot; display floor</span>
+    <span class="figure" style="font-size: var(--step-5)">São Paulo</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-6 &middot; 28px &middot; total</span>
+    <span class="figure figure--total">51.5</span>
+  </div>
+  <div class="sg-type">
+    <span class="sg-type__meta">step-7 &middot; 44px &middot; round number</span>
+    <span class="figure figure--round">17</span>
+  </div>
+</section>
+
+<!-- 04 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(4, 'Width axis') }}
+  <p class="sg-note">The reason no column in this app needs an ellipsis. Same
+    font file, four widths. If <code>62%</code> holds the longest team name on one
+    line at your narrowest viewport, every table below is safe.</p>
+
+  {% for team in teams %}
+  <div class="sg-swatch" style="grid-template-columns: 1fr">
+    <span class="team-name">{{ team.name }}</span>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- 05 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(5, 'Space') }}
+  <p class="sg-note">A 4px grid in <code>rem</code>. Nine steps, because a tenth
+    is a decision nobody makes consistently.</p>
+
+  {% for n in range(1, 10) %}
+  <div class="sg-space">
+    <span class="sg-swatch__meta">--space-{{ n }}</span>
+    <span class="sg-space__bar" style="--w: var(--space-{{ n }})"></span>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- 06 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(6, 'Masthead') }}
+  <p class="sg-note">The one place the display face is allowed to be loud. Use
+    the tuner at the top of the page to settle Anybody's width and weight, then
+    tell me the pair and I will write it into <code>tokens.css</code>.</p>
+
+  {% if current_round %}
+  <div class="masthead">
+    <span class="figure figure--round">{{ current_round.round_number }}</span>
+    <span class="masthead__venue">{{ current_round.meeting.display_name }}</span>
+    <span class="masthead__meta label">{{ current_round.format_label }} &middot;
+      {% if current_round.meeting.is_double_header %}Double-header{% else %}Single{% endif %}</span>
+  </div>
+  {% endif %}
+
+  <div class="sg-bar" style="position: static; margin-block: var(--space-5) 0; border: 0">
+    {% for r in rounds %}
+    <a class="sg-btn" href="?round={{ r.round_number }}"
+       {% if r.round_number == round_number %}aria-current="true"{% endif %}>{{ r.round_number }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- 07 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(7, 'Race classification') }}
+  <p class="sg-note">Live from the database. &Delta; is grid minus finish, the
+    figure the places gained/lost rule scores from — and grid is the post-penalty
+    starting slot, never the qualifying result. The starred row set the quickest
+    lap by parsed <code>lap_time</code>, not by <code>fastestLap.rank</code>.
+    Two rows carry the <strong>yours</strong> treatment: full ink, heavier weight,
+    a rule in the margin. No colour involved.</p>
+
+  {% if classification %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th class="c-pos">P</th>
+        <th>Driver</th>
+        <th class="c-num">Gr</th>
+        <th class="c-num">&Delta;</th>
+        <th class="c-time">Best lap</th>
+        <th class="c-num">Pts</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in classification %}
+      {% set delta = (r.grid_position - r.position) if (r.has_grid_position and r.position) else none %}
+      <tr>
+        <td class="c-pos num">{{ r.position or '—' }}</td>
+        <td class="c-name{% if loop.index in [3, 8] %} is-yours{% endif %}">
+          {{ r.driver.short_label }}{% if fastest and r.id == fastest.id %} <span class="u-low">&#9733;</span>{% endif %}
+          <br>{{ team_cell(r.team) }}
+        </td>
+        <td class="c-num">{{ r.grid_position if r.has_grid_position else '—' }}</td>
+        <td class="c-num">{{ signed(delta) }}</td>
+        <td class="c-time">
+          {%- if r.is_retirement %}<span class="status">{{ r.status }}</span>
+          {%- else %}{{ r.lap_time or '—' }}{% endif -%}
+        </td>
+        <td class="c-num">{{ (r.points | round(0) | int) if r.points else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="sg-note">No race results stored for round {{ round_number }}.</p>
+  {% endif %}
+</section>
+
+<!-- 08 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(8, 'Rule stack') }}
+  <p class="sg-note">The densest surface in the app, built from
+    <code>.ruled</code> plus <code>.pairs</code>. Up to seven rules fire on one
+    driver in one round. These are the five acceptance cases from §3 of the
+    spec, so the totals are checkable by hand.</p>
+
+  <div class="ruled">
+    {% for title, rules, total in [
+        ('Pole, wins from P1, sets fastest lap',
+         [('Qualifying', 8), ('Race win', 5), ('Podium', 5), ('Points finish', 2), ('Fastest lap', 1), ('Places gained', 0)], 21),
+        ('Wins from P6, eliminated in group',
+         [('Qualifying', 0), ('Race win', 5), ('Podium', 5), ('Points finish', 2), ('Places gained', 2)], 14),
+        ('Pole, retires, classified P18',
+         [('Qualifying', 8), ('Places lost', -4)], 4),
+        ('Fourth in qualifying, finishes P3',
+         [('Qualifying', 3), ('Podium', 5), ('Points finish', 2)], 10),
+        ('Twentieth in qualifying, finishes P11',
+         [('Places gained', 2)], 2)] %}
+    <div>
+      <div class="split">
+        <span class="u-semi">{{ title }}</span>
+        <span class="figure figure--total">{{ total }}</span>
+      </div>
+      <div class="pairs" style="margin-block-start: var(--space-3)">
+        {% for label, value in rules %}
+        <span class="u-mid">{{ label }}</span>
+        <span>{{ signed(value) }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- 09 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(9, 'Driver picker') }}
+  <p class="sg-note">The pickable roster, derived from seat entries rather than
+    from results — a rookie-practice-only driver correctly does not appear.
+    Rounds participated comes straight from the provider, so a one-off reserve is
+    self-evidently a one-off without the app claiming anything.</p>
+
+  <div class="ruled ruled--tight">
+    {% for seat in seats %}
+    <div class="split">
+      <span>
+        <span class="u-semi">{{ seat.driver.short_label }}</span>
+        {% if seat.driver.number %}<span class="u-low num">{{ seat.driver.number }}</span>{% endif %}
+        <br>{{ team_cell(seat.team) }}
+      </span>
+      <span class="label num u-nowrap">{{ seat.rounds_participated }} rounds</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- 10 ------------------------------------------------------------------- -->
+<section class="sg-section">
+  {{ sect(10, 'Standings') }}
+  <p class="sg-note">Real championship points from the provider, used here only
+    as a realistic spread of figures against real names. The fantasy table
+    arrives in Phase 5 and will not read this field.</p>
+
+  <div class="ruled ruled--tight">
+    {% for driver, total in leaders %}
+    <div class="split{% if loop.index == 2 %} is-yours{% endif %}">
+      <span><span class="u-low num">{{ loop.index }}</span> {{ driver.short_label }}</span>
+      <span class="num u-semi">{{ total | round(0) | int }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var root = document.documentElement;
+  document.querySelectorAll('.sg-bar button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      root.style.setProperty(b.dataset.var, b.dataset.val);
+      document.querySelectorAll('[data-var="' + b.dataset.var + '"]').forEach(function (o) {
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+    });
+  });
+  var vp = document.getElementById('vp');
+  function report() { vp.textContent = window.innerWidth + 'px'; }
+  report();
+  window.addEventListener('resize', report);
+})();
+</script>
+{% endblock %}
