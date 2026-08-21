@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field %}
+{% block main_class %}gate{% endblock %}
 {% block content %}
-<h1>Create account</h1>
+<h1 class="page-title">Create account</h1>
 <form method="post" novalidate>
   {{ form.hidden_tag() }}
   {{ field(form.email, type="email", autocomplete="email") }}
@@ -10,5 +11,7 @@
   {{ field(form.confirm_password, autocomplete="new-password") }}
   {{ form.submit() }}
 </form>
-<p><a href="{{ url_for('auth.login') }}">Already have an account?</a></p>
+<div class="aftermatter">
+  <p><a href="{{ url_for('auth.login') }}">Already have an account?</a></p>
+</div>
 {% endblock %}

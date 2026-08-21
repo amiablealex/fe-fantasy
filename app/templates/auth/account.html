@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field %}
+{% block main_class %}gate{% endblock %}
 {% block content %}
-<h1>Account</h1>
+<h1 class="page-title">Account</h1>
 
-<fieldset>
-  <legend>Display name</legend>
+<fieldset class="panel">
+  <legend class="label panel__title">Display name</legend>
   <form method="post" action="{{ url_for('auth.change_username') }}" novalidate>
     {{ username_form.hidden_tag() }}
     {{ field(username_form.username) }}
@@ -12,8 +13,8 @@
   </form>
 </fieldset>
 
-<fieldset>
-  <legend>Email</legend>
+<fieldset class="panel">
+  <legend class="label panel__title">Email</legend>
   <form method="post" action="{{ url_for('auth.change_email') }}" novalidate>
     {{ email_form.hidden_tag() }}
     {{ field(email_form.email, type="email") }}
@@ -22,8 +23,8 @@
   </form>
 </fieldset>
 
-<fieldset>
-  <legend>Password</legend>
+<fieldset class="panel">
+  <legend class="label panel__title">Password</legend>
   <form method="post" action="{{ url_for('auth.change_password') }}" novalidate>
     {{ password_form.hidden_tag() }}
     {{ field(password_form.current_password, autocomplete="current-password") }}
@@ -33,9 +34,10 @@
   </form>
 </fieldset>
 
-<fieldset>
-  <legend>Delete account</legend>
-  <p>This cannot be undone.</p>
+<fieldset class="panel panel--danger">
+  <legend class="label panel__title">Delete account</legend>
+  <p class="aftermatter">This cannot be undone. Your lineups and every score
+    computed from them are removed with the account.</p>
   <form method="post" action="{{ url_for('auth.delete_account') }}" novalidate>
     {{ delete_form.hidden_tag() }}
     {{ field(delete_form.current_password, autocomplete="current-password") }}

@@ -1,7 +1,16 @@
+{# One labelled control, with its errors beneath it.
+
+   Every form in the app goes through here, so a change to how an invalid field
+   reads is one edit rather than seven. Errors sit below the control rather
+   than above: the reader's eye is already at the control they just left. #}
 {% macro field(f) %}
-<p>
-  {{ f.label }}
+<div class="field{{ ' field--invalid' if f.errors }}">
+  {{ f.label(class="label field__label") }}
   {{ f(**kwargs) }}
-  {% if f.errors %}<span class="error">{{ f.errors|join(' ') }}</span>{% endif %}
-</p>
+  {% if f.errors %}
+  <ul class="field__errors">
+    {% for error in f.errors %}<li>{{ error }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
 {% endmacro %}
