@@ -5,7 +5,7 @@
    and throwing away the scroll position. One template, two callers — the
    alternative is two that drift. #}
 {% import "styleguide/_results.html" as res %}
-{% import "styleguide/_lineup.html" as ui %}
+{% import "lineups/_lineup.html" as ui %}
 
 {% if results.has_results %}
   {{ res.round_switch(meeting_rounds, shown_round, stage, sequence, base) }}

@@ -3,5 +3,5 @@
    Rendered by the partial route only; the full page uses the same macro
    directly. One macro, two callers — the alternative is two that drift. #}
 {% import "styleguide/_profile.html" as prof %}
-{% import "styleguide/_lineup.html" as ui %}
+{% import "lineups/_lineup.html" as ui %}
 {{ prof.profile_sheet(bridge, palette, ui, profile, close_url) }}

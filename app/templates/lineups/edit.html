@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% import "lineups/_lineup.html" as ui %}
+{% block title %}Lineup{% endblock %}
+
+{% block content %}
+
+{% if not season or not meeting %}
+<h1 class="page-title">Your lineup</h1>
+<p class="prose">
+  {%- if not season -%}
+  No season has been synced yet. Picks open once the calendar lands.
+  {%- else -%}
+  Every deadline this season has passed. Nothing to pick for.
+  {%- endif -%}
+</p>
+
+{% else %}
+
+{#- The whole editor is one swappable region. Links inside keep their plain
+    href and work with JavaScript off; hx-boost turns the same request into a
+    fetch, and hx-select pulls this element out of the full page response. So
+    there is no fragment template to drift out of step with the page — there is
+    no fragment at all. -#}
+<div id="editor"
+     hx-boost="true"
+     hx-target="#editor"
+     hx-select="#editor"
+     hx-swap="outerHTML"
+     hx-push-url="true">
+
+{% set base = url_for('lineups.edit') %}
+{% macro draft_url(drivers, team, open=none) -%}
+{{ base }}?d={{ drivers | join(',') }}&t={{ team if team is not none else '' }}{% if open is not none %}&open={{ open }}{% endif %}
+{%- endmacro %}
+
+<header class="masthead">
+  <span class="masthead__venue">{{ meeting.display_name }}</span>
+  <span class="masthead__meta status">
+    Round{{ 's' if meeting.rounds | length > 1 }}
+    {{ meeting.rounds | map(attribute='round_number') | join(' & ') }}
+    {%- if state.meeting.deadline_at %} &middot; locks {{ state.meeting.deadline_at.strftime('%-d %b, %H:%M') }} UTC{% endif %}
+  </span>
+</header>
+
+{% for message in problems %}{{ ui.problem(message) }}{% endfor %}
+
+{{ ui.lineup(palette, edit_drivers, edit_team, state=mode,
+             base_url=draft_url(draft_drivers, draft_team),
+             changed_ids=diff.changed_ids) }}
+
+{% if state.budget.unlimited %}
+{#- Grace. Not a budget of zero and not a budget of two: a different sentence,
+    because the number would be read as a limit when there is none. -#}
+<p class="notice">Change anything you like until the deadline. Transfers start
+  counting from the weekend after this one.</p>
+{% elif mode == 'edit' %}
+<div class="budget{{ ' is-over' if diff.cost > state.budget.available }}">
+  <div class="budget__figure">
+    <span class="figure figure--round num">{{ diff.cost }}</span>
+    <span class="label">
+      {%- if diff.cost == 0 %}No changes{% else %}transfer{{ '' if diff.cost == 1 else 's' }} used{% endif -%}
+    </span>
+  </div>
+  <div class="budget__figure budget__figure--quiet">
+    <span class="figure figure--total num">{{ state.budget.available }}</span>
+    <span class="label">available</span>
+  </div>
+</div>
+{% endif %}
+
+<div class="actions">
+  {% if mode == 'edit' and diff.has_changes %}
+  <a class="actions__reset" href="{{ base }}">Reset all</a>
+  {% elif mode == 'empty' %}
+  <span class="label">{{ filled }} of 5 slots filled</span>
+  {% else %}
+  <span></span>
+  {% endif %}
+
+  {% if complete and not problems and (mode == 'empty' or diff.has_changes) %}
+  <a class="actions__commit" href="{{ draft_url(draft_drivers, draft_team) }}&amp;confirm=commit">
+    {%- if mode == 'empty' %}Save lineup{% else %}Commit transfer{{ '' if diff.cost == 1 else 's' }}{% endif -%}
+  </a>
+  {% else %}
+  <span class="actions__commit is-disabled" aria-disabled="true">
+    {%- if problems %}Fix the lineup first
+    {%- elif not complete %}Save lineup
+    {%- else %}No changes to commit{% endif -%}
+  </span>
+  {% endif %}
+</div>
+
+{#- ---- Confirmation ---------------------------------------------------- -#}
+{% if confirm and complete and not problems %}
+<dialog class="sheet sheet--narrow" data-modal>
+  <div class="sheet__head">
+    <span class="u-semi">{{ 'Save lineup' if mode == 'empty' else 'Confirm transfers' }}</span>
+    <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Cancel</a>
+  </div>
+  <div class="sheet__body">
+    {% if mode == 'edit' %}
+      {{ ui.transfer_summary(palette, diff) }}
+    {% else %}
+      <p class="stage__context">Your lineup is set for {{ meeting.display_name }}.
+        {% if state.budget.unlimited %}You can still change it freely until the
+        deadline.{% endif %}</p>
+    {% endif %}
+    {#- A real POST, unboosted: a commit changes the header, flashes a message
+        and must not be repeatable by a back button. -#}
+    <form method="post" action="{{ url_for('lineups.commit') }}" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="d" value="{{ draft_drivers | join(',') }}">
+      <input type="hidden" name="t" value="{{ draft_team if draft_team is not none else '' }}">
+      <div class="actions">
+        <span></span>
+        <button type="submit" class="button">Confirm</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+{% endif %}
+
+{#- ---- Picker ---------------------------------------------------------- -#}
+{% if open_slot %}
+{% set is_team_slot = open_slot == 'team' %}
+<dialog class="sheet" data-modal>
+  <div class="sheet__head">
+    <span class="u-semi">{{ 'Pick a team' if is_team_slot else 'Pick a driver' }}</span>
+    <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Close</a>
+  </div>
+  <div class="sheet__body">
+    {% set restorable = (([diff.team_out] if diff.team_out else []) if is_team_slot else diff.drivers_out) %}
+    {% if restorable %}
+    {#- Which original replaced which is genuinely ambiguous once more than one
+        slot has moved, so every outgoing pick is offered rather than a guess at
+        the pairing. Usually there is exactly one. -#}
+    <div class="restore">
+      <p class="label">Put back</p>
+      <div class="ruled ruled--tight">
+        {% for v in restorable %}
+          {% if is_team_slot %}
+            {% set target = draft_url(draft_drivers, v.id) %}
+          {% else %}
+            {% set index = open_slot | int %}
+            {% set kept = draft_drivers[:index] + draft_drivers[index + 1:] %}
+            {% set target = draft_url(kept + [v.id], draft_team) %}
+          {% endif %}
+        <a class="option" href="{{ target }}">
+          <span class="option__body">
+            {% if not is_team_slot %}<span class="option__name">{{ v.label }}</span><br>{% endif %}
+            {{ ui.stripes(palette, v.team) }}
+            <span class="team-name">{{ v.team.name if v.team }}</span>
+          </span>
+          <span class="option__meta"><span class="label">Restore</span></span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="ruled ruled--tight">
+      {% for option in (options.teams if is_team_slot else options.drivers) %}
+        {% if is_team_slot %}
+          {% set target = draft_url(draft_drivers, none if option.selected else option.id) %}
+        {% else %}
+          {% set index = open_slot | int %}
+          {% set kept = draft_drivers[:index] + draft_drivers[index + 1:] %}
+          {% set target = draft_url(kept if option.selected else (kept + [option.id]), draft_team) %}
+        {% endif %}
+
+        <div class="option{{ ' option--noted' if option.note }}">
+          <a class="option__pick" href="{{ target }}"
+             aria-pressed="{{ 'true' if option.selected else 'false' }}">
+            <span class="option__body">
+              {% if not is_team_slot %}
+              <span class="option__name">{{ option.label }}</span>
+              {% if option.number %}<span class="u-low num">{{ option.number }}</span>{% endif %}
+              <br>
+              {% endif %}
+              {{ ui.stripes(palette, option.team) }}
+              <span class="team-name">{{ option.team.name if option.team }}</span>
+            </span>
+            <span class="option__meta">
+              {%- if option.note -%}
+              <span class="option__note">{{ option.note }}</span>
+              {%- elif not is_team_slot -%}
+              <span class="label num">{{ option.rounds }} rounds</span>
+              {%- endif -%}
+            </span>
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</dialog>
+{% endif %}
+
+</div>{# /#editor #}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // A <dialog> with the `open` attribute renders inline: no backdrop, no focus
+  // trap, no escape-to-close. showModal() is what makes it a modal.
+  function openAll(root) {
+    (root || document).querySelectorAll('dialog[data-modal]').forEach(function (d) {
+      if (!d.open) d.showModal();
+    });
+  }
+  openAll(document);
+
+  // Delegated from the document rather than bound per element, so markup that
+  // HTMX swaps in behaves exactly like markup that was there at load.
+  document.body.addEventListener('htmx:afterSwap', function (event) {
+    openAll(event.target);
+  });
+
+  document.addEventListener('click', function (event) {
+    if (event.target.tagName === 'DIALOG') event.target.close();
+  });
+})();
+</script>
+{% endblock %}

@@ -30,7 +30,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
 
 from app.extensions import db
 from app.scoring import lineups as rules
@@ -153,9 +153,16 @@ class LineupSnapshot(db.Model):
     def replace_picks(self, lineup: rules.Lineup) -> None:
         """Rewrite the five picks in place, keeping the snapshot row.
 
-        delete-orphan handles the removal, so the unique constraints see one
-        coherent set at flush.
+        The clear-and-flush is load-bearing. Assigning a new list marks the old
+        picks as orphans, but nothing orders their DELETEs before the new
+        rows' INSERTs inside a single flush, so `uq_lineup_pick_driver` fires
+        against rows that are already on their way out. Emptying the collection
+        and flushing first makes the removal a separate statement.
         """
+        session = object_session(self)
+        if session is not None and self.picks:
+            self.picks.clear()
+            session.flush()
         self.picks = (
             [LineupPick.for_driver(d) for d in sorted(lineup.drivers)]
             + [LineupPick.for_team(lineup.team_id)]

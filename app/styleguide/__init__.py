@@ -17,6 +17,7 @@ reload with an HTMX partial and keeps everything else.
 from flask import Blueprint, render_template, request, url_for
 
 from app import palette
+from app.lineups import draft
 from app.styleguide import queries, scoring_bridge
 
 bp = Blueprint(
@@ -174,12 +175,12 @@ def lineup():
         raw_team = request.args.get("t")
         draft_team = int(raw_team) if raw_team and raw_team.isdigit() else None
 
-    problems, cost, available = scoring_bridge.draft_status(
+    problems, cost, available = draft.draft_status(
         roster, draft_drivers, draft_team,
         committed if state == "edit" else None,
     )
 
-    diff = scoring_bridge.transfer_diff(
+    diff = draft.transfer_diff(
         roster,
         committed if state == "edit" else None,
         draft_drivers,
@@ -200,10 +201,10 @@ def lineup():
         committed=committed,
         draft_drivers=draft_drivers,
         draft_team=draft_team,
-        edit_drivers=[scoring_bridge.slot_view(roster, d) for d in draft_drivers],
-        edit_team=scoring_bridge.team_slot_view(roster, draft_team),
+        edit_drivers=[draft.slot_view(roster, d) for d in draft_drivers],
+        edit_team=draft.team_slot_view(roster, draft_team),
         open_slot=request.args.get("open"),
-        options=scoring_bridge.picker_options(roster, draft_drivers, draft_team),
+        options=draft.picker_options(roster, draft_drivers, draft_team),
         problems=problems,
         edit_cost=cost,
         available=available,
