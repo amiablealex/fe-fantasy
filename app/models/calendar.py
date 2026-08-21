@@ -289,6 +289,21 @@ class Round(db.Model):
     # must never retroactively rewrite a completed round (SPEC.md §3).
     scoring_ruleset_version: Mapped[str] = mapped_column(String(32), nullable=False)
 
+    # When the scoring pass last wrote this round, and whether it did so from a
+    # partial session set. Together these are the dirty check: a round needs
+    # scoring when `scored_at` is null or older than the latest
+    # `results_ingested_at` among its sessions, which is what stops the poller
+    # rescoring the whole season on every tick.
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Qualifying finishes hours before the race, and every fantasy rule is
+    # additive per session, so a partial score is a monotonically increasing
+    # partial sum rather than a guess that later gets revised. Scoring what has
+    # landed is the liveness this game wants; this flag is how the interface
+    # says so out loud.
+    scoring_provisional: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     season = relationship("Season", back_populates="rounds")
     meeting = relationship("Meeting", back_populates="rounds")
     sessions = relationship(

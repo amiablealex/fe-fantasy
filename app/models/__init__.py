@@ -6,6 +6,24 @@ which produces a migration that silently drops the table.
 """
 from __future__ import annotations
 
-from app.models import calendar, grid, league, result, user, lineup  # noqa: F401
+from app.models import (  # noqa: F401
+    calendar,
+    grid,
+    league,
+    lineup,
+    result,
+    score,
+    user,
+    worker,
+)
 
-__all__ = ["calendar", "grid", "league", "lineup", "result", "user"]
+__all__ = [
+    "calendar",
+    "grid",
+    "league",
+    "lineup",
+    "result",
+    "score",
+    "user",
+    "worker",
+]

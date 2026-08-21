@@ -177,7 +177,17 @@ class Config:
         f"KitsniffFEFantasy/{APP_VERSION} (+https://fe.kitsniff.com)",
     )
     OCB_REQUEST_TIMEOUT_SECONDS = _env_int("OCB_REQUEST_TIMEOUT_SECONDS", 15)
-    OCB_MIN_REQUEST_INTERVAL_SECONDS = _env_float("OCB_MIN_REQUEST_INTERVAL_SECONDS", 0.5)
+    # 1.0, not 0.5. The Season 12 backfill lost five sessions to 429s at 0.5
+    # (SPEC.md §6), so the default here was the rate the spec records as
+    # failing — fine while every caller set the variable, and a trap the first
+    # time the worker service is deployed without it.
+    OCB_MIN_REQUEST_INTERVAL_SECONDS = _env_float("OCB_MIN_REQUEST_INTERVAL_SECONDS", 1.0)
+
+    # -------------------------------------------------------------------------
+    # Worker (Phase 5). The polling knobs arrive with the poller in 5.4; this
+    # is only what the run history needs.
+    # -------------------------------------------------------------------------
+    WORKER_RUN_RETENTION_DAYS = _env_int("WORKER_RUN_RETENTION_DAYS", 30)
 
 
 class DevelopmentConfig(Config):

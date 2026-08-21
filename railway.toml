@@ -1,11 +1,20 @@
 # Railway deployment config.
 #
-# Phase 0 runs a single web service. The worker service is added in Phase 1,
-# when there is something to poll — an idle APScheduler process before then is
-# a bill and a red herring in the logs.
+# Two services from one repo, distinguished by start command:
 #
-#   Web service start command:
-#     gunicorn wsgi:app --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
+#   web     gunicorn wsgi:app --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
+#   worker  python -m worker.scheduler
+#
+# The worker arrives in Phase 5.5, not Phase 1 as an earlier note here claimed
+# — there was nothing to poll until Season 13 was published, and an idle
+# APScheduler process before then is a bill and a red herring in the logs.
+#
+# The worker service must run exactly ONE replica. APScheduler holds its
+# schedule in process, so a second replica double-fires every job — which
+# against a rate-limited free tier means 429s rather than duplicate work.
+#
+# Migrations stay on the web service's pre-deploy command. Running them from
+# both services races them against each other.
 
 [build]
 builder = "NIXPACKS"

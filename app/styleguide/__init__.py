@@ -18,7 +18,9 @@ from flask import Blueprint, render_template, request, url_for
 
 from app import palette
 from app.lineups import draft
-from app.styleguide import queries, scoring_bridge
+from app.meetings import scoring_bridge
+from app.styleguide import queries
+from app.styleguide.demo import demo_lineup
 
 bp = Blueprint(
     "styleguide",
@@ -147,7 +149,7 @@ def lineup():
     # on" has no answer at meeting level.
     first_round = ordered_rounds[0].round_number
     roster = scoring_bridge.roster_for_round(season, first_round)
-    committed = scoring_bridge.demo_lineup(roster)
+    committed = demo_lineup(roster)
     ctx["roster"] = roster
 
     if state == "scored":
@@ -303,7 +305,7 @@ def meeting():
 
     classification = queries.race_classification(season, round_number)
     roster = scoring_bridge.roster_for_round(season, round_number)
-    committed = scoring_bridge.demo_lineup(roster)
+    committed = demo_lineup(roster)
     ctx.update(
         rounds=queries.rounds(season),
         current_round=queries.get_round(season, round_number),

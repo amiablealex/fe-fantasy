@@ -53,14 +53,28 @@ class Roster:
         return self.teams.get(self.team_of_driver.get(driver_id))
 
 
-def roster_for_round(season: Season, round_number: int) -> Roster:
+def roster_for_round(
+    season: Season, round_number: int, *, seats: list[SeatEntry] | None = None
+) -> Roster:
+    """The roster for one round.
+
+    `seats` is an optimisation with a sharp edge, so it is explicit rather than
+    cached. Which team a driver is on is a per-round question, but the seat rows
+    it is answered from are not — a caller walking 21 rounds was running 21
+    identical queries. Passing the list once collapses that to one.
+
+    Deliberately not a memo on `g` or a module-level cache: those go stale
+    against a sync running in the same app context, and the staleness would show
+    up as a lineup validated against last week's grid. An argument the caller
+    has to supply cannot outlive the loop it was fetched for.
+    """
     team_of_driver: dict[Any, Any] = {}
     drivers_by_team: dict[Any, list[Any]] = {}
     drivers: dict[Any, Driver] = {}
     teams: dict[Any, Team] = {}
     rounds_participated: dict[Any, int] = {}
 
-    for seat in seat_entries(season):
+    for seat in (seat_entries(season) if seats is None else seats):
         drivers[seat.driver_id] = seat.driver
         teams[seat.team_id] = seat.team
         rounds_participated[seat.driver_id] = seat.rounds_participated

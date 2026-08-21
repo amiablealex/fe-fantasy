@@ -10,6 +10,8 @@ Nothing here writes, and nothing here is imported by the application.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -23,6 +25,7 @@ from app.models.calendar import (
 )
 from app.models.grid import Driver, SeatEntry, Team
 from app.models.result import Result
+from app.scoring.engine import parse_lap_time  # noqa: F401  (re-exported)
 
 # Season 12 is keyed by its ENDING year (SPEC.md §6).
 DEFAULT_SEASON_YEAR = 2026
@@ -132,9 +135,15 @@ def fastest_lap_driver(results: list[Result]) -> Result | None:
     Never `fastest_lap_rank` — that is eligibility-restricted to the top ten
     and disagrees with the truth on eight of seventeen S12 rounds (SPEC.md §3).
     Included here so the styleguide marks the right row.
+
+    Parsed by `engine.parse_lap_time` rather than a local copy. This module had
+    its own float implementation while the engine used Decimal, which is two
+    implementations of the one rule §3 spends a page getting right — and a
+    styleguide that marks a different row from the one the score credits is
+    worse than no marker at all.
     """
     best: Result | None = None
-    best_seconds: float | None = None
+    best_seconds: Decimal | None = None
     for r in results:
         seconds = parse_lap_time(r.lap_time)
         if seconds is None:
@@ -142,18 +151,3 @@ def fastest_lap_driver(results: list[Result]) -> Result | None:
         if best_seconds is None or seconds < best_seconds:
             best, best_seconds = r, seconds
     return best
-
-
-def parse_lap_time(value: str | None) -> float | None:
-    """`"1:10.945"` to seconds. String comparison happens to work on Formula E
-    lap times only because every lap is a single-digit minute; parse anyway."""
-    if not value:
-        return None
-    parts = value.split(":")
-    try:
-        seconds = float(parts[-1])
-        for i, part in enumerate(reversed(parts[:-1]), start=1):
-            seconds += float(part) * (60 ** i)
-    except ValueError:
-        return None
-    return seconds

@@ -267,6 +267,8 @@ Point values are not constants in code. They live in `app/scoring/rules.py` as a
 
 This is lifted from the F1 app's `round_scoring_config` pattern, and this project needs it more: §9 exists specifically to tune point values against real data, and the ±4 cap is explicitly provisional. Changing a value must never retroactively rewrite a completed round's score. Combined with the stored per-pick breakdown (§5), every historical score stays reproducible and rescoring stays idempotent.
 
+A defect found in Phase 5 and fixed there. scoring_bridge called score_round and score_team without a ruleset, which resolves to CURRENT_VERSION. Harmless while v1 was the only version in play, and a silent rewrite of completed rounds the first time the places gained/lost magnitudes are re-tuned after Jeddah. Every engine call now passes get_ruleset(round.scoring_ruleset_version).
+
 ---
 
 ## 4. Views
@@ -773,9 +775,11 @@ page while this weekend is running answers a question nobody asked.
 - **`season_scores()` becomes a read** once `PickScore` exists. It currently
   rescores a whole season on request, which is acceptable at seventeen rounds on
   a development machine and would not be in production.
+- scoring_bridge.py was promoted whole, and does five jobs. Alongside the ORM-to-engine translation the worker needs — _result_row and round_payload, about forty lines — it carries scoring orchestration, display wording, meeting aggregation, and the read queries behind nav, results and profiles. Phase 7 splits it into bridge, display and queries, since Phase 7 rewrites the callers anyway. demo_lineup() moved down to app/styleguide/demo.py rather than dying: the styleguide still has no logged-in player, and it goes when the styleguide goes.
 
 ### Phase 5 — Scoring engine in production
 Scoring worker with result completeness validation before scoring. Idempotent rescoring against a recorded ruleset version. Results polling with the rate limits in §6 respected.
+
 
 ### Phase 6 — Leagues & social
 Multi-league membership, league creation and admin roles, invite links with caps, league tables, friend profiles. Scored once per user, projected into each league.

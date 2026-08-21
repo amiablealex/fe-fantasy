@@ -324,7 +324,7 @@ class OCBlacktopProvider:
         base_url: str = DEFAULT_BASE_URL,
         user_agent: str,
         timeout: int = 15,
-        min_request_interval: float = 0.5,
+        min_request_interval: float = 1.0,
         max_retries: int = 3,
         session: requests.Session | None = None,
     ) -> None:
@@ -338,6 +338,11 @@ class OCBlacktopProvider:
         self.timeout = timeout
         self.min_request_interval = min_request_interval
         self.max_retries = max_retries
+        # HTTP attempts made by this instance, retries included — a retry spends
+        # quota exactly like a first attempt, so counting successes would
+        # understate usage in precisely the situation that matters. The worker
+        # records this per run; the month's sum is what the ceiling checks.
+        self.calls = 0
         self._last_request_at = 0.0
         self._session = session or requests.Session()
         self._session.headers.update({"x-api-key": api_key, "User-Agent": user_agent})
@@ -350,7 +355,7 @@ class OCBlacktopProvider:
             base_url=config.get("OCB_BASE_URL", DEFAULT_BASE_URL),
             user_agent=config["OCB_USER_AGENT"],
             timeout=config.get("OCB_REQUEST_TIMEOUT_SECONDS", 15),
-            min_request_interval=config.get("OCB_MIN_REQUEST_INTERVAL_SECONDS", 0.5),
+            min_request_interval=config.get("OCB_MIN_REQUEST_INTERVAL_SECONDS", 1.0),
             session=session,
         )
 
@@ -385,6 +390,7 @@ class OCBlacktopProvider:
         for attempt in range(1, self.max_retries + 1):
             wait: float | None = None
             self._throttle()
+            self.calls += 1
             try:
                 response = self._session.get(url, params=params, timeout=self.timeout)
             except requests.Timeout as exc:
