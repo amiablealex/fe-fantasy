@@ -76,10 +76,6 @@ def _register_blueprints(app: Flask) -> None:
             app.logger.exception("Health check failed")
             return {"status": "error"}, 500
 
-    @app.route("/")
-    def index():
-        return render_template("index.html", title=None)
-
 
 def _register_user_loader() -> None:
     from app.models.user import User

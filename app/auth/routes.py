@@ -82,7 +82,7 @@ def _flash_form_errors(form) -> None:
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     form = RegisterForm()
 
@@ -111,7 +111,7 @@ def register():
 
         # Phase 6 hook: consume a pending league invite here.
         flash("Account created — welcome.", "success")
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     if request.method == "POST":
         # Count only genuine failures, so a mistyped password does not lock a
@@ -136,7 +136,7 @@ def register():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     form = LoginForm()
 
@@ -170,7 +170,7 @@ def login():
         next_url = request.args.get("next")
         if _is_safe_redirect(next_url):
             return redirect(next_url)
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     return render_template("auth/login.html", form=form, title="Sign in")
 
@@ -191,7 +191,7 @@ def logout():
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
     if current_user.is_authenticated:
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     form = ForgotPasswordForm()
     if form.validate_on_submit():
@@ -213,7 +213,7 @@ def forgot_password():
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token: str):
     if current_user.is_authenticated:
-        return redirect(url_for("index"))
+        return redirect(url_for("lineups.home"))
 
     reset_token = db.session.scalar(
         select(PasswordResetToken).where(PasswordResetToken.token == token)

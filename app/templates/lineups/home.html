@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "lineups/_lineup.html" as ui %}
+
+{% block content %}
+
+{% if not current_user.is_authenticated %}
+<h1 class="page-title">Formula E Fantasy</h1>
+<div class="prose">
+  <p>Pick four drivers and a team. They score from real race weekends across
+    the season — one transfer per weekend, bankable up to two.</p>
+  <p><a href="{{ url_for('auth.login') }}">Sign in</a> or
+     <a href="{{ url_for('auth.register') }}">create an account</a>.</p>
+</div>
+
+{% elif not season or not open_meeting %}
+<h1 class="page-title">Your lineup</h1>
+<p class="prose">
+  {%- if not season -%}
+  No season has been synced yet. Picks open once the calendar lands.
+  {%- else -%}
+  Every deadline this season has passed.
+  {%- endif -%}
+</p>
+
+{% else %}
+
+{#- The masthead names the weekend the lineup below belongs to, which is not
+    always the weekend you can edit. During a race weekend those are different
+    things and the screen has to be unambiguous about which one it is showing. -#}
+<header class="masthead">
+  <span class="masthead__venue">{{ shown_meeting.display_name }}</span>
+  <span class="masthead__meta status">
+    Round{{ 's' if shown_meeting.rounds | length > 1 }}
+    {{ shown_meeting.rounds | map(attribute='round_number') | join(' &amp; ') }}
+    &middot; {{ 'locked' if shown_locked else 'open' }}
+  </span>
+</header>
+
+{% if shown_drivers %}
+{{ ui.lineup(palette, shown_drivers, shown_team, state='locked') }}
+{% else %}
+<p class="prose">
+  {%- if shown_locked -%}
+  You had no lineup in for this weekend, so it scores nothing.
+  {%- else -%}
+  You have not picked yet.
+  {%- endif -%}
+</p>
+{% endif %}
+
+{#- ---- The state of play ------------------------------------------------
+    Three facts, in the order they matter: when it locks, what it would cost
+    you not to act, and whether you have already done something about it.
+    There is no email in this app, so if these are not on the first screen
+    they do not exist. -#}
+
+<div class="slab">
+  <span class="label">{{ 'Next deadline' if shown_locked else 'Locks' }}</span>
+  <span class="figure figure--round num">{{ countdown }}</span>
+</div>
+<p class="status">{{ open_meeting.display_name }}{% if open_meeting.deadline_at %},
+  {{ open_meeting.deadline_at.strftime('%-d %B, %H:%M') }} UTC{% endif %}</p>
+
+{% if state.budget.unlimited %}
+<p class="notice">Free changes until the first deadline. Transfers start
+  counting from the weekend after {{ open_meeting.display_name }}.</p>
+{% else %}
+<div class="slab">
+  <span class="label">Transfers available</span>
+  <span class="figure figure--round num">{{ state.budget.available }}</span>
+</div>
+{% endif %}
+
+{% if unchanged %}
+{#- The one nudge the app has. Stated as a fact rather than a warning: an
+    unchanged lineup is a legitimate choice, and a player who forgets a month
+    still scores. It only needs to be visible, not alarming. -#}
+<p class="notice">Your lineup is unchanged since
+  {{ carried_from.display_name }}.</p>
+{% endif %}
+
+<div class="actions">
+  <span></span>
+  <a class="actions__commit" href="{{ url_for('lineups.edit') }}">
+    {%- if not state.starting_draft %}Pick your lineup
+    {%- elif shown_locked %}Set up {{ open_meeting.display_name }}
+    {%- else %}Change your lineup{% endif -%}
+  </a>
+</div>
+
+{% endif %}
+{% endblock %}

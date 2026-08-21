@@ -83,6 +83,21 @@ def open_meeting(season: Season, now: datetime | None = None) -> Meeting | None:
     return None
 
 
+def latest_locked_meeting(season: Season, now: datetime | None = None) -> Meeting | None:
+    """The most recent weekend whose deadline has passed.
+
+    The weekend that is *live*, as opposed to the one that is editable. During
+    a race weekend those are different meetings, and the front page is about
+    this one: your picks are in, they are being scored, and next weekend's
+    editor is a link rather than the headline.
+
+    None means the season has not started.
+    """
+    now = now or _utcnow()
+    locked = [m for m in season_meetings(season) if m.is_locked(now)]
+    return locked[-1] if locked else None
+
+
 def first_round_number(meeting: Meeting) -> int:
     """The roster resolves against a meeting's first round.
 

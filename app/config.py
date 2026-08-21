@@ -90,7 +90,7 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", _DEV_SECRET)
     FLASK_ENV = os.environ.get("FLASK_ENV", "production")
     DEBUG = FLASK_ENV == "development"
-    TESTING = True
+    TESTING = False
 
     SESSION_COOKIE_SECURE = not DEBUG
     SESSION_COOKIE_HTTPONLY = True
