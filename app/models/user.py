@@ -51,6 +51,11 @@ class User(UserMixin, db.Model):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    lineup_snapshots = relationship(
+        "LineupSnapshot",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     # ----- password handling -----
     def set_password(self, raw: str) -> None:
