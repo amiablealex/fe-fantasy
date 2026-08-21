@@ -110,6 +110,14 @@ SCORING_QUALIFYING_STAGES = (
     STAGE_FINAL,
 )
 
+# Every stage that is fetched and scored. Practice and `other` are deliberately
+# absent: practice teaches the game nothing, and `other` covers cases like
+# Season 12's Rookie Free Practice, a session full of drivers who are not on
+# the grid. It lives here rather than in either consumer because both the
+# ingest and the scoring pass need it, and the version that is defined twice is
+# the version that eventually disagrees with itself.
+SCORING_STAGES = frozenset(SCORING_QUALIFYING_STAGES) | {STAGE_RACE}
+
 SESSION_STATUS_SCHEDULED = "scheduled"
 SESSION_STATUS_ONGOING = "ongoing"
 SESSION_STATUS_COMPLETED = "completed"

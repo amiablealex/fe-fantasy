@@ -26,6 +26,7 @@ from sqlalchemy import select
 from app.extensions import db
 from app.ingest.checks import verify_championship_points
 from app.models.calendar import (
+    SCORING_STAGES,
     SCORING_QUALIFYING_STAGES,
     SESSION_STATUS_COMPLETED,
     STAGE_RACE,
@@ -40,8 +41,8 @@ from app.providers.base import ResultRow as ProviderResultRow
 
 log = logging.getLogger(__name__)
 
-# Stages worth fetching. Practice and `other` are deliberately absent.
-INGESTED_STAGES = frozenset(SCORING_QUALIFYING_STAGES) | {STAGE_RACE}
+# Stages worth fetching, shared with the scoring pass (app/models/calendar.py).
+INGESTED_STAGES = SCORING_STAGES
 
 
 @dataclass

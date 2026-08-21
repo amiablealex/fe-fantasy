@@ -120,9 +120,11 @@ def _register_cli(app: Flask) -> None:
         config_check,
         set_admin,
         sync_season_command,
+        score_season_command,
     )
 
     app.cli.add_command(set_admin)
     app.cli.add_command(config_check)
     app.cli.add_command(sync_season_command)
     app.cli.add_command(backfill_results_command)
+    app.cli.add_command(score_season_command)

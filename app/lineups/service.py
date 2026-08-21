@@ -209,6 +209,36 @@ def effective_snapshot(user: User, meeting: Meeting) -> LineupSnapshot | None:
     return _snapshot_before(user, meeting, inclusive=True)
 
 
+def effective_snapshots(meeting: Meeting) -> list[LineupSnapshot]:
+    """Every player's effective lineup at one meeting, in one query.
+
+    The set-wide form of `effective_snapshot`. The scoring pass needs it
+    because it scores everyone at once, and Phase 6's league table needs it for
+    the same reason — calling the singular version per user would issue one
+    query per player per meeting.
+
+    `DISTINCT ON (user_id)` with the matching `ORDER BY` is Postgres doing the
+    at-or-before pick in the database rather than in Python. It is not portable
+    SQL, which is fine: the test suite runs against real Postgres precisely so
+    that a query like this is exercised rather than avoided.
+
+    A player with no snapshot at or before this meeting is simply absent from
+    the result, which is correct — they have no lineup yet and nothing to
+    score.
+    """
+    stmt = (
+        select(LineupSnapshot)
+        .join(Meeting, LineupSnapshot.meeting_id == Meeting.id)
+        .where(
+            Meeting.season_id == meeting.season_id,
+            Meeting.sequence <= meeting.sequence,
+        )
+        .order_by(LineupSnapshot.user_id, Meeting.sequence.desc())
+        .distinct(LineupSnapshot.user_id)
+    )
+    return list(db.session.scalars(stmt))
+
+
 def season_snapshots(user: User, season: Season) -> list[LineupSnapshot]:
     stmt = (
         select(LineupSnapshot)

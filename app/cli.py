@@ -126,3 +126,70 @@ def backfill_results_command(ending_year: int, force: bool, round_numbers) -> No
         click.echo(f"  error: {error}")
     if not report.ok:
         raise SystemExit(1)
+
+
+@click.command("score-season")
+@click.argument("ending_year", type=int)
+@click.option("--force", is_flag=True,
+              help="Rescore rounds that have not changed since they were scored.")
+@click.option("--round", "round_numbers", type=int, multiple=True,
+              help="Limit to specific round numbers. Repeatable.")
+@click.option("--dry-run", is_flag=True,
+              help="Report what would be scored; write nothing.")
+@with_appcontext
+def score_season_command(
+    ending_year: int, force: bool, round_numbers, dry_run: bool
+) -> None:
+    """Score a season's ingested results into RoundScore and PickScore.
+
+    Makes no network calls — it reads what the ingest already stored. Safe to
+    run repeatedly: a round is skipped unless its results have moved since it
+    was last scored, and rescoring a round rewrites it from scratch rather than
+    accumulating.
+
+    ENDING_YEAR is the year the season finishes: Season 12 is 2026.
+    """
+    from sqlalchemy import select as sa_select
+
+    from app.meetings.scoring import (
+        completeness,
+        needs_scoring,
+        score_season,
+        _rounds_for,
+    )
+    from app.models.calendar import Season
+
+    season = db.session.scalar(
+        sa_select(Season).where(Season.year == ending_year)
+    )
+    if season is None:
+        raise click.ClickException(
+            f"Season {ending_year} is not in the database. Run sync-season first."
+        )
+
+    wanted = list(round_numbers) or None
+
+    if dry_run:
+        for round_obj in _rounds_for(season, wanted):
+            state = completeness(round_obj)
+            if not state.any_results:
+                verdict = "nothing ingested"
+            elif force or needs_scoring(round_obj):
+                verdict = f"would score - {state.describe()}"
+            else:
+                verdict = "up to date"
+            click.echo(f"  R{round_obj.round_number:>2}  {verdict}")
+        click.echo("Dry run: nothing written.")
+        return
+
+    report = score_season(season, force=force, round_numbers=wanted)
+
+    for outcome in report.outcomes:
+        click.echo(f"  {outcome}")
+    click.echo(report.summary())
+    for warning in report.warnings:
+        click.echo(f"  warning: {warning}")
+    for error in report.errors:
+        click.echo(f"  error: {error}")
+    if not report.ok:
+        raise SystemExit(1)
