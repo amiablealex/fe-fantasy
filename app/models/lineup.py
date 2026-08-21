@@ -145,8 +145,8 @@ class LineupSnapshot(db.Model):
             meeting_id=meeting_id,
             transfer_cost=transfer_cost,
             picks=(
-                [LineupPick.driver(d) for d in sorted(lineup.drivers)]
-                + [LineupPick.team(lineup.team_id)]
+                [LineupPick.for_driver(d) for d in sorted(lineup.drivers)]
+                + [LineupPick.for_team(lineup.team_id)]
             ),
         )
 
@@ -157,8 +157,8 @@ class LineupSnapshot(db.Model):
         coherent set at flush.
         """
         self.picks = (
-            [LineupPick.driver(d) for d in sorted(lineup.drivers)]
-            + [LineupPick.team(lineup.team_id)]
+            [LineupPick.for_driver(d) for d in sorted(lineup.drivers)]
+            + [LineupPick.for_team(lineup.team_id)]
         )
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -218,11 +218,11 @@ class LineupPick(db.Model):
     team = relationship("Team")
 
     @classmethod
-    def driver(cls, driver_id: int) -> "LineupPick":
+    def for_driver(cls, driver_id: int) -> "LineupPick":
         return cls(kind=PICK_DRIVER, driver_id=driver_id)
 
     @classmethod
-    def team(cls, team_id: int) -> "LineupPick":
+    def for_team(cls, team_id: int) -> "LineupPick":
         return cls(kind=PICK_TEAM, team_id=team_id)
 
     def __repr__(self) -> str:  # pragma: no cover
