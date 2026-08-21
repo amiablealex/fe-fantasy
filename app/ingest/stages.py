@@ -18,7 +18,6 @@ from __future__ import annotations
 import re
 
 from app.models.calendar import (
-    SESSION_TYPE_OTHER,
     SESSION_TYPE_PRACTICE,
     SESSION_TYPE_QUALIFYING,
     SESSION_TYPE_RACE,

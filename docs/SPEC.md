@@ -1,7 +1,7 @@
 # Formula E Fantasy — Project Spec
 
-**Status:** Phase 0 complete and deployed. Phase 1 complete — Season 12 backfilled locally.
-**Last updated:** 19 August 2026
+**Status:** Phases 0–4 complete. Season 12 backfilled locally; the lineup editor writes real snapshots.
+**Last updated:** 21 August 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
 
@@ -12,6 +12,8 @@
 > **Revision note 3 (19 Aug 2026).** Phase 1 complete: provider client, ingestion schema, season sync and results backfill. Season 12 is fully ingested locally — 11 meetings, 17 rounds, 187 sessions, 880 result rows. **§3's fastest-lap rule is corrected: derive it from the minimum `lap_time`, not from `fastestLap.rank`, which encodes Formula E's top-ten restriction and disagrees on eight of seventeen S12 rounds.** Also: `gridPosition` is the post-penalty starting slot, not the qualifying result (Appendix A); the provider rate-limits at roughly two requests per second (§6); practice and `other` sessions are never ingested (§6); Phase 2 splits into engine then simulation (§8, §9).
 
 > **Revision note 6 (20 August 2026).** Phase 3 complete. The design language is settled and recorded in §1: Archivo and Anybody, a seven-step rem scale, CSS-native tokens in two tiers under cascade layers, and a two-stripe hue-seeded team palette. §4.1 records the lineup component as an architectural commitment; §4.2 records the driver and team profile. HTMX is in use (§7). The qualifying bracket is deferred to Phase 7, where the roadmap already places it; the interim is a linear stage list, and the open risk is recorded in §8.
+
+> **Revision note 7 (21 August 2026).** Phase 4 complete. The game schema is fixed and recorded in §5: sparse snapshots per (user, meeting), picks as rows, the slot diff stored on the snapshot. §2 gains three rules the earlier drafts left open — only the earliest unlocked weekend is editable, the cost baseline is the last snapshot from an *earlier* meeting, and a late joiner's bank starts at one. §4 finally carries the subsections revision note 6 promised: §4.1 the lineup component, §4.2 the profiles, §4.3 the editor. `app/lineups/` exists (§12) and the roster and draft helpers have moved into it out of the debug-only styleguide package. The auth pages and the app shell now use the design system, and `base.css` is deleted.
 
 ---
 
@@ -97,6 +99,24 @@ Meeting-level transfers (rather than per-round) mean no turnaround on the single
 **Forced team relocation costs two transfers, spent atomically.** Worked example: your drivers are from teams A, B, C, D and your team pick is E. You want to bring in a driver from team E. That collides with constraint 2, so the team pick must move as well. Two slots change, so the cost is 2. The player must have banked two transfers before the move is available at all — there is no partial version, and no "free" forced move.
 
 Rationale: it is consistent with the existing rule that two banked transfers buy a driver-out/team-in swap for the same constructor, it needs no special case in the diff, and it keeps the bank trivially derivable from snapshots. It also makes team-slot placement a genuine planning decision rather than an afterthought.
+
+#### Three rules the counting rule does not cover
+
+**Only the earliest unlocked weekend is editable.** Not stated in earlier
+drafts, and it has to be: if a player could set their meeting 9 lineup while
+meeting 8 was still open, meeting 9's cost would depend on a baseline that is
+still moving, and there would be no honest figure to show them while that was
+true.
+
+**The cost baseline is the last snapshot from an *earlier* meeting, never the
+row being rewritten.** Changing your mind before the deadline is free however
+many times you do it. Costing against the last thing saved would make a player
+pay for reconsidering, and the transfer bank would depend on how often they
+opened the app.
+
+**A late joiner's bank starts at one, not two.** Grace already gave them
+unlimited edits up to their own first deadline (below); arriving at their first
+charged weekend holding a full bank on top would pay them twice.
 
 **Consequence for the UI: the lineup editor is a staged draft with an explicit commit.** There is no legal intermediate state between "team E driver in" and "team E out of the team slot", so edits cannot be applied slot-by-slot against the server. The editor holds a draft lineup client-side, shows live constraint validation and a running transfer cost, and writes a single snapshot on commit. Validate the same rules server-side on submit; the client-side check is convenience, never authority.
 
@@ -251,15 +271,109 @@ This is lifted from the F1 app's `round_scoring_config` pattern, and this projec
 
 ## 4. Views
 
+- **Front page** — the weekend that is live, when the next one locks, and what is left to spend
 - **Lineup** — pick and manage the five slots; staged draft with explicit commit; transfer state, bank, and the running cost of the current draft clearly shown; rounds-participated shown per driver in the picker
 - **Meeting view** — points earned, split into clearly headed sections labelled by round format (`E-Prix Unleashed` / `E-Prix`), not "Race 1 / Race 2"
-- **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity. Real ranges from S12: a driver-round scores −4 to 21 across up to seven
-  simultaneous rules; season totals ran 8 to 104. The dream team occasionally
-  ties — show "tied with 17 others" rather than implying a single answer.
+- **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity. Real ranges from S12: a driver-round scores −4 to 21 across up to seven simultaneous rules; season totals ran 8 to 104. The dream team occasionally ties — show "tied with 17 others" rather than implying a single answer.
 - **Dream team** — the highest-scoring valid lineup for each round, brute-forced across the actual roster (~20,160 combinations at current grid size — instant, no optimisation needed). A star marks any user pick that made it.
 - **League table** — season standings within a league
 - **Friend profile** — another player's season: lineups and points by meeting
 - **Results with personal highlighting** — the qualifying bracket and race classification with the user's own picks marked. Personal stakes make the visualisation compelling in a way a neutral bracket is not.
+
+### 4.1 The lineup component — one component, three states
+
+**An architectural commitment, not a stylistic one.** The picker and the meeting
+view converge on a single component rather than being separate screens. Four
+driver slots in a 2x2 grid, the team slot as a wider band beneath, identical
+geometry every time — so the arrangement itself carries meaning before any
+number is read.
+
+| State | What it holds |
+|---|---|
+| `empty` | slots are empty; tapping one opens the picker |
+| `edit` | slots are filled; tapping one opens the picker to swap |
+| `scored` | slots carry a meeting total; tapping one discloses the breakdown |
+
+Anything the component does not recognise renders filled and inert, which is
+what a locked weekend needs and cost nothing to add.
+
+**Slot order never re-sorts by score.** A layout that reshuffles by performance
+cannot be read at a glance, which is the only thing this component is for.
+
+**The team band is one primary with a thinner accent inside it**, not two equal
+stripes: at slot scale two equal stripes read as a pattern, a band with an
+accent reads as a livery. The team slot is the exception — it is both cars, so
+its stripes are equal.
+
+**The car number is set large and barely inked behind the driver's name.**
+Formula E cars carry their numbers; borrowing that as a typographic ground gives
+the slot depth without a graphic, an icon or a gradient.
+
+**A pending change is marked structurally** — heavy ink and an "In" label —
+never in the error colour. A transferred-in pick is the thing you wanted, not a
+fault, and sharing red with broken rules would empty red of meaning.
+
+The component lives at `app/templates/lineups/_lineup.html` and is imported, not
+reimplemented.
+
+### 4.2 Driver and team profiles
+
+**One wide table**, not a split by contest: every scoring route as a column,
+every round as a row, totals in bold at the foot. The question the page exists
+to answer is "how has this driver scored across the season", and splitting
+qualifying from race gives two grand totals instead of one.
+
+Eleven columns fit a 360px viewport at `--step-1` in condensed tabular figures —
+measured, not assumed. **What makes it readable is not the width but suppressing
+zeros**: nine columns of "0" is noise, and a blank makes the cells that fired
+legible at a glance.
+
+Places gained and lost share one signed column. They are one mechanic with a
+sign, and two columns of which one is always empty wastes width for no
+information.
+
+A team profile shows both cars per round beside the team's own figure, which
+makes the half-sum rule explain itself.
+
+Profiles open over whatever is already on screen and close by dropping a URL
+parameter, so closing one returns the reader to the row they tapped.
+
+### 4.3 The editor
+
+**The draft lives in the query string.** `?d=4,9,12,17&t=3` is the whole editor
+state. That is not a shortcut: it means every constraint check and every
+transfer cost on screen is computed by `app/scoring/lineups.py` — the same
+module the server enforces on commit — rather than by a mirrored copy in
+JavaScript that drifts the first time a rule changes. The cost is a round trip
+per tap, which HTMX hides and which this app can afford at twenty drivers.
+
+**The interface never prevents, it explains.** Nothing in the picker is
+disabled. An earlier version greyed out options that would break a constraint
+and created a trap: a player holding a Citroën driver could not select Citroën
+in the team slot, even though the reverse order — team first, then driver — was
+allowed. Same destination, same two-slot cost, arbitrary forced order. So the
+note replaces the block, and a forced relocation can be approached from either
+end. This is also required by the rule in §2 that a forced relocation has no
+legal intermediate state.
+
+**An unaffordable draft is a broken rule like any other**, and reads in the same
+place and the same voice as one.
+
+**One swappable region, no fragment template.** The editor is wrapped in an
+element carrying `hx-boost` with `hx-select`, so every link inside keeps a
+working `href` and the page functions with JavaScript off; with it on, HTMX
+fetches the same URL and swaps the region in place. There is no separate
+fragment route, and therefore no fragment that can drift out of step with the
+page.
+
+**Development clock override.** Every deadline in the backfilled Season 12 is in
+the past, so the editor has nothing to open against the only real data that
+exists. `FANTASY_NOW` in `.env` moves the app's clock. It is excluded under
+test — the suite builds calendars against the real clock — and it logs a warning
+on every request that uses it, so it cannot sit unnoticed in production. It is
+deliberately **not** gated on `app.debug`, which is set at different points
+under `flask run`, gunicorn and a shell and therefore means different things in
+each.
 
 ---
 
@@ -314,6 +428,43 @@ Store a **complete lineup snapshot per (user, meeting)**. Treat the transfer all
 Rationale: with a transfer bank, a lineup at meeting 8 is otherwise only knowable by replaying meetings 1–7. Replaying a sequence to fix a scoring bug in March is fragile. With snapshots, every meeting is independently recomputable, the transfer bank is derivable, and a season history is a straight query.
 
 Transfer cost between consecutive snapshots is the count of changed slots (§2). That is the whole derivation.
+
+#### The game schema, fixed in Phase 4
+
+`LineupSnapshot` and `LineupPick`, with four decisions worth recording.
+
+**Snapshots are sparse.** A row exists only where a player committed. The
+effective lineup at meeting N is the latest snapshot at or before N — one
+indexed query — so a player who has not touched the app since meeting 3 still
+has a lineup at meeting 7, and it is meeting 3's. The alternative, a job
+materialising a carried-forward row for every player at every deadline, writes
+rows for people who have stopped playing and buys nothing the ordering query
+does not already give.
+
+**The five picks are rows, not five columns.** The four drivers are a set
+(`lineups.Lineup` holds a frozenset), so columns would let a reordering read as
+four transfers. Rows also give Phase 5 somewhere to hang `PickScore`. A driver
+pick and a team pick are one table with two nullable foreign keys under a check
+constraint, rather than a polymorphic subject id: real referential integrity in
+both directions, and readable joins. `ondelete` is `RESTRICT` on both, because
+drivers and teams are global and keyed on a provider UUID, so deleting one is a
+mistake that must not quietly shred stored lineups. **No slot index** — storing
+an ordinal would invite a diff that charges for reordering.
+
+**The slot diff is stored on the snapshot.** It makes the bank a running sum
+rather than a re-diff of the whole season, and a test asserts the column always
+equals a recomputation. It stores what *changed*, not what was *charged* —
+whether a diff was charged is a function of the player and the calendar, not of
+the row. In practice a grace-period commit stores zero anyway, because a grace
+weekend is by construction the player's first and there is no earlier snapshot
+to diff against; the free period needs no exemption in the arithmetic.
+
+**`season_id` is denormalised onto the snapshot**, though `meeting_id` scopes it
+transitively. The app runs across seasons and "this player's season" should stay
+a single-table query.
+
+**The bank, the grace boundary and the open weekend are derived, never stored.**
+Storing any of them would create a second source of truth that drifts.
 
 ### Scores
 
@@ -598,8 +749,30 @@ Two stand-ins are removed in Phase 4, both currently in `scoring_bridge.py`:
 are still the deliberately unstyled scaffold. They are replaced using the
 design system as part of Phase 4, not left until Phase 7.
 
-### Phase 4 — Lineup & transfers
-Staged-draft selection UI with client-side constraint validation and running transfer cost; server-side revalidation on commit; snapshot storage; transfer bank derivation; meeting deadline locking.
+### Phase 4 — Lineup & transfers, complete
+
+| # | Stage | Contents |
+|---|---|---|
+| 4.1 | Shell and auth | `base.html` on the design system; shell, notice and form primitives; `base.css` deleted, so the app and the styleguide load the same two stylesheets |
+| 4.2 | Game schema | `LineupSnapshot`, `LineupPick`, migration `0003_game_schema` (§5) |
+| 4.3 | Service | `app/lineups/service.py` — the open weekend, grace, the bank, and commit with server-side revalidation. Roster and draft helpers moved out of the styleguide package |
+| 4.4 | Editor | `/lineup`, the component promoted out of the styleguide, snapshots written, `hx-boost` in place of a fragment route |
+| 4.5 | State of play | `/` — the live weekend, the countdown, the bank, and the unchanged-lineup nudge |
+
+**The front page shows the weekend that is live, not the one that is editable.**
+During a race weekend those differ: Jeddah is locked and being scored while the
+Mexico City editor is already open. Showing next weekend's draft on the front
+page while this weekend is running answers a question nobody asked.
+
+### Entry conditions for Phase 5
+
+- **`app/styleguide/scoring_bridge.py` is promoted to `app/meetings/`** unchanged
+  in shape. The roster and draft helpers already left it for `app/lineups/`;
+  what remains is scoring translation, which is exactly what the worker needs.
+- **`demo_lineup()` dies with the styleguide**, which is now its only caller.
+- **`season_scores()` becomes a read** once `PickScore` exists. It currently
+  rescores a whole season on request, which is acceptable at seventeen rounds on
+  a development machine and would not be in production.
 
 ### Phase 5 — Scoring engine in production
 Scoring worker with result completeness validation before scoring. Idempotent rescoring against a recorded ruleset version. Results polling with the rate limits in §6 respected.
@@ -719,6 +892,15 @@ Jeddah.
 | Decision | Outcome |
 |---|---|
 | Qualifying bracket | Deferred to Phase 7 with the rest of the visualisation work; linear stage list is the interim |
+| Snapshot storage | Sparse — a row only where a player committed; the effective lineup is the latest at or before a meeting |
+| Pick storage | Five rows per snapshot, two nullable FKs under a check constraint, no slot index |
+| Stored transfer cost | The raw slot diff against the previous snapshot; whether it was charged is derived |
+| Editable weekend | Only the earliest unlocked one |
+| Cost baseline | The last snapshot from an earlier meeting, never the row being rewritten |
+| Late joiner's bank | Starts at one; grace already gave unlimited edits |
+| Grace anchor | `User.created_at`, not league membership — the game works without a league |
+| Roster drift | A departed driver's pick scores 0 and costs a normal transfer; nothing is stored or rewritten |
+| Clock override | `FANTASY_NOW`, excluded under test, warns on every use, not gated on `app.debug` |
 | Phase 3 promotion path | `_lineup.html` and `scoring_bridge.py` are promoted into Phase 4 and 5, not rebuilt |
 | Auth templates | Restyled in Phase 4 using the design system |
 
@@ -762,11 +944,16 @@ fe-fantasy/
 │   ├── auth/                # routes, forms, email, rate_limit
 │   ├── admin/               # read-mostly; request-info diagnostic
 │   ├── leagues/  invite/    # Phase 6
-│   ├── lineups/             # Phase 4
+│   ├── lineups/             # the game: roster, rules over snapshots, editor
+│   │   ├── roster.py        # the pickable grid for a round
+│   │   ├── draft.py         # what is broken, what it costs, what each option does
+│   │   ├── service.py       # open weekend, grace, bank, commit
+│   │   └── routes.py        # / and /lineup
 │   ├── meetings/            # meeting and round views, Phase 7
 │   ├── models/
 │   │   ├── user.py
 │   │   ├── league.py
+│   │   ├── lineup.py        # LineupSnapshot, LineupPick
 │   │   ├── calendar.py      # Season, Location, Meeting, Round, Session
 │   │   ├── grid.py          # Driver, Team, SeatEntry
 │   │   └── result.py        # Result, SyncConflict

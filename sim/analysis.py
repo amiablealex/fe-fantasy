@@ -14,7 +14,7 @@ import random
 import statistics
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from app.scoring.engine import (
     RULE_PLACES_GAINED,

@@ -191,7 +191,6 @@ def valid_lineups(drivers_by_team: Mapping[Any, Sequence[Any]]):
 
 def count_valid_lineups(drivers_by_team: Mapping[Any, Sequence[Any]]) -> int:
     """Closed-form count, for a sanity check that does not enumerate."""
-    from math import comb
 
     team_ids = list(drivers_by_team)
     n_teams = len(team_ids)

@@ -8,4 +8,4 @@ from __future__ import annotations
 
 from app.models import calendar, grid, league, result, user, lineup  # noqa: F401
 
-__all__ = ["calendar", "grid", "league", "result", "user"]
+__all__ = ["calendar", "grid", "league", "lineup", "result", "user"]

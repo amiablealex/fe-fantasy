@@ -38,7 +38,7 @@
   <span class="masthead__meta status">
     Round{{ 's' if meeting.rounds | length > 1 }}
     {{ meeting.rounds | map(attribute='round_number') | join(' & ') }}
-    {%- if state.meeting.deadline_at %} &middot; locks {{ state.meeting.deadline_at.strftime('%-d %b, %H:%M') }} UTC{% endif %}
+    &middot; locks in {{ countdown }}
   </span>
 </header>
 

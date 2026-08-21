@@ -18,7 +18,7 @@ format for Season 13 and could introduce a third.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date as date_type, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -282,7 +282,7 @@ class Round(db.Model):
 
     # Sponsor-polluted; retained for debugging a derivation, never displayed.
     provider_name: Mapped[str | None] = mapped_column(String(200))
-    date: Mapped[date | None] = mapped_column(Date, index=True)
+    date: Mapped[date_type | None] = mapped_column(Date, index=True)
     status: Mapped[str | None] = mapped_column(String(16))
 
     # The ruleset in force when this round was created. Changing point values

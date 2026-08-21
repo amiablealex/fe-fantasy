@@ -11,7 +11,7 @@ AttributeError at the call site instead of a silent None thirty lines later.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Iterator, Protocol, runtime_checkable
