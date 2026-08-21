@@ -24,8 +24,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
+# Moved to app/lineups/ in Phase 4: production code must not import from a
+# debug-only package. Re-exported here so this module's callers are unchanged.
+from app.lineups.roster import Roster, roster_for_round
 from app.models.calendar import STAGE_RACE, Meeting, Round, Season, Session
-from app.models.grid import Driver, SeatEntry, Team
+from app.models.grid import Driver, Team
 from app.scoring import engine, lineups
 
 
@@ -59,15 +62,6 @@ def get_meeting(season: Season, sequence: int) -> Meeting | None:
         )
     )
     return db.session.scalars(stmt).unique().one_or_none()
-
-
-def seat_entries(season: Season) -> list[SeatEntry]:
-    stmt = (
-        select(SeatEntry)
-        .where(SeatEntry.season_id == season.id)
-        .options(joinedload(SeatEntry.driver), joinedload(SeatEntry.team))
-    )
-    return list(db.session.scalars(stmt).unique())
 
 
 def _result_row(result) -> dict:
@@ -106,57 +100,6 @@ def round_payload(round_obj: Round) -> tuple[list[dict], list[dict]]:
             })
 
     return qualifying, race_rows
-
-
-# -----------------------------------------------------------------------------
-# Roster
-# -----------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Roster:
-    """The pickable grid for one round.
-
-    Which team a driver belongs to is a per-round question (SPEC.md §2): a
-    mid-season switch produces two seat entries with disjoint round arrays, so
-    the one-driver-per-team constraint is only correct when it is asked about a
-    specific round. Season 12 contained no switches, so this path meets reality
-    for the first time in Season 13.
-    """
-
-    team_of_driver: dict[Any, Any]
-    drivers_by_team: dict[Any, list[Any]]
-    drivers: dict[Any, Driver]
-    teams: dict[Any, Team]
-    rounds_participated: dict[Any, int]
-
-    def team_for(self, driver_id: Any) -> Team | None:
-        return self.teams.get(self.team_of_driver.get(driver_id))
-
-
-def roster_for_round(season: Season, round_number: int) -> Roster:
-    team_of_driver: dict[Any, Any] = {}
-    drivers_by_team: dict[Any, list[Any]] = {}
-    drivers: dict[Any, Driver] = {}
-    teams: dict[Any, Team] = {}
-    rounds_participated: dict[Any, int] = {}
-
-    for seat in seat_entries(season):
-        drivers[seat.driver_id] = seat.driver
-        teams[seat.team_id] = seat.team
-        rounds_participated[seat.driver_id] = seat.rounds_participated
-        if not seat.covers_round(round_number):
-            continue
-        team_of_driver[seat.driver_id] = seat.team_id
-        drivers_by_team.setdefault(seat.team_id, []).append(seat.driver_id)
-
-    return Roster(
-        team_of_driver=team_of_driver,
-        drivers_by_team=drivers_by_team,
-        drivers=drivers,
-        teams=teams,
-        rounds_participated=rounds_participated,
-    )
 
 
 def demo_lineup(roster: Roster) -> lineups.Lineup | None:
