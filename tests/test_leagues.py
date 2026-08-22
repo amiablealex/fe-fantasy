@@ -291,6 +291,47 @@ def test_registering_enrols_in_the_global_league(app, client):
     assert service.membership_of(user, service.global_league()) is not None
 
 
+def test_the_join_page_renders(app, client, signed_in):
+    """A GET that instantiates the form.
+
+    This is the test that was missing when `JoinLeagueForm.filter_code` was
+    written as a helper: WTForms treats `filter_<fieldname>` as a framework
+    hook exactly as it treats `validate_<fieldname>`, found it, and called it
+    with the field value — so merely constructing the form raised, and the page
+    500ed before any input was involved.
+    """
+    signed_in(email="alice@example.com", username="alice")
+    assert client.get("/leagues/join").status_code == 200
+
+
+def test_joining_by_code_through_the_form(app, client, signed_in, make_user):
+    owner = make_user(email="owner@example.com", username="owner")
+    league = service.create_league(owner, "Friends")
+    user = signed_in(email="alice@example.com", username="alice")
+
+    response = client.post(
+        "/leagues/join",
+        data={"code": league.invite_code.lower()},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert service.membership_of(user, league) is not None
+
+
+def test_a_bad_code_does_not_join_anything(app, client, signed_in):
+    user = signed_in(email="alice@example.com", username="alice")
+    response = client.post(
+        "/leagues/join", data={"code": "ZZZZZZ"}, follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert len(service.user_leagues(user)) == 0
+
+
+def test_the_create_page_renders(app, client, signed_in):
+    signed_in(email="alice@example.com", username="alice")
+    assert client.get("/leagues/new").status_code == 200
+
+
 def test_a_membership_row_is_unique_per_league(app, alice, db):
     league = service.create_league(alice, "Friends")
     db.session.add(LeagueMembership(league_id=league.id, user_id=alice.id))

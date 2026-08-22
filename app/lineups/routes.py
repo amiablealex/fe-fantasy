@@ -33,7 +33,9 @@ from flask_login import current_user, login_required
 
 from app import palette
 from app.clock import now
+from app.leagues.standings import standings_for_user
 from app.lineups import draft, service
+from app.meetings.scoring_bridge import fmt
 from app.lineups.service import current_season
 from app.scoring import lineups as rules
 
@@ -147,6 +149,11 @@ def home():
 
     ctx.update(
         state=state,
+        # Where they stand, in every league they are in. Below the deadline and
+        # the transfer count on the page, because those two are things a player
+        # can still act on and this is the reason they came back.
+        standings=standings_for_user(current_user, season, now=moment),
+        fmt=fmt,
         shown_meeting=shown_meeting,
         shown_locked=locked is not None,
         shown_drivers=drivers,

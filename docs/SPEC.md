@@ -1,6 +1,6 @@
 # Formula E Fantasy — Project Spec
 
-**Status:** Phases 0–5 complete. Season 12 backfilled and scored locally; the worker is live in production.
+**Status:** Phases 0–6 complete. Season 12 backfilled and scored locally; the worker is live in production.
 **Last updated:** 22 August 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
@@ -14,6 +14,19 @@
 > **Revision note 6 (20 August 2026).** Phase 3 complete. The design language is settled and recorded in §1: Archivo and Anybody, a seven-step rem scale, CSS-native tokens in two tiers under cascade layers, and a two-stripe hue-seeded team palette. §4.1 records the lineup component as an architectural commitment; §4.2 records the driver and team profile. HTMX is in use (§7). The qualifying bracket is deferred to Phase 7, where the roadmap already places it; the interim is a linear stage list, and the open risk is recorded in §8.
 
 > **Revision note 8 (22 August 2026).** Phase 5 complete. Scores are stored and read rather than recomputed (§5), scoring is partial and provisional by design (§3), the live poller inverts §6's status-check rule for a specific and measured reason (§6), and the worker runs on Railway (§7). Three things diverge from what earlier drafts of this document said: §5 asked for one table and got two; §6 said check status before fetching and the live path does not; and `railway.toml` is deleted, because Railway deprecated Config as Code with a cutoff seventeen days before Jeddah. A defect is recorded in §3 — the bridge scored every round against the *current* ruleset rather than the round's own, which would have rewritten history at the first re-tune.
+
+> **Revision note 9 (22 August 2026).** Phase 6 complete. Leagues, invites,
+> standings and friend profiles. Three things settled here go beyond what
+> earlier drafts said. §2's visibility rule is split into the two predicates it
+> always was, and the co-membership half is relaxed by *data* — a global league
+> holding every user — rather than by deleting a predicate; §10 had already left
+> "public/global table" open, so this closes it. §10's late-joiner question is
+> answered mostly by §2's own rule that membership is a view over scores:
+> joining a league late costs nothing, and what remains is a new *account*
+> mid-season, which a shared range control addresses honestly and a per-member
+> start date would not. And two defects are recorded in §11, both found by using
+> the app rather than by a test: a form helper named into a WTForms hook, and an
+> editor that asked a transfer diff a question about saving.
 
 > **Revision note 7 (21 August 2026).** Phase 4 complete. The game schema is fixed and recorded in §5: sparse snapshots per (user, meeting), picks as rows, the slot diff stored on the snapshot. §2 gains three rules the earlier drafts left open — only the earliest unlocked weekend is editable, the cost baseline is the last snapshot from an *earlier* meeting, and a late joiner's bank starts at one. §4 finally carries the subsections revision note 6 promised: §4.1 the lineup component, §4.2 the profiles, §4.3 the editor. `app/lineups/` exists (§12) and the roster and draft helpers have moved into it out of the debug-only styleguide package. The auth pages and the app shell now use the design system, and `base.css` is deleted.
 
@@ -155,20 +168,118 @@ If a driver leaves the grid mid-season (injury, contract change), the player mus
 - Users may belong to multiple leagues simultaneously
 - Leagues are created by a user, who becomes its admin
 - Joining is by invite link or code
-- Per-league member caps (as in the F1 app) to bound query cost
-- A global/site-wide table is possible later, but leagues are the primary social unit
+- One global league holds everyone; every other league is private
+- A member cap bounds query cost
 
-A single lineup per user per meeting scores into **every** league they belong to — league membership is a view over scores, never a separate scoring context. This keeps scoring O(users) rather than O(users × leagues).
+A single lineup per user per meeting scores into **every** league they belong to — league membership is a view over scores, never a separate scoring context. This keeps scoring O(users) rather than O(users × leagues), and it is also what makes joining a league late cost nothing: a March joiner brings their whole season with them.
 
 **Leagues are durable across seasons.** A League row carries no `season_id`; season scoping applies to the standings computed over it. League administration lives on the membership row (a `role` column), not solely on `League.created_by_id`, so a league survives its creator deleting their account. See §7.
 
+**The cap is a config constant, not a column.** `MAX_LEAGUE_MEMBERS` bounds
+query cost, and query cost is a property of the installation rather than of any
+particular league. A per-league column would only earn its place if a league
+admin could set it, and nothing wants that. It is enforced at join under a
+`SELECT ... FOR UPDATE` on the league row: counting and inserting are two
+statements, and two people taking the last slot at the same moment both pass a
+count taken before either insert.
+
+**Invite codes are generated, not checked.** A SELECT that finds a code free
+and an INSERT that uses it have a gap between them. Generation loops inside a
+savepoint and lets the unique constraint arbitrate, which has no gap. A plain
+try/rollback would discard the whole transaction on the first collision.
+
+**Rotation is the only revocation.** There is no separate "closed" state:
+issuing a new code makes every link already shared dead, which is the whole of
+what revocation means here.
+
+**If the last admin leaves, the earliest-joined remaining member is promoted.**
+A league with members and no admin has nobody who can rotate its code or remove
+anyone, and would sit permanently unadministrable with no error to explain why.
+
+**The invite landing and the code form share one rate-limit bucket**, keyed on
+`CF-Connecting-IP`. They are the same guessing attack from the same address.
+Only a *missed* code counts: a member re-tapping their own working link is not
+enumeration.
+
+**A pending invite expires.** A code followed by a signed-out visitor rides in
+the session and is consumed on the next successful authentication, but an
+invite followed yesterday must not silently join someone because they happened
+to reset their password today.
+
 ### Lineup visibility
 
-**Hidden until lock.** A player's lineup for a meeting is private until that meeting's deadline passes, then visible to co-members of their leagues.
+**Hidden until lock, then visible to co-members.** One sentence, but two
+independent predicates, and they do different jobs:
 
-**Enforce server-side**, in the query layer — not by hiding fields in a template. A locked/unlocked check that lives only in Jinja will leak through any JSON endpoint, HTMX partial, or friend-profile route added later.
+| Predicate | What it is for |
+|---|---|
+| The meeting's deadline has passed | Load-bearing. It is what makes "no pre-deadline who-picked-what view exists at all" true, and it is the only thing that removes copying as a strategy. |
+| The viewer and the subject share a league, and the subject is not hidden in it | A privacy scope. Once a deadline has passed copying is impossible, so this does no game-design work. |
 
-Consequences: friend profiles show only locked meetings; the dream team appears only once results are in; and no pre-deadline "who picked what" view exists at all, which removes copying as a strategy.
+Both are required; neither is sufficient.
+
+**Enforce in the query layer**, not in a template. A locked/unlocked check that
+lives only in Jinja will leak through any JSON endpoint, HTMX partial, or
+friend-profile route added later.
+
+The enforcement is structural rather than a matter of discipline: **no function
+returns another user's lineup without a viewer argument.**
+`app/lineups/service.py` reads the signed-in player's own lineups and takes a
+`user`; everything foreign goes through `app/leagues/visibility.py` and takes a
+`viewer` and a `subject`. A route that wants someone else's picks has nowhere
+else to get them. `service.effective_snapshots` deliberately does *not* grow a
+viewer argument — the scoring pass must see everyone, and a scoring pass that
+*can* be filtered by a viewer is one that eventually will be.
+
+**The null-deadline trap.** `Meeting.deadline_at` is nullable, and a null
+deadline means *not locked* — the reading `grace_meeting` already takes. In SQL
+that falls out of three-valued logic, since `NULL <= now` is NULL and the row
+does not match. The Python spelling people reach for
+(`if not m.deadline_at or m.deadline_at <= now`) inverts it, and the naive
+comparison raises. Both cases are pinned by tests.
+
+Consequences: friend profiles show only locked meetings; the dream team appears
+only once results are in; and no pre-deadline "who picked what" view exists at
+all.
+
+### The global league
+
+**One league carries `is_global` and holds every user**, enrolled at
+registration. It is not an exception to the rule above: the co-membership
+clause is unchanged and simply true for everyone. There is no `is_global`
+anywhere in `visibility.py`.
+
+Doing it as data rather than as a relaxed predicate buys four things: one
+clause that a future endpoint cannot get a public variant of; a real privacy
+control, since a member can withdraw; a reversible decision, since turning it
+off is a data change; and a table for a new user to appear on without anyone
+having to create a league first.
+
+The member cap does not apply to it. Its table shows the top
+`LEAGUE_TABLE_MAX_ROWS` plus the viewer's own row.
+
+### Hiding
+
+**`LeagueMembership.hidden` is the opt-out, and it is a flag rather than a
+deleted row.** Leaving a league takes your read access with it; the account
+setting this backs says "stop showing me", not "stop showing me the table".
+
+It is asymmetric on purpose. A hidden member still sees everyone else and still
+sees their own locked lineups; only their visibility to others is withdrawn.
+That is safe because every lineup reachable through the visibility layer is
+already past its deadline, so there is nothing to be gained by lurking.
+
+**A hidden member is excluded from a standings table entirely, including from
+their own view**, which is deliberately unlike the lineup case. A grid of
+lineups is a set; a ranking is an ordering, and an ordering that differs
+depending on who is looking makes "third" mean nothing. A hidden viewer is told
+so rather than shown a row.
+
+The column is general, but only the global league's toggle sets it. Hiding
+inside a private league would remove the thing the league is for.
+
+**Not-visible is 404, never 403.** A 403 confirms that the account or the
+league exists.
 
 ---
 
@@ -316,8 +427,9 @@ has landed, the qualifying schedule is not going to grow.
 - **Admin health** — provider quota, worker liveness, scoring coverage, outstanding conflicts (§10). Built in Phase 5.
 - **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity. Real ranges from S12: a driver-round scores −4 to 21 across up to seven simultaneous rules; season totals ran 8 to 104. The dream team occasionally ties — show "tied with 17 others" rather than implying a single answer.
 - **Dream team** — the highest-scoring valid lineup for each round, brute-forced across the actual roster (~20,160 combinations at current grid size — instant, no optimisation needed). A star marks any user pick that made it.
-- **League table** — season standings within a league
-- **Friend profile** — another player's season: lineups and points by meeting
+- **League table** — season standings within a league. Four columns: position, player, last weekend, total. Not a season-by-weekend grid — thirteen meetings will not fit a 360px viewport, and "how did this player score across the season" is one player's question, which the friend profile answers properly. Position movement against one weekend ago sits next to the name as a signed figure, never an arrow. A range control reads the same table over the last 3 or 5 weekends.
+- **Friend profile** — another player's season: every locked weekend with its points and the transfer cost where they committed, and one weekend at a time shown as a scored lineup with breakdowns on tap. Deliberately **not** the transfer bank: the current bank moves the moment they commit for the open weekend, so showing it would leak whether they have.
+- **Standing** — on the front page, below the deadline and the transfer count. Those two are things a player can still act on; this is the reason they came back. It appears only once a weekend has been scored.
 - **Results with personal highlighting** — the qualifying bracket and race classification with the user's own picks marked. Personal stakes make the visualisation compelling in a way a neutral bracket is not.
 
 ### 4.1 The lineup component — one component, three states
@@ -568,6 +680,58 @@ returns objects with the same attributes and methods `app/scoring/engine.py`
 produces, so the display code cannot tell a stored score from a fresh one. That
 is the whole reason turning the profiles and the meeting breakdown into reads
 touched no template.
+
+### Leagues, fixed in Phase 6
+
+`League` and `LeagueMembership` came from the Phase 0 baseline with the §7
+divergences already applied, and Phase 6 added two columns.
+
+**`League.is_global`**, with a partial unique index (`WHERE is_global`) so at
+most one such league can exist. Its invite code is the sentinel `GLOBAL`, which
+contains O and L — neither in `INVITE_CODE_ALPHABET` — so a generated code can
+never collide with it and the global league can never be reached by guessing.
+
+**`LeagueMembership.hidden`**, the opt-out described in §2.
+
+Migration `0006_global_league` also creates the league and enrols every
+existing user. The application carries `ensure_global_league()` alongside it,
+because the test suite builds its schema with `create_all()` and never runs a
+migration — without it the entire visibility layer would be untestable, which
+is the worst possible property for that particular layer to have. Both paths
+are idempotent and may overlap.
+
+**No `joined_at` scoping anywhere.** Standings are season totals for current
+members, per §2. This is not only simpler, it removes an exploit: if a table
+were scoped from `joined_at`, a player having a bad season could leave and
+rejoin to wipe it.
+
+### Standings
+
+One aggregate query grouped by `(user_id, meeting_id)`, joined to
+`league_memberships`, filtered to locked meetings, pivoted in Python. That one
+pivot yields totals, per-weekend figures and position movement without a second
+round trip — movement is the same ranking recomputed over `meetings[:-1]`,
+which the pivot already holds separately.
+
+A join rather than `user_id IN (...)`: the global league has no member cap, and
+an IN list is the shape that stops working first.
+
+**Provisional scores are included and marked.** §3 makes a partial round score
+a monotonically increasing partial sum, so a Saturday-afternoon total is
+honest — but it still has to say so, or a reader takes a half-scored weekend
+for a finished one.
+
+**Ties share a position and sort by username within the tie.** No countback.
+The game has no tiebreak rule and inventing one is worse than showing equal
+scores as equal.
+
+**A position is computed over the whole table and then one row is read**, for
+the front page's per-league standing. Honest about the cost rather than hiding
+it: at friend scale it is a handful of small aggregates, and the global league
+is the one that eventually is not. The replacement when that happens is a
+counting query — how many members have a higher total — not a cache, because a
+cached position is wrong for as long as it is stale and a league table is read
+on exactly the days it moves.
 
 ### WorkerRun
 
@@ -1039,8 +1203,51 @@ not; §5 records why it is a column rather than a flag hidden in `detail`.
 - **`League` and `LeagueMembership` exist** in the Phase 0 baseline, with the
   §7 divergences already applied. No migration is needed to start.
 
-### Phase 6 — Leagues & social
-Multi-league membership, league creation and admin roles, invite links with caps, league tables, friend profiles. Scored once per user, projected into each league.
+### Phase 6 — Leagues & social, complete
+
+| # | Stage | Contents |
+|---|---|---|
+| 6.1 | Visibility and schema | Migration `0006_global_league`; `app/leagues/visibility.py` — two predicates, four readers, no route or template |
+| 6.2 | Lifecycle | Create, join, invite landing, pending-invite session handling, leave, admin rename/rotate/remove, the cap under a row lock, the account visibility toggle |
+| 6.3 | Standings | `app/leagues/standings.py`, the league table, movement, the range control; `now()` promoted to `app/clock.py` and `current_season()` to `app/lineups/service.py`, now that two blueprints ask |
+| 6.4 | Friend profiles | `app/leagues/profile.py`, `/players/<user_id>`, the season list and one weekend scored through the existing lineup component; the dialog script extracted to `app/static/js/dialogs.js` |
+| 6.5 | Standing on the front page | Position per league below the deadline; SPEC update and handoff |
+
+**Visibility went first on purpose.** The entry conditions recorded that Phase 6
+is the first phase where the rule has teeth, and retrofitting a predicate after
+four routes already read snapshots is how it leaks. Stage 6.1 shipped with
+tests and nothing user-facing.
+
+**The friend profile reuses `_lineup.html` and `scoring_bridge`, and adds no
+scoring.** `score_meeting` plus `aggregate_meeting` already return exactly what
+the component's `scored` state consumes, which is why the page is a read.
+
+**Two costs are kept apart.** The season summary is one `GROUP BY` over
+`PickScore` plus the visibility layer's carry-forward walk. The scored detail
+runs for exactly one weekend, because `score_meeting` reads the round's
+*results* as well as its stored scores — the "Started P13 · finished P5" line
+under each pick is a different question from what scored, and thirteen of those
+to render a list would be thirteen result reads.
+
+### Entry conditions for Phase 7
+
+- **`app/meetings/scoring_bridge.py` is split into `bridge`, `display` and
+  `queries`**, deferred from Phase 5 and recorded there. Phase 7 rewrites the
+  callers anyway.
+- **`styleguide/_nav.html`'s `meeting_nav` and `meeting_menu` are promoted, not
+  rebuilt** — the same promotion path `_lineup.html` and `scoring_bridge` took
+  into Phases 4 and 5. The friend profile is the first production caller that
+  wants arrow navigation between weekends; it currently uses a plain list.
+- **`app/leagues/profile.py` already resolves "this player, this weekend,
+  scored"**, so the per-meeting views Phase 7 builds are the same read with a
+  different viewer.
+- **The qualifying bracket is the open risk**, recorded in Phase 3: the
+  intended design is built from `.ruled`, the team band and the three rule
+  weights and should need no new primitive. That is an argument, not a
+  demonstration.
+- **Consider loading Season 12 into production**, so the visualisations are
+  rehearsed against seventeen rounds of real results rather than discovered at
+  Jeddah on a phone.
 
 ### Phase 7 — Visualisation
 Points breakdown, dream team, qualifying bracket with personal highlighting, meeting views. **The main event — budget accordingly.**
@@ -1053,7 +1260,7 @@ Consider loading Season 12 into production for this phase: rehearsing the visual
 |---|---|
 | Aug 2026 | Phases 0–2 complete; S12 backfilled; **Phase 3 complete** |
 | Aug 2026 | **Phases 4 and 5 complete**; worker live in production |
-| Sept–Oct 2026 | Phase 6: leagues and social |
+| Aug 2026 | **Phase 6 complete**: leagues, invites, standings, friend profiles |
 | Early Dec 2026 | Phase 7 including the qualifying bracket; S13 calendar synced; friends registered |
 | **18–19 Dec 2026** | **Jeddah — first live round** |
 | Late Dec 2026 | Re-tune places gained/lost against the first real Unleashed race; confirm what an unpublished session actually returns (§6) |
@@ -1117,12 +1324,10 @@ Jeddah.
 
 ## 10. Open decisions
 
-- **Late joiners:** a player starting at meeting 5 can never catch up on the season table. Options: a rolling "last 5 meetings" table alongside the season one, per-league season start dates, or accept it. `LeagueMembership.joined_at` already exists, so any of these stays available.
 - **Places gained/lost cap and step:** ships at ±4 in steps of 5 places; confirm or adjust after the S12 simulation, then again after Jeddah.
 - **Team score rounding:** halves permitted (decimal storage). Revisit only if league tables look untidy in practice.
 - **Admin surface:** read-mostly by design. **Built in Phase 5.5** at `/admin/health`: provider calls this month against the ceiling, last successful poll and sync, open runs, sessions awaiting results and sessions given up on, scoring coverage per season, outstanding sync conflicts, and recent run history. Every remedy it points at is a CLI command — a button that rescores a season is the kind of thing that gets pressed by accident on a race weekend. Built entirely from existing primitives; a health page is exactly the screen that attracts status pills and coloured dots, and §1 rules all three out, so state is carried by rule weight, ink level and words. **Still outstanding:** mutating actions (idempotent, logged with actor and timestamp), and pushing a deadline later before it passes. A passed deadline is never unlocked through the interface, because a lineup edited with results known cannot be made legible to the rest of the league.
 - **Meeting display name overrides:** `grouping_locked` currently guards both regrouping and renaming, so correcting "Monte Carlo" to "Monaco" also freezes the grouping. Worth splitting if it becomes annoying in practice.
-- **Public/global table:** worth having alongside leagues if the app is shared online?
 - **S13 qualifying points sanity check:** what the replacement expectation should be, once a real S13 payload exists.
 - **Worker restart visibility:** `_last_heartbeat` is a process global, so every restart writes an idle row immediately. Three idle rows minutes apart means three starts. Useful as a diagnostic, but it means "the worker restarted" and "the worker is healthy" look similar on the admin page. Revisit if it proves noisy in production.
 - **Season 12 in production:** not loaded. Worth doing for Phase 7 so the visualisations get rehearsed against real results.
@@ -1131,6 +1336,17 @@ Jeddah.
 
 | Decision | Outcome |
 |---|---|
+| Late joiners | **Accepted, and mostly already answered by §2.** Membership is a view over scores, so joining a league late costs nothing. A new *account* mid-season is the residue, and no table shape fixes it without inventing points. A shared range control (`?last=3` / `?last=5`) is the honest version and doubles as a form view |
+| Public/global table | **In.** One league carrying `is_global`, everyone enrolled at registration, with a per-member opt-out |
+| Visibility enforcement | Two predicates in `app/leagues/visibility.py`; no function returns a foreign lineup without a viewer argument |
+| Hiding | A flag on the membership row, not a deleted row. Asymmetric: hidden from others, still sees everyone |
+| Member cap | A config constant, not a column. Enforced at join under a row lock; does not apply to the global league |
+| Invite revocation | Code rotation. No separate closed state |
+| Last admin leaving | The earliest-joined remaining member is promoted |
+| Standings shape | One `GROUP BY` over `PickScore` joined to membership, pivoted in Python; movement is the same ranking over `meetings[:-1]` |
+| Standings ties | Shared position, ordered by username within the tie. No countback |
+| Friend profile scope | Locked weekends, points, transfer cost, one weekend scored. Never the current transfer bank |
+| Not-visible responses | 404, never 403. A 403 confirms the account or the league exists |
 | Score storage | **Two tables** — `RoundScore` user-independent and carrying the breakdown, `PickScore` a per-user projection carrying a number and two pointers |
 | Partial scoring | **In.** Score what has landed, mark the round provisional; the additive rules make a partial total monotonically increasing |
 | Round scoreability | Race results in, and every scoring session the round holds ingested. The bracket-shape check belongs to the sync and is not repeated |
@@ -1215,6 +1431,31 @@ Jeddah.
   `create_all`/`drop_all` §7 accepted. That is approaching the point where it
   discourages running the tests before committing, which is the real cost.
   Revisit with a session-scoped schema and per-test rollback.
+- **Do not name a helper into a framework hook.** WTForms treats
+  `filter_<fieldname>` as an inline filter exactly as it treats
+  `validate_<fieldname>`. A `JoinLeagueForm.filter_code()` written as a method
+  the route would call was found by WTForms and invoked with the field value,
+  so merely constructing the form raised `TypeError` and the page 500ed on a
+  GET before any input existed. **Every form needs a test that renders its
+  page**, not only one that exercises the function behind it — the suite
+  covered `league_by_code` thoroughly and never once instantiated the form.
+- **Two similar questions are not one question.** The lineup editor gated its
+  commit affordance on `diff.has_changes`, where the diff is measured against
+  the *cost baseline* — the last snapshot from an earlier meeting (§2). A
+  player editing their first-ever lineup has no earlier snapshot, so the diff
+  was empty however much they changed and the button never enabled. "Does this
+  differ from the cost baseline" and "is there anything worth saving" are
+  different questions with different baselines, and only the first is about
+  transfers.
+- **A page-local `<script>` block is a copy waiting to diverge.** The dialog
+  handlers were written inline in the styleguide's meeting page, then wanted by
+  the editor and the friend profile. They now live in
+  `app/static/js/dialogs.js`, loaded by the app shell and asked for explicitly
+  by the styleguide, which has its own.
+- **The empty state is a real state.** A friend profile for a player with no
+  lineups rendered a list of weekends whose links all produced an identical
+  page, with nothing anywhere saying why. Tapping and getting the same screen
+  reads as a broken link, not as an absence of data.
 - **Interactive fragments keep a working `href` alongside their `hx-get`.** The
   page functions without JavaScript and HTMX enhances it. Click handlers are
   delegated from the document rather than bound per element, so swapped-in
@@ -1237,7 +1478,15 @@ fe-fantasy/
 │   ├── admin/               # read-mostly; health view, request-info diagnostic
 │   │   ├── routes.py
 │   │   └── health.py        # every figure on /admin/health
-│   ├── leagues/  invite/    # Phase 6
+│   ├── leagues/             # membership, visibility, standings, profiles
+│   │   ├── visibility.py    # the two predicates; no foreign read bypasses it
+│   │   ├── service.py       # create, join, leave, administer, the global league
+│   │   ├── invite.py        # the landing, and the invite a visitor carries
+│   │   ├── standings.py     # one GROUP BY over PickScore, pivoted
+│   │   ├── profile.py       # another player's season
+│   │   ├── forms.py
+│   │   └── routes.py        # /leagues, /join/<code>, /players/<id>
+│   ├── clock.py             # now(), and the FANTASY_NOW gate
 │   ├── lineups/             # the game: roster, rules over snapshots, editor
 │   │   ├── roster.py        # the pickable grid for a round
 │   │   ├── draft.py         # what is broken, what it costs, what each option does
@@ -1276,7 +1525,10 @@ fe-fantasy/
 │   ├── static/
 │   │   ├── css/             # tokens.css, primitives.css — the design system
 │   │   ├── fonts/           # Archivo, Anybody, subset woff2 + OFL
-│   │   └── js/htmx.min.js   # self-hosted; no CDN
+│   │   ├── js/htmx.min.js   # self-hosted; no CDN
+│   │   └── js/dialogs.js    # modal dialogs, delegated from the document
+│   ├── templates/leagues/   # index, new, join, landing, detail, _table
+│   ├── templates/players/   # profile
 │   └── templates/styleguide/
 │       ├── _lineup.html     # the lineup component — Phase 4 imports this
 │       ├── _nav.html  _results.html  _profile.html

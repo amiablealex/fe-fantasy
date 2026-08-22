@@ -39,6 +39,7 @@ from flask import current_app
 from sqlalchemy import and_, func, select
 
 from app.extensions import db
+from app.leagues import service
 from app.models.calendar import Meeting, Round
 from app.models.league import League, LeagueMembership
 from app.models.score import PickScore
@@ -296,3 +297,52 @@ def standings(
         truncated=truncated,
         window=window,
     )
+
+
+# -----------------------------------------------------------------------------
+# One player, across their leagues
+# -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LeagueStanding:
+    """Where one player sits in one league. For the front page."""
+
+    league: League
+    position: int | None
+    tied: bool
+    total: Decimal
+    members: int
+
+    @property
+    def is_ranked(self) -> bool:
+        return self.position is not None
+
+
+def standings_for_user(user, season, now: datetime | None = None) -> list[LeagueStanding]:
+    """Every league the player is in, with their position in each.
+
+    **This computes each table in full and then reads one row.** Honest about
+    the cost rather than hiding it: at friend scale it is a handful of small
+    aggregates, and the global league is the one that eventually is not. The
+    replacement when that happens is a counting query — how many members have a
+    higher total — not a cache, because a cached position is wrong for as long
+    as it is stale and a league table is read on exactly the days it moves.
+
+    `position` is None when the player is hidden in that league, which is the
+    one case where they are legitimately absent from their own table.
+    """
+    out: list[LeagueStanding] = []
+    for league, _ in service.user_leagues(user):
+        table = standings(league, season, viewer=user, now=now)
+        if table.is_empty:
+            continue
+        row = next((r for r in table.rows if r.user_id == user.id), None)
+        out.append(LeagueStanding(
+            league=league,
+            position=row.position if row else None,
+            tied=bool(row and row.tied),
+            total=row.total if row else ZERO,
+            members=len(visible_members(league)),
+        ))
+    return out
