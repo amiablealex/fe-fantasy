@@ -17,6 +17,7 @@
   <nav class="appbar__nav">
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('lineups.edit') }}">Lineup</a>
+      <a href="{{ url_for('leagues.index') }}">Leagues</a>
       <a href="{{ url_for('auth.account') }}">Account</a>
       {% if current_user.is_admin %}<a href="{{ url_for('admin.index') }}">Admin</a>{% endif %}
       <form method="post" action="{{ url_for('auth.logout') }}">

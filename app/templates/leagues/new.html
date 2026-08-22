@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block main_class %}gate{% endblock %}
+{% block content %}
+<h1 class="page-title">Create a league</h1>
+
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.name) }}
+  {{ form.submit() }}
+</form>
+
+<p class="aftermatter">You become the league&#8217;s admin. Everyone you invite
+  brings their whole season with them &mdash; joining late costs nothing,
+  because a lineup scores once and projects into every league you are in.</p>
+{% endblock %}

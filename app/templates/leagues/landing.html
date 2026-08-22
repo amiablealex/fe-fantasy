@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block main_class %}gate{% endblock %}
+{% block content %}
+
+{% if league %}
+<h1 class="page-title">{{ league.name }}</h1>
+
+{#- Name the league before asking for anything. Arriving at a bare sign-in page
+    having tapped an invite is how people conclude the link was broken. -#}
+<div class="prose">
+  {% if full %}
+  <p>{{ league.name }} is full, so there is no space to join right now.</p>
+  {% else %}
+  <p>You have been invited to join <strong>{{ league.name }}</strong> on
+    {{ config.APP_NAME }} &mdash; pick four drivers and a team, and score from
+    real Formula E weekends.</p>
+  <p>Sign in or create an account and you will be added automatically.</p>
+  {% endif %}
+</div>
+
+<div class="actions">
+  <a class="button--quiet" href="{{ url_for('auth.login') }}">Sign in</a>
+  <a class="actions__commit" href="{{ url_for('auth.register') }}">Create account</a>
+</div>
+
+{% else %}
+<h1 class="page-title">Invite not found</h1>
+<p class="prose">That link is no longer valid. Codes change when a league admin
+  issues a new one &mdash; ask them for the current link.</p>
+{% endif %}
+
+{% endblock %}

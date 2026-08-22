@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="page-title">Leagues</h1>
+
+{#- A league is a row, not a card. Cards on a grid are the generated-dashboard
+    look §1 rules out, and a ruled list reads the count and the name in one
+    pass without any of it. -#}
+<ul class="ruled">
+  {% for row in rows %}
+  <li>
+    <a class="split" href="{{ url_for('leagues.detail', league_id=row.league.id) }}">
+      <span>
+        <span class="u-semi">{{ row.league.name }}</span>
+        {% if row.membership.is_admin %}
+        <span class="label u-mid">Admin</span>
+        {% endif %}
+      </span>
+      <span class="status u-nowrap">
+        {{ row.members }} member{{ '' if row.members == 1 else 's' }}
+        {%- if not row.league.is_global %} of {{ cap }}{% endif -%}
+      </span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+
+{% if rows | length == 1 %}
+<p class="aftermatter">Everyone plays in {{ rows[0].league.name }}. A private
+  league is for a table with only the people you want in it.</p>
+{% endif %}
+
+<div class="actions">
+  <a class="button--quiet" href="{{ url_for('leagues.join') }}">Join with a code</a>
+  <a class="actions__commit" href="{{ url_for('leagues.new') }}">Create a league</a>
+</div>
+{% endblock %}

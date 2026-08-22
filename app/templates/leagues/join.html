@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block main_class %}gate{% endblock %}
+{% block content %}
+<h1 class="page-title">Join a league</h1>
+
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.code, autocomplete="off") }}
+  {{ form.submit() }}
+</form>
+
+<p class="aftermatter">Codes are not case sensitive. If you were sent a link,
+  tapping it does the same thing.</p>
+{% endblock %}

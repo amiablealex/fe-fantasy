@@ -154,7 +154,28 @@ class Config:
     INVITE_CODE_ALPHABET = os.environ.get(
         "INVITE_CODE_ALPHABET", "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I
     )
+    # Codes are generated and inserted rather than checked for freedom, so this
+    # bounds a retry loop rather than a search. Six characters from a 32-letter
+    # alphabet is a billion codes; a collision inside eight attempts would be
+    # remarkable.
+    INVITE_CODE_MAX_ATTEMPTS = _env_int("INVITE_CODE_MAX_ATTEMPTS", 8)
+
+    # The cap bounds query cost (SPEC.md §2), so it is one number for the whole
+    # installation rather than a per-league column. It does not apply to the
+    # global league, which is everybody by definition.
     MAX_LEAGUE_MEMBERS = _env_int("MAX_LEAGUE_MEMBERS", 50)
+
+    # Following an invite link and guessing at codes are the same request from
+    # the same address, so they share one bucket. Looser than login: a code is
+    # not a password, and a member re-tapping their own working link is never
+    # counted — only a miss is.
+    INVITE_MAX_ATTEMPTS = _env_int("INVITE_MAX_ATTEMPTS", 20)
+    INVITE_WINDOW_MINUTES = _env_int("INVITE_WINDOW_MINUTES", 15)
+    INVITE_BLOCK_MINUTES = _env_int("INVITE_BLOCK_MINUTES", 15)
+
+    # An invite followed yesterday should not silently join someone to a league
+    # because they happened to reset their password today.
+    PENDING_INVITE_TTL_MINUTES = _env_int("PENDING_INVITE_TTL_MINUTES", 1440)
 
     # -------------------------------------------------------------------------
     # Admin.

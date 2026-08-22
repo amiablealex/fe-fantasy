@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+
+{% block content %}
+<h1 class="page-title">{{ league.name }}</h1>
+
+<p class="status">
+  {{ members | length }} member{{ '' if members | length == 1 else 's' }}
+  {%- if not league.is_global %} of {{ cap }}{% endif -%}
+  {%- if league.is_global %} &middot; everyone who plays{% endif -%}
+</p>
+
+{#- The standings table lands here in 6.3. Until then the page answers the
+    other question a league page is for: who is in it.
+
+    The loop variable is `m`, not `membership`: `membership` is the *viewer's*
+    row and the admin controls below depend on it. -#}
+<ul class="ruled">
+  {% for m, member in members %}
+  <li class="split{{ ' is-yours' if member.id == current_user.id }}">
+    <span>
+      <span class="u-semi">{{ member.username }}</span>
+      {% if m.is_admin %}<span class="label u-mid">Admin</span>{% endif %}
+      {% if m.hidden %}<span class="label u-low">Hidden</span>{% endif %}
+    </span>
+    {% if membership.is_admin and not league.is_global and member.id != current_user.id %}
+    <form method="post"
+          action="{{ url_for('leagues.remove', league_id=league.id, user_id=member.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="button--quiet">Remove</button>
+    </form>
+    {% else %}
+    <span class="status u-nowrap">{{ m.joined_at.strftime('%-d %b %Y') }}</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+
+{% if league.is_global %}
+<p class="aftermatter">Everyone who plays is in this league. You can hide
+  yourself from it in
+  <a href="{{ url_for('auth.account') }}">your account settings</a>.</p>
+
+{% else %}
+
+<fieldset class="panel">
+  <legend class="label panel__title">Invite</legend>
+  <div class="pairs">
+    <span class="u-mid">Code</span>
+    <span class="u-semi u-caps">{{ league.invite_code }}</span>
+  </div>
+  <div class="field">
+    <label class="field__label label" for="share">Link</label>
+    <input id="share" type="text" readonly value="{{ share_url }}" onclick="this.select()">
+  </div>
+  {% if membership.is_admin %}
+  <form method="post" action="{{ url_for('leagues.rotate', league_id=league.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="button--quiet">Issue a new code</button>
+  </form>
+  <p class="aftermatter">A new code makes every link already shared stop
+    working. That is how an invite is withdrawn.</p>
+  {% endif %}
+</fieldset>
+
+{% if membership.is_admin %}
+<fieldset class="panel">
+  <legend class="label panel__title">Name</legend>
+  <form method="post" action="{{ url_for('leagues.rename', league_id=league.id) }}" novalidate>
+    {{ rename_form.hidden_tag() }}
+    {{ field(rename_form.name) }}
+    {{ rename_form.submit() }}
+  </form>
+</fieldset>
+{% endif %}
+
+<fieldset class="panel panel--danger">
+  <legend class="label panel__title">Leave</legend>
+  <p class="aftermatter">Your lineups and scores are unaffected. You simply
+    stop appearing in this league&#8217;s table.
+    {%- if membership.is_admin %} Another member becomes admin.{% endif %}</p>
+  <form method="post" action="{{ url_for('leagues.leave', league_id=league.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="button--quiet">Leave {{ league.name }}</button>
+  </form>
+</fieldset>
+
+{% endif %}
+{% endblock %}
