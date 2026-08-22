@@ -32,8 +32,16 @@ class JoinLeagueForm(FlaskForm):
     )
     submit = SubmitField("Join")
 
-    def filter_code(self) -> str:
-        return (self.code.data or "").strip().upper()
+    def filter_code(self, value):
+        """A WTForms inline filter, not a helper.
+
+        `filter_<fieldname>` is a framework hook, the same as
+        `validate_<fieldname>`, so this runs at process time and `code.data` is
+        already normalised by the time anything reads it. It was originally
+        written as a method the route called, which WTForms found and invoked
+        with the field value — a 500 on a GET.
+        """
+        return (value or "").strip().upper()
 
 
 class GlobalVisibilityForm(FlaskForm):

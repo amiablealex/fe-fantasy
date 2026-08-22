@@ -194,8 +194,29 @@ def edit():
         ]
 
     filled = len(draft_drivers) + (1 if draft_team is not None else 0)
+
+    # Two different questions, conflated until now.
+    #
+    # `diff` is measured against the *cost baseline* — the last snapshot from
+    # an earlier meeting — because that is what a transfer is charged against
+    # (§2). Whether there is anything worth saving is measured against what is
+    # stored for *this* meeting.
+    #
+    # They differ exactly when a player has committed for this weekend and has
+    # no earlier snapshot, which is every player's first-ever lineup. There the
+    # baseline is None, the diff is empty forever, and the commit affordance
+    # could never enable no matter what was changed.
+    #
+    # Compared slot by slot rather than by building a `Lineup`: an incomplete
+    # or hand-edited draft must answer this question rather than raise.
+    saved = state.snapshot.to_lineup() if state.snapshot else None
+    dirty = saved is None or (
+        set(draft_drivers) != set(saved.drivers) or draft_team != saved.team_id
+    )
+
     ctx.update(
         state=state,
+        dirty=dirty,
         draft_drivers=draft_drivers,
         draft_team=draft_team,
         edit_drivers=[draft.slot_view(state.roster, d) for d in draft_drivers],

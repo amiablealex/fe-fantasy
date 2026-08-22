@@ -29,21 +29,29 @@ from flask_login import current_user, login_required
 from app.auth import rate_limit
 from app.clock import now
 from app.extensions import db
-from app.leagues import invite, service
+from app.leagues import invite, service, visibility
 from app.leagues.forms import (
     CreateLeagueForm,
     GlobalVisibilityForm,
     JoinLeagueForm,
     RenameLeagueForm,
 )
+from app.leagues.profile import player_profile, weekend_detail
+from app.meetings import scoring_bridge as bridge
 from app.leagues.standings import standings
 from app.lineups.service import current_season
+from app import palette
 from app.models.league import League
 from app.models.user import User
 from app.utils import client_ip
 
 leagues_bp = Blueprint("leagues", __name__, url_prefix="/leagues")
 invite_bp = Blueprint("invite", __name__)
+
+# Outside the /leagues prefix. A profile is reached from a league table, but it
+# is not scoped to one — the same player seen through two shared leagues is the
+# same season, and a per-league URL would say otherwise.
+players_bp = Blueprint("players", __name__)
 
 # Shared by the landing and the code form: both are the same guessing attack
 # from the same address, and giving them separate allowances would halve the
@@ -159,7 +167,7 @@ def join():
         return render_template("leagues/join.html", form=form, title="Join a league"), 429
 
     if form.validate_on_submit():
-        league = service.league_by_code(form.filter_code())
+        league = service.league_by_code(form.code.data)
         if league is None:
             _record_bad_code()
             flash("No league has that code.", "error")
@@ -330,3 +338,53 @@ def global_visibility():
             "success",
         )
     return redirect(url_for("auth.account"))
+
+
+# -----------------------------------------------------------------------------
+# Friend profiles
+# -----------------------------------------------------------------------------
+
+
+@players_bp.route("/players/<int:user_id>")
+@login_required
+def profile(user_id: int):
+    """Another player's season.
+
+    404 for a player you share no league with, and 404 for one who does not
+    exist. The same answer to both, because a 403 confirms the account.
+
+    The page opens on the most recent weekend the player has a lineup for.
+    `?m=<sequence>` selects another, and a sequence outside the visible list
+    simply falls back to the default rather than erroring — the list is the
+    gate, so an unlocked weekend cannot be reached by editing the URL.
+    """
+    subject = visibility.visible_user(current_user, user_id)
+    if subject is None:
+        abort(404)
+
+    season = current_season()
+    ctx = {"palette": palette, "bridge": bridge, "season": season,
+           "subject": subject, "profile": None, "detail": None}
+    if season is None:
+        return render_template("players/profile.html", title=subject.username, **ctx)
+
+    moment = now()
+    summary = player_profile(current_user, subject, season, now=moment)
+    ctx["profile"] = summary
+
+    raw = request.args.get("m")
+    selected = None
+    if raw and raw.isdigit():
+        row = summary.row_for(int(raw))
+        selected = row.meeting if row else None
+    if selected is None:
+        selected = summary.latest_with_lineup
+
+    if selected is not None:
+        ctx["detail"] = weekend_detail(
+            current_user, subject, season, selected, now=moment
+        )
+
+    return render_template(
+        "players/profile.html", title=subject.username, **ctx
+    )

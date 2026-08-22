@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "lineups/_lineup.html" as ui %}
+
+{% block content %}
+
+<h1 class="page-title">{{ subject.username }}</h1>
+
+{% if profile and profile.leagues %}
+<p class="status">
+  {%- for league in profile.leagues -%}
+  {{ '' if loop.first else ' &middot; ' | safe }}{{ league.name }}
+  {%- endfor -%}
+</p>
+{% endif %}
+
+{% if not season or not profile or not profile.weekends %}
+<p class="prose">
+  {%- if not season -%}
+  No season has been synced yet.
+  {%- else -%}
+  No weekend has locked this season, so there is nothing to show.
+  {%- endif -%}
+</p>
+
+{% else %}
+
+{#- The season figure first. It is the answer the page exists to give, and the
+    weekend list below is the working. -#}
+<div class="slab">
+  <span class="label">Season</span>
+  <span class="figure figure--round num">{{ bridge.fmt(profile.total) }}</span>
+</div>
+<p class="status">
+  {{ profile.played }} weekend{{ '' if profile.played == 1 else 's' }} scored
+</p>
+
+
+{% if detail %}
+{#- One weekend, scored, in the same component the player sees on their own
+    front page. Tapping a slot discloses the breakdown, exactly as it does
+    there — the whole reason the component has three states rather than three
+    implementations. -#}
+<header class="masthead">
+  <span class="masthead__venue">{{ detail.meeting.display_name }}</span>
+  <span class="masthead__meta status">
+    Round{{ 's' if detail.meeting.rounds | length > 1 }}
+    {{ detail.meeting.rounds | map(attribute='round_number') | join(' &amp; ') }}
+  </span>
+</header>
+
+{{ ui.verdict(bridge, detail.total,
+              heading=('Your weekend' if profile.is_you else 'Their weekend')) }}
+
+{{ ui.lineup(palette, detail.picks[:4],
+             detail.picks[4] if detail.picks | length > 4 else none,
+             state='scored', bridge=bridge) }}
+
+{% for pick in detail.picks %}
+{{ ui.breakdown(bridge, palette, pick, loop.index0) }}
+{% endfor %}
+{% endif %}
+
+
+{% if not detail %}
+<p class="prose">
+  {%- if profile.latest_with_lineup is none -%}
+  {{ subject.username }} has no lineup for any weekend that has locked yet.
+  {%- else -%}
+  No lineup for that weekend.
+  {%- endif -%}
+</p>
+{% endif %}
+
+<details class="disclosure" {% if not detail %}open{% endif %}>
+  <summary>
+    <span class="disclosure__title">By weekend</span>
+    <span class="disclosure__hint label"></span>
+  </summary>
+  <div class="disclosure__body">
+    {#- Newest first. A profile is mostly read to answer "how are they doing
+        lately", and the weekend the page opened on is the top row. -#}
+    <div class="ruled ruled--tight">
+      {% for row in profile.weekends %}
+      <a class="split{{ ' option--current' if detail and row.meeting.id == detail.meeting.id }}"
+         href="{{ url_for('players.profile', user_id=subject.id, m=row.meeting.sequence) }}">
+        <span>
+          <span class="u-semi">{{ row.meeting.display_name }}</span>
+          {% if row.committed and row.transfer_cost %}
+          <br><span class="label u-mid">{{ row.transfer_cost }} transfer{{ '' if row.transfer_cost == 1 else 's' }}</span>
+          {% elif not row.snapshot %}
+          <br><span class="label u-low">No lineup</span>
+          {% endif %}
+        </span>
+        <span class="num u-semi">
+          {{- bridge.fmt(row.points) if row.scored else '&#183;' | safe -}}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+{% endif %}
+{% endblock %}
