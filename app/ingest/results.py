@@ -27,7 +27,6 @@ from app.extensions import db
 from app.ingest.checks import verify_championship_points
 from app.models.calendar import (
     SCORING_STAGES,
-    SCORING_QUALIFYING_STAGES,
     SESSION_STATUS_COMPLETED,
     STAGE_RACE,
     STAGE_FINAL,
@@ -52,6 +51,9 @@ class ResultsReport:
     sessions_fetched: int = 0
     sessions_skipped_not_complete: int = 0
     sessions_skipped_already_ingested: int = 0
+    # Speculative fetches that came back with nothing. Not an error: the
+    # session simply has not been published yet.
+    sessions_not_ready: int = 0
     rows_created: int = 0
     rows_updated: int = 0
     drivers_created: int = 0
@@ -71,6 +73,7 @@ class ResultsReport:
             f"{self.rows_updated} updated, "
             f"{self.sessions_skipped_already_ingested} already ingested, "
             f"{self.sessions_skipped_not_complete} not complete, "
+            f"{self.sessions_not_ready} not ready, "
             f"{len(self.warnings)} warnings, {len(self.errors)} errors"
         )
 
@@ -147,11 +150,29 @@ def sync_session_results(
     report: ResultsReport,
     *,
     force: bool = False,
+    speculative: bool = False,
 ) -> None:
     """Fetch and store one session's classification.
 
     Commits on success. On failure the session is rolled back and the error
     recorded, so one bad session does not abandon the rest of the round.
+
+    **`speculative` inverts the rule in SPEC.md §6.** That rule — check the
+    session's status before requesting results, so a scheduled session costs no
+    call — is right for a backfill, where you face 187 sessions and have no idea
+    which have run. It is wrong for a live weekend, because status arrives only
+    on `/events`, which cannot be filtered by season: refreshing it costs four
+    calls, so checking first costs five calls per attempt where guessing costs
+    one.
+
+    During a weekend the poller already knows, from the stored schedule, that a
+    session was due to finish twenty minutes ago. Asking is the cheap move.
+
+    Two consequences, both handled below. The stored status is stale by
+    definition on this path, so it is not consulted. And an empty
+    classification means "not ready yet" rather than "ran and nobody
+    finished" — so it must not stamp `results_ingested_at`, which would mark an
+    unrun session as permanently ingested and silently drop it from the game.
     """
     report.sessions_considered += 1
 
@@ -162,9 +183,13 @@ def sync_session_results(
         report.sessions_skipped_already_ingested += 1
         return
 
-    if session_row.status is not None and session_row.status != SESSION_STATUS_COMPLETED:
-        report.sessions_skipped_not_complete += 1
-        return
+    if not speculative:
+        if (
+            session_row.status is not None
+            and session_row.status != SESSION_STATUS_COMPLETED
+        ):
+            report.sessions_skipped_not_complete += 1
+            return
 
     round_row = db.session.get(Round, session_row.round_id)
 
@@ -173,30 +198,49 @@ def sync_session_results(
     except Exception as exc:  # provider errors are already classified
         db.session.rollback()
         message = f"R{round_row.round_number} {session_row.name}: {exc}"
-        report.errors.append(message)
-        log.warning("Results fetch failed for %s", message)
+        if speculative:
+            # A session that has not been published yet may well answer with a
+            # 404 rather than an empty array — the provider has never been
+            # observed mid-weekend, because Season 12 was already finished when
+            # this was written. Either shape means the same thing here: come
+            # back later. It is a fact about the schedule, not an error.
+            report.sessions_not_ready += 1
+            log.debug("Not ready yet: %s", message)
+        else:
+            report.errors.append(message)
+            log.warning("Results fetch failed for %s", message)
         return
 
     report.sessions_fetched += 1
 
     if not rows:
+        if speculative:
+            report.sessions_not_ready += 1
+            log.debug(
+                "R%s %s returned no rows; not stamping",
+                round_row.round_number, session_row.name,
+            )
+            return
         report.warnings.append(
             f"R{round_row.round_number} {session_row.name}: completed but returned no rows"
         )
 
     try:
-            _write_rows(rows, session_row, season, report)
-    
-            pole = _pole_driver_id(round_row) if session_row.stage == STAGE_RACE else None
-            for problem in verify_championship_points(
-                season.year, session_row.stage, rows, pole
-            ):
-                report.warnings.append(
-                    f"R{round_row.round_number} {session_row.name}: {problem}"
-                )
+        _write_rows(rows, session_row, season, report)
 
-            session_row.results_ingested_at = datetime.now(timezone.utc)
-            db.session.commit()
+        pole = _pole_driver_id(round_row) if session_row.stage == STAGE_RACE else None
+        for problem in verify_championship_points(
+            season.year, session_row.stage, rows, pole
+        ):
+            report.warnings.append(
+                f"R{round_row.round_number} {session_row.name}: {problem}"
+            )
+
+        session_row.results_ingested_at = datetime.now(timezone.utc)
+        # A speculative fetch that returned a classification has just proved the
+        # session ran, whatever the stored status says.
+        session_row.status = SESSION_STATUS_COMPLETED
+        db.session.commit()
 
     except Exception as exc:
         db.session.rollback()

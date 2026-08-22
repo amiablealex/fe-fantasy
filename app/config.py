@@ -188,6 +188,31 @@ class Config:
     # is only what the run history needs.
     # -------------------------------------------------------------------------
     WORKER_RUN_RETENTION_DAYS = _env_int("WORKER_RUN_RETENTION_DAYS", 30)
+    WORKER_HEARTBEAT_MINUTES = _env_int("WORKER_HEARTBEAT_MINUTES", 60)
+
+    # The poller. Every tick opens with a database query that costs nothing, so
+    # a short interval is only expensive during a race weekend.
+    POLL_INTERVAL_SECONDS = _env_int("POLL_INTERVAL_SECONDS", 60)
+    # Results are never up the instant a session ends; asking immediately just
+    # spends a call to be told no.
+    POLL_SESSION_GRACE_MINUTES = _env_int("POLL_SESSION_GRACE_MINUTES", 3)
+    # How long to ask on every tick before dropping to the patient interval.
+    POLL_EAGER_MINUTES = _env_int("POLL_EAGER_MINUTES", 30)
+    POLL_PATIENT_INTERVAL_MINUTES = _env_int("POLL_PATIENT_INTERVAL_MINUTES", 15)
+    # After this, stop and report the session as stale. `backfill-results` is
+    # the remedy, and it is manual on purpose.
+    POLL_GIVE_UP_HOURS = _env_int("POLL_GIVE_UP_HOURS", 6)
+
+    # Calendar refresh. Daily normally; more often when a session is imminent,
+    # because that is when a moved deadline actually costs someone a lineup.
+    SEASON_SYNC_INTERVAL_HOURS = _env_int("SEASON_SYNC_INTERVAL_HOURS", 24)
+    SEASON_SYNC_BUSY_INTERVAL_HOURS = _env_int("SEASON_SYNC_BUSY_INTERVAL_HOURS", 6)
+    SEASON_SYNC_BUSY_LEAD_HOURS = _env_int("SEASON_SYNC_BUSY_LEAD_HOURS", 36)
+
+    # The free tier allows 7,500 a month and this cadence should spend a few
+    # hundred. "Should" is not a control; this is. Checked against the summed
+    # WorkerRun history before any job that would spend a call.
+    OCB_MONTHLY_CALL_CEILING = _env_int("OCB_MONTHLY_CALL_CEILING", 5000)
 
 
 class DevelopmentConfig(Config):
