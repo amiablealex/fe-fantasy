@@ -27,6 +27,7 @@ from app.auth.forms import (
     ResetPasswordForm,
 )
 from app.extensions import db
+from app.leagues.service import ensure_global_membership
 from app.models.user import PasswordResetToken, User
 from app.utils import client_ip
 
@@ -109,8 +110,14 @@ def register():
 
         rate_limit.reset(BUCKET_REGISTER, _client_key())
 
+        # Everyone is in the global league from the moment they exist, so a
+        # new account has a table to appear on without creating anything. The
+        # opt-out is a flag on the membership, not the absence of one.
+        ensure_global_membership(user)
+
         # Phase 6 hook: consume a pending league invite here.
         flash("Account created — welcome.", "success")
+
         return redirect(url_for("lineups.home"))
 
     if request.method == "POST":

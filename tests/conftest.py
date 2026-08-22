@@ -17,6 +17,8 @@ from app.extensions import db as _db
 from app.models.user import User
 from app.models.calendar import Location, Meeting, Round, Season
 from app.models.grid import Driver, SeatEntry, Team
+from app.models.league import League, LeagueMembership
+from app.models.lineup import LineupSnapshot
 from app.scoring import lineups as rules
 
 @pytest.fixture()
@@ -186,5 +188,57 @@ def make_meeting(db, season):
             ))
         db.session.commit()
         return meeting
+
+    return _make
+
+
+@pytest.fixture()
+def make_league(db):
+    """A league with its members already enrolled.
+
+    Codes are sequential rather than generated: a test that fails because two
+    random six-character codes collided would be maddening to diagnose and
+    proves nothing about the code the application actually generates.
+    """
+    state = {"n": 0}
+
+    def _make(name="Test League", members=(), is_global=False):
+        state["n"] += 1
+        league = League(
+            name=name,
+            invite_code=f"TEST{state['n']:03d}",
+            is_global=is_global,
+        )
+        db.session.add(league)
+        db.session.flush()
+        for user in members:
+            db.session.add(
+                LeagueMembership(league_id=league.id, user_id=user.id)
+            )
+        db.session.commit()
+        return league
+
+    return _make
+
+
+@pytest.fixture()
+def make_snapshot(db):
+    """A committed lineup, written directly.
+
+    Not through `service.commit`, deliberately: that enforces the open weekend
+    and the transfer budget, and a visibility test needs a lineup at a meeting
+    that has already locked — which commit will never write.
+    """
+    def _make(user, meeting, lineup, transfer_cost=0):
+        record = LineupSnapshot.build(
+            user_id=user.id,
+            season_id=meeting.season_id,
+            meeting_id=meeting.id,
+            lineup=lineup,
+            transfer_cost=transfer_cost,
+        )
+        db.session.add(record)
+        db.session.commit()
+        return record
 
     return _make
