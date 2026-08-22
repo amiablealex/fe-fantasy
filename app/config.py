@@ -82,7 +82,7 @@ class Config:
     # User-Agent header (SPEC.md §6) and shown in the UI footer.
     # -------------------------------------------------------------------------
     APP_VERSION = "0.1.0"
-    APP_NAME = "Formula E Fantasy"
+    APP_NAME = "FE Fantasy"
 
     # -------------------------------------------------------------------------
     # Flask core
@@ -127,7 +127,7 @@ class Config:
     # -------------------------------------------------------------------------
     RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
     RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "noreply@fe.kitsniff.com")
-    RESEND_FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Formula E Fantasy")
+    RESEND_FROM_NAME = os.environ.get("RESEND_FROM_NAME", "FE Fantasy")
     PASSWORD_RESET_TOKEN_TTL_HOURS = _env_int("PASSWORD_RESET_TOKEN_TTL_HOURS", 2)
 
     # -------------------------------------------------------------------------
