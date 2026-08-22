@@ -1,7 +1,7 @@
 # Formula E Fantasy — Project Spec
 
-**Status:** Phases 0–4 complete. Season 12 backfilled locally; the lineup editor writes real snapshots.
-**Last updated:** 21 August 2026
+**Status:** Phases 0–5 complete. Season 12 backfilled and scored locally; the worker is live in production.
+**Last updated:** 22 August 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
 
@@ -12,6 +12,8 @@
 > **Revision note 3 (19 Aug 2026).** Phase 1 complete: provider client, ingestion schema, season sync and results backfill. Season 12 is fully ingested locally — 11 meetings, 17 rounds, 187 sessions, 880 result rows. **§3's fastest-lap rule is corrected: derive it from the minimum `lap_time`, not from `fastestLap.rank`, which encodes Formula E's top-ten restriction and disagrees on eight of seventeen S12 rounds.** Also: `gridPosition` is the post-penalty starting slot, not the qualifying result (Appendix A); the provider rate-limits at roughly two requests per second (§6); practice and `other` sessions are never ingested (§6); Phase 2 splits into engine then simulation (§8, §9).
 
 > **Revision note 6 (20 August 2026).** Phase 3 complete. The design language is settled and recorded in §1: Archivo and Anybody, a seven-step rem scale, CSS-native tokens in two tiers under cascade layers, and a two-stripe hue-seeded team palette. §4.1 records the lineup component as an architectural commitment; §4.2 records the driver and team profile. HTMX is in use (§7). The qualifying bracket is deferred to Phase 7, where the roadmap already places it; the interim is a linear stage list, and the open risk is recorded in §8.
+
+> **Revision note 8 (22 August 2026).** Phase 5 complete. Scores are stored and read rather than recomputed (§5), scoring is partial and provisional by design (§3), the live poller inverts §6's status-check rule for a specific and measured reason (§6), and the worker runs on Railway (§7). Three things diverge from what earlier drafts of this document said: §5 asked for one table and got two; §6 said check status before fetching and the live path does not; and `railway.toml` is deleted, because Railway deprecated Config as Code with a cutoff seventeen days before Jeddah. A defect is recorded in §3 — the bridge scored every round against the *current* ruleset rather than the round's own, which would have rewritten history at the first re-tune.
 
 > **Revision note 7 (21 August 2026).** Phase 4 complete. The game schema is fixed and recorded in §5: sparse snapshots per (user, meeting), picks as rows, the slot diff stored on the snapshot. §2 gains three rules the earlier drafts left open — only the earliest unlocked weekend is editable, the cost baseline is the last snapshot from an *earlier* meeting, and a late joiner's bank starts at one. §4 finally carries the subsections revision note 6 promised: §4.1 the lineup component, §4.2 the profiles, §4.3 the editor. `app/lineups/` exists (§12) and the roster and draft helpers have moved into it out of the debug-only styleguide package. The auth pages and the app shell now use the design system, and `base.css` is deleted.
 
@@ -267,7 +269,42 @@ Point values are not constants in code. They live in `app/scoring/rules.py` as a
 
 This is lifted from the F1 app's `round_scoring_config` pattern, and this project needs it more: §9 exists specifically to tune point values against real data, and the ±4 cap is explicitly provisional. Changing a value must never retroactively rewrite a completed round's score. Combined with the stored per-pick breakdown (§5), every historical score stays reproducible and rescoring stays idempotent.
 
-A defect found in Phase 5 and fixed there. scoring_bridge called score_round and score_team without a ruleset, which resolves to CURRENT_VERSION. Harmless while v1 was the only version in play, and a silent rewrite of completed rounds the first time the places gained/lost magnitudes are re-tuned after Jeddah. Every engine call now passes get_ruleset(round.scoring_ruleset_version).
+**A defect found and fixed in Phase 5.** `scoring_bridge` called `score_round`
+and `score_team` without passing a ruleset, which resolves to
+`CURRENT_VERSION`. That was harmless while v1 was the only version in play and
+would have been a silent rewrite of completed rounds the first time the places
+gained/lost magnitudes were re-tuned after Jeddah — the exact failure this
+section exists to prevent, sitting in the code the whole time §3 was being
+written. Every engine call now passes
+`get_ruleset(round.scoring_ruleset_version)`, and the stored score carries the
+version it was computed under so a row explains itself without a join.
+
+### Partial scoring
+
+**A round is scored from whatever has landed, and marked provisional until
+every session it holds is in.**
+
+Qualifying finishes hours before the race. Holding the score back until the
+round is complete would mean a Saturday morning where the game knows what
+happened and shows nothing, which is the opposite of what a fantasy game is
+for.
+
+This is safe because of a property of the rules rather than of the code. Every
+fantasy point is additive within a session, and places gained/lost — the only
+rule that can go negative — needs the race and therefore lands atomically with
+it. So a provisional score is a **monotonically increasing partial sum**: it
+never revises downward. "Qualifying 8, race to come" is an honest sentence in a
+way that a figure which might drop later would not be.
+
+The one thing that can move a stored score down is the provider correcting a
+classification, and that is a correction worth having.
+
+**What makes a round complete:** its race results are in, and every scoring
+session it holds has been ingested. Deliberately *not* "and the bracket has the
+expected ten sessions" — the sync already raises `unexpected_session_shape` on
+a completed round with the wrong count (§6), and a second copy of that
+expectation in the scoring pass is how the two quietly disagree. If the race
+has landed, the qualifying schedule is not going to grow.
 
 ---
 
@@ -276,6 +313,7 @@ A defect found in Phase 5 and fixed there. scoring_bridge called score_round and
 - **Front page** — the weekend that is live, when the next one locks, and what is left to spend
 - **Lineup** — pick and manage the five slots; staged draft with explicit commit; transfer state, bank, and the running cost of the current draft clearly shown; rounds-participated shown per driver in the picker
 - **Meeting view** — points earned, split into clearly headed sections labelled by round format (`E-Prix Unleashed` / `E-Prix`), not "Race 1 / Race 2"
+- **Admin health** — provider quota, worker liveness, scoring coverage, outstanding conflicts (§10). Built in Phase 5.
 - **Points breakdown** — per pick, per race, showing exactly which rules fired. The core data-presentation challenge, and the main design opportunity. Real ranges from S12: a driver-round scores −4 to 21 across up to seven simultaneous rules; season totals ran 8 to 104. The dream team occasionally ties — show "tied with 17 others" rather than implying a single answer.
 - **Dream team** — the highest-scoring valid lineup for each round, brute-forced across the actual roster (~20,160 combinations at current grid size — instant, no optimisation needed). A star marks any user pick that made it.
 - **League table** — season standings within a league
@@ -468,9 +506,82 @@ a single-table query.
 **The bank, the grace boundary and the open weekend are derived, never stored.**
 Storing any of them would create a second source of truth that drifts.
 
-### Scores
+### Scores: two tables, fixed in Phase 5
 
-Store computed points per `(user, meeting, round, pick)` with the rule breakdown and the scoring ruleset version, so the points-breakdown view is a read rather than a recomputation, and rescoring is idempotent.
+Earlier drafts asked for points stored per `(user, meeting, round, pick)` with
+the rule breakdown. Phase 5 split that in two, because **the breakdown is not a
+per-user fact**.
+
+**`RoundScore` is the truth, and it is user-independent.** One row per
+`(round, subject)`, where a subject is a driver or a team: thirty rows a round
+at the current grid, whether the league has three players or three hundred.
+"Cassidy reached the Duels and finished P4" is the same sentence for everyone
+who picked him, so it is written once. It carries the total, the component
+breakdown as JSONB, the ruleset version, and nothing about any player. Under
+the rejected shape, five players meant five copies of the same JSON, all of
+which had to be rewritten identically on a rescore, and the cost of the pass
+scaled with users rather than with the grid.
+
+**`PickScore` is the projection onto players.** `(user, meeting, round, kind,
+subject)` carrying a number and two pointers — to the snapshot that was
+effective, and to the `RoundScore` the number came from. It exists so a league
+table in Phase 6 is one `GROUP BY` rather than a lateral join against sparse
+snapshots, and so "which lineup earned this" is stored fact rather than a
+re-derivation months later.
+
+**The property that makes the per-user materialisation safe:** a snapshot may
+only be committed for the *open* meeting (§2), so a lineup can never change
+after its rounds are scored. Nothing a player does invalidates a `PickScore`.
+Only a rescore does, and a rescore rewrites both tables together.
+
+**`participated` is a stored column, not an inference.** A driver who raced and
+scored nothing and a driver who was not on the grid both end up at zero with an
+empty breakdown, and §4.2 suppresses zeros precisely so the cells that fired
+stay legible — which only works if "did not take part" renders as a blank
+rather than a nought. This was missed in the first migration and added in a
+second.
+
+**Every subject gets a row, including one that scored nothing.** The subject set
+for a round is the union of three sources: the roster, whoever appears in
+results, and whoever any player still holds. The third is why a pick can never
+end up with a `PickScore` pointing at nothing — a driver who has left the grid
+still gets a stored zero, because §2 says that pick scores 0 and costs a normal
+transfer, and a number with no derivation behind it is worse than no row.
+
+**`Round.scored_at` and `Round.scoring_provisional`** are the dirty check and
+the partial-scoring marker. A round needs scoring when `scored_at` is null or
+older than the latest `results_ingested_at` among its sessions. That is the
+gate the poller tests on every tick, it costs nothing, and it is what stops the
+worker rescoring the season every minute. `scoring_provisional` is a cache of
+something derivable and carries the same guard `transfer_cost` does: a test
+asserts it equals a recomputation.
+
+**Rescoring is delete-and-rewrite inside one transaction**, not an upsert.
+Scoring is a pure function of the ingested results and the recorded ruleset, so
+wiping the round is the only version that cannot leave a stale row behind —
+including a row for a driver who has since dropped out of a corrected
+classification, which an upsert would preserve forever. Idempotent means same
+inputs, same outputs; it does not mean numbers never move.
+
+**Reading them back is shaped like the engine.** `app/meetings/reads.py`
+returns objects with the same attributes and methods `app/scoring/engine.py`
+produces, so the display code cannot tell a stored score from a fresh one. That
+is the whole reason turning the profiles and the meeting breakdown into reads
+touched no template.
+
+### WorkerRun
+
+One row per background job execution, for two jobs in one table. The first is
+diagnostic — §10 wants last successful poll and sync health on the admin page,
+and a log line on Railway is not a thing a page can read. The second is not
+optional: summing `api_calls` over the calendar month is the only place a
+monthly quota can live, because the worker restarts and an in-process counter
+restarts with it.
+
+Rows are written only when a run does something, plus a heartbeat at most once
+an hour — otherwise a minute-interval poll would write forty thousand rows a
+month saying nothing happened. Pruning never deletes an unfinished row: a row
+with no `finished_at` is the only evidence a crash leaves behind.
 
 ---
 
@@ -507,6 +618,83 @@ Handling, implemented:
 - A failed session is never stamped `results_ingested_at`, so re-running the backfill retries exactly the failures and skips everything already stored.
 
 **The live results poller must respect this**, since it runs when it matters most.
+
+### Live polling — the rule this section states, inverted
+
+**During a race weekend the poller does not check session status before
+fetching.** That reverses the guidance below, and the reason is arithmetic
+rather than taste.
+
+Session status arrives only on `/events`, which cannot be filtered by season.
+Refreshing it costs four calls. So checking first costs **five calls per
+attempt** where guessing costs **one**. The original rule was written for the
+backfill, where you face 187 sessions and have no idea which have run; during a
+weekend the poller already knows, from the schedule it stored at sync, that a
+session was due to finish twenty minutes ago. Asking is the cheap move.
+
+Two consequences, both handled in `sync_session_results(speculative=True)`. The
+stored status is stale by definition on that path and is not consulted. And an
+empty classification means *not ready yet* rather than *ran and nobody
+finished* — so it must not stamp `results_ingested_at`, which would mark an
+unrun session as permanently ingested and silently drop it from the game with
+no error anywhere. A 404 is treated identically, because which shape the
+provider uses for an unpublished session is **still unknown**: Season 12 was
+finished and Season 13 unpublished when this was written, so there was no
+incomplete session anywhere to probe. Jeddah is the first observation.
+
+The four-call `/events` walk still happens, but as a check for *schedule
+changes* rather than as a liveness mechanism — daily, and every few hours when
+a session starts within 36 hours, because that is when a moved deadline
+actually costs someone a lineup.
+
+#### The budget
+
+Measured rather than assumed, for a double-header weekend:
+
+| | Calls |
+|---|---|
+| Season syncs (3 × 6) | 18 |
+| Result fetches, 20 sessions × ~4 attempts | 80 |
+| Slack for retries and misses | ~50 |
+| **Weekend total** | **~150** |
+
+A worst-case month — two double-headers plus a twice-daily sync — is roughly
+700 against 7,500. **Under 10%.** The binding constraint is therefore not the
+monthly quota at all; it is the ~2 requests per second ceiling, which a poller
+never approaches, and not wanting to be conspicuous on a free tier.
+
+Off-season the cost is **one call a day**: `resolve_season` pages `/seasons`,
+finds no 2027, and raises before spending anything on season detail or the
+events walk.
+
+#### How the poller stays quiet
+
+Every tick opens with a query that costs nothing: is there a session whose
+scheduled end has passed and whose results are not in? Off-season the answer is
+no and the tick spends nothing. There is no window calendar to maintain — the
+stored schedule already is one.
+
+Cadence is derived from that schedule rather than counted, so nothing needs
+persisting and nothing needs rebuilding after a restart:
+
+| Since scheduled end | Behaviour |
+|---|---|
+| < 3 min | too early; results are never up instantly |
+| 3–30 min | attempt every tick |
+| 30 min – 6 h | attempt every 15 minutes |
+| > 6 h | stopped, and reported as stale on the admin page |
+
+A stale session leaves its round provisional until `flask backfill-results`
+fetches it. That remedy is manual on purpose.
+
+**A monthly ceiling is checked before any job that would spend a call**,
+summed from `WorkerRun`. The cadence above should spend a few hundred; "should"
+is not a control, and this is.
+
+**The worker targets the season by ending year, derived from the date** — from
+August onward it is next year's. So it asks for 2027 daily, logs "not published
+yet", and picks Season 13 up the moment the provider publishes it. Nobody has
+to watch for the UUID.
 
 ### Verified quirks
 
@@ -627,6 +815,40 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 - **`DATABASE_PUBLIC_URL` requires enabling the TCP proxy** on the Postgres service; new Railway Postgres instances are private-only by default. `DATABASE_URL` (private) stays as the application's variable — no egress cost, lower latency.
 - **Railway can silently disconnect from GitHub.** Auto-deploy stopped once with an "upstream repo" set and the trigger disabled. If a push does not deploy, check Settings → Source before debugging anything else.
 - Production refuses to boot on a default `SECRET_KEY`, an unset `DATABASE_URL`, or a non-https `APP_BASE_URL`. A first-deploy crash loop showing `ConfigError` is that check working; the message names the variable.
+
+### The worker service (Phase 5)
+
+A second Railway service from the same repo, start command
+`python -m worker.scheduler`.
+
+- **Exactly one replica.** APScheduler holds its schedule in process, so a
+  second replica double-fires every job — against a rate-limited free tier that
+  means 429s rather than duplicate work. The process has no way to detect a
+  sibling, so this constraint exists nowhere but here and in the dashboard.
+- **No healthcheck path.** It serves no HTTP.
+- **No pre-deploy command.** `flask db upgrade` stays on the web service only,
+  or the two race it on every deploy.
+- Variables: `DATABASE_URL` (private), `OCB_API_KEY`, `SECRET_KEY`, `FLASK_ENV`,
+  `APP_BASE_URL`. The last two are only there because
+  `validate_production_config` refuses to boot without them; the worker never
+  signs a cookie.
+- **`FANTASY_NOW` is ignored** and logs a warning at startup if set. A stale
+  value would send the worker chasing a weekend from last December.
+
+**`railway.toml` is deleted.** Railway deprecated Config as Code with a
+1 December 2026 cutoff — seventeen days before Jeddah, which is precisely when
+nobody should be touching deployment config. It had already caused one failure
+worth recording: both services resolve the same root config file, so the worker
+inherited the web service's `healthcheckPath` and was killed for failing a
+check on a process that serves no HTTP. The deploy reported a healthcheck
+failure while the worker's own logs showed it running correctly. All four
+settings now live in each service's dashboard, and the explicit start commands
+matter more without the file — Nixpacks would otherwise fall back to the
+`Procfile` and give both services the `web` process.
+
+**Region: `europe-west4`.** The users are in the UK. A Postgres volume cannot
+be relocated, so moving regions means a new instance and a `pg_dump` restore;
+doing it before the Season 13 sync is the cheapest it will ever be.
 
 ### Lifting from the F1 app
 
@@ -775,11 +997,47 @@ page while this weekend is running answers a question nobody asked.
 - **`season_scores()` becomes a read** once `PickScore` exists. It currently
   rescores a whole season on request, which is acceptable at seventeen rounds on
   a development machine and would not be in production.
-- scoring_bridge.py was promoted whole, and does five jobs. Alongside the ORM-to-engine translation the worker needs — _result_row and round_payload, about forty lines — it carries scoring orchestration, display wording, meeting aggregation, and the read queries behind nav, results and profiles. Phase 7 splits it into bridge, display and queries, since Phase 7 rewrites the callers anyway. demo_lineup() moved down to app/styleguide/demo.py rather than dying: the styleguide still has no logged-in player, and it goes when the styleguide goes.
 
-### Phase 5 — Scoring engine in production
-Scoring worker with result completeness validation before scoring. Idempotent rescoring against a recorded ruleset version. Results polling with the rate limits in §6 respected.
+### Phase 5 — Scoring in production, complete
 
+| # | Stage | Contents |
+|---|---|---|
+| 5.0 | Promotion | `scoring_bridge.py` moved to `app/meetings/` whole; `demo_lineup()` down to `app/styleguide/demo.py`; the ruleset-version defect fixed (§3); provider call counter; request interval default corrected to the value §6 records as working |
+| 5.1 | Schema | `RoundScore`, `PickScore`, `WorkerRun`, `Round.scored_at`, `Round.scoring_provisional`, migration `0004` |
+| 5.2 | The pass | `app/meetings/scoring.py` — completeness, partial scoring, transactional per-round rewrite, `score-season` CLI |
+| 5.3 | Reads | `app/meetings/reads.py` duck-types the engine's output; `season_scores()` and both profiles become reads; `RoundScore.participated`, migration `0005` |
+| 5.4 | The poller | `worker/` — database-first ticks, speculative fetch, derived cadence, monthly ceiling |
+| 5.5 | Health | `/admin/health`; window queries shared via `app/ingest/status.py`; the Phase 0 admin templates restyled |
+
+**Validated against the full Season 12 backfill:** 17 rounds, 510 round scores,
+60 pick scores, zero errors. A second run scores nothing (the dirty check
+holds) and `--force` reproduces byte-identical rows.
+
+**`scoring_bridge.py` was promoted whole and does five jobs.** Alongside the
+ORM-to-engine translation the worker needs — `_result_row` and `round_payload`,
+about forty lines — it carries scoring orchestration, display wording, meeting
+aggregation, and the read queries behind nav, results and profiles. **Phase 7
+splits it into `bridge`, `display` and `queries`**, since Phase 7 rewrites the
+callers anyway; doing it mid-phase would have risked a silent styleguide
+regression for no benefit to the worker.
+
+**Two migrations, not one.** `participated` should have been in `0004` and was
+not; §5 records why it is a column rather than a flag hidden in `detail`.
+
+### Entry conditions for Phase 6
+
+- **Scores are already league-shaped.** `PickScore` carries `user_id`,
+  `meeting_id` and `season_id`, with indexes on `(user_id, season_id)` and
+  `(meeting_id, user_id)`. A league table is a `GROUP BY` over it filtered by
+  membership — no new scoring work, and no per-league scoring context.
+- **`effective_snapshots(meeting)`** in `app/lineups/service.py` already
+  resolves every player's sparse lineup in one query. Phase 6's friend profiles
+  and league tables want exactly that shape.
+- **Lineup visibility must be enforced in the query layer**, not the template
+  (§2). Phase 6 is the first phase where another player can see anything, so it
+  is the first phase where that rule has teeth.
+- **`League` and `LeagueMembership` exist** in the Phase 0 baseline, with the
+  §7 divergences already applied. No migration is needed to start.
 
 ### Phase 6 — Leagues & social
 Multi-league membership, league creation and admin roles, invite links with caps, league tables, friend profiles. Scored once per user, projected into each league.
@@ -794,15 +1052,22 @@ Consider loading Season 12 into production for this phase: rehearsing the visual
 | Date | Milestone |
 |---|---|
 | Aug 2026 | Phases 0–2 complete; S12 backfilled; **Phase 3 complete** |
-| Sept 2026 | Phase 4: lineups and transfers |
-| Oct 2026 | Phase 5: scoring in production |
-| Nov 2026 | Phase 6: leagues and social |
+| Aug 2026 | **Phases 4 and 5 complete**; worker live in production |
+| Sept–Oct 2026 | Phase 6: leagues and social |
 | Early Dec 2026 | Phase 7 including the qualifying bracket; S13 calendar synced; friends registered |
 | **18–19 Dec 2026** | **Jeddah — first live round** |
-| Late Dec 2026 | Re-tune places gained/lost against the first real Unleashed race |
+| Late Dec 2026 | Re-tune places gained/lost against the first real Unleashed race; confirm what an unpublished session actually returns (§6) |
  
-Phase 3 landed in August rather than October. The gained month goes to Phase 7,
-which §8 already flags as the main event and which now carries the bracket.
+Phases 3, 4 and 5 all landed in August, against a plan that had Phase 5 in
+October. Two months are gained. They go to Phase 7, which §8 already flags as
+the main event and which now carries the qualifying bracket — not to starting
+Phase 6 early, because leagues are a smaller and better-understood problem than
+the visualisation work.
+
+The worker being live in August rather than late November is worth more than it
+looks: it spends one API call a day until Season 13 is published, which means
+three months of evidence that it idles correctly before it ever has to do
+anything.
 
 Season 13: 21 races, 13 meetings. Gen4 debuts; Opel replaces DS; new venues at COTA, Zandvoort and Brands Hatch. Expect unpredictable early form.
 
@@ -855,17 +1120,29 @@ Jeddah.
 - **Late joiners:** a player starting at meeting 5 can never catch up on the season table. Options: a rolling "last 5 meetings" table alongside the season one, per-league season start dates, or accept it. `LeagueMembership.joined_at` already exists, so any of these stays available.
 - **Places gained/lost cap and step:** ships at ±4 in steps of 5 places; confirm or adjust after the S12 simulation, then again after Jeddah.
 - **Team score rounding:** halves permitted (decimal storage). Revisit only if league tables look untidy in practice.
-- **Admin surface:** read-mostly by design — usage counts, sync health, last successful poll, provider quota, outstanding sync conflicts. Mutating actions are added per phase, must be idempotent, and are logged with actor and timestamp. Deadlines may be pushed later before they pass (consistent with the monotonic rule in §2); a passed deadline is never unlocked through the interface, because a lineup edited with results known cannot be made legible to the rest of the league. **Not yet built** — the conflicts view is the first thing it needs.
+- **Admin surface:** read-mostly by design. **Built in Phase 5.5** at `/admin/health`: provider calls this month against the ceiling, last successful poll and sync, open runs, sessions awaiting results and sessions given up on, scoring coverage per season, outstanding sync conflicts, and recent run history. Every remedy it points at is a CLI command — a button that rescores a season is the kind of thing that gets pressed by accident on a race weekend. Built entirely from existing primitives; a health page is exactly the screen that attracts status pills and coloured dots, and §1 rules all three out, so state is carried by rule weight, ink level and words. **Still outstanding:** mutating actions (idempotent, logged with actor and timestamp), and pushing a deadline later before it passes. A passed deadline is never unlocked through the interface, because a lineup edited with results known cannot be made legible to the rest of the league.
 - **Meeting display name overrides:** `grouping_locked` currently guards both regrouping and renaming, so correcting "Monte Carlo" to "Monaco" also freezes the grouping. Worth splitting if it becomes annoying in practice.
 - **Public/global table:** worth having alongside leagues if the app is shared online?
 - **S13 qualifying points sanity check:** what the replacement expectation should be, once a real S13 payload exists.
-- **S13 season UUID:** does not exist in `/seasons` yet. The sync resolves by ending year (2027) at run time; watch for it appearing.
+- **Worker restart visibility:** `_last_heartbeat` is a process global, so every restart writes an idle row immediately. Three idle rows minutes apart means three starts. Useful as a diagnostic, but it means "the worker restarted" and "the worker is healthy" look similar on the admin page. Revisit if it proves noisy in production.
 - **Season 12 in production:** not loaded. Worth doing for Phase 7 so the visualisations get rehearsed against real results.
 
 ### Resolved
 
 | Decision | Outcome |
 |---|---|
+| Score storage | **Two tables** — `RoundScore` user-independent and carrying the breakdown, `PickScore` a per-user projection carrying a number and two pointers |
+| Partial scoring | **In.** Score what has landed, mark the round provisional; the additive rules make a partial total monotonically increasing |
+| Round scoreability | Race results in, and every scoring session the round holds ingested. The bracket-shape check belongs to the sync and is not repeated |
+| Rescoring | Delete-and-rewrite per round in one transaction, gated on `scored_at` against the latest `results_ingested_at` |
+| Dream team | **Computed, not stored.** `RoundScore` makes the brute force a read of thirty rows plus arithmetic |
+| Scoring location | A separate pass, not inside the ingest. `app/meetings/scoring.py`, because `app/scoring/` may not import SQLAlchemy |
+| Live status checks | **Skipped.** Speculative fetch costs one call where checking first costs five; empty and 404 both mean "not ready" and neither stamps |
+| Poller quiet period | A database-first tick. Off-season the query returns nothing and the tick spends nothing |
+| API ceiling | Monthly, summed from `WorkerRun`, checked before any job that would spend a call |
+| Worker clock | Real UTC. `FANTASY_NOW` is ignored and warned about |
+| Railway config | Dashboard, not `railway.toml` — Config as Code is deprecated with a cutoff seventeen days before Jeddah |
+| S13 season UUID | Resolved by ending year at run time, derived from the date. The daily sync picks it up on its own |
 | League structure | Invite-based, multi-league; built for medium scale; durable across seasons |
 | Season-start grace | Unlimited free edits until the first deadline of the season |
 | Long-term driver absence | Costs a normal transfer; no free move |
@@ -927,6 +1204,17 @@ Jeddah.
   templates in isolation does not catch a name the view function never defined,
   and that class of error reaches the browser as a 500 rather than a failing
   test.
+- **pyflakes does not honour `# noqa`** — that is flake8. An import kept for a
+  side effect is silenced by naming it in `__all__`, which is what
+  `app/__init__.py` does for `models`. Delete every other unused import rather
+  than tolerating it: a check that always prints one line stops being read.
+- **Do not couple a test to a template's wording.** A Phase 0 auth test
+  asserted on the string `Users:` and broke when Phase 5 restyled the admin
+  index. If the claim is authorisation, assert the status code.
+- **The suite takes about six minutes on the Pi** and the cause is the per-test
+  `create_all`/`drop_all` §7 accepted. That is approaching the point where it
+  discourages running the tests before committing, which is the real cost.
+  Revisit with a session-scoped schema and per-test rollback.
 - **Interactive fragments keep a working `href` alongside their `hx-get`.** The
   page functions without JavaScript and HTMX enhances it. Click handlers are
   delegated from the document rather than bound per element, so swapped-in
@@ -946,18 +1234,25 @@ fe-fantasy/
 │   ├── cli.py               # set-admin, config-check, sync-season, backfill-results
 │   ├── utils.py             # admin_required, client_ip, touch_last_seen
 │   ├── auth/                # routes, forms, email, rate_limit
-│   ├── admin/               # read-mostly; request-info diagnostic
+│   ├── admin/               # read-mostly; health view, request-info diagnostic
+│   │   ├── routes.py
+│   │   └── health.py        # every figure on /admin/health
 │   ├── leagues/  invite/    # Phase 6
 │   ├── lineups/             # the game: roster, rules over snapshots, editor
 │   │   ├── roster.py        # the pickable grid for a round
 │   │   ├── draft.py         # what is broken, what it costs, what each option does
 │   │   ├── service.py       # open weekend, grace, bank, commit
 │   │   └── routes.py        # / and /lineup
-│   ├── meetings/            # meeting and round views, Phase 7
+│   ├── meetings/            # scoring in production, and Phase 7's views
+│   │   ├── scoring_bridge.py  # ORM -> engine dicts; split in Phase 7
+│   │   ├── scoring.py       # the scoring pass: completeness, partial, idempotent
+│   │   └── reads.py         # stored scores, shaped like the engine's output
 │   ├── models/
 │   │   ├── user.py
 │   │   ├── league.py
 │   │   ├── lineup.py        # LineupSnapshot, LineupPick
+│   │   ├── score.py         # RoundScore, PickScore
+│   │   ├── worker.py        # WorkerRun — run history and the monthly call count
 │   │   ├── calendar.py      # Season, Location, Meeting, Round, Session
 │   │   ├── grid.py          # Driver, Team, SeatEntry
 │   │   └── result.py        # Result, SyncConflict
@@ -970,7 +1265,8 @@ fe-fantasy/
 │   │   ├── derive.py        # meetings, round numbers, formats, deadlines
 │   │   ├── conflicts.py     # fingerprinting and dedupe
 │   │   ├── season.py        # the sync orchestrator
-│   │   ├── results.py       # per-session result ingest
+│   │   ├── results.py       # per-session result ingest, speculative or not
+│   │   ├── status.py        # due / stale / awaiting — shared with the worker
 │   │   └── checks.py        # championship points sanity check
 │   ├── scoring/             # rules.py, engine.py — no Flask, no SQLAlchemy
 │   ├── palette.py           # team hue seeds — data repair, no design
@@ -984,8 +1280,10 @@ fe-fantasy/
 │   └── templates/styleguide/
 │       ├── _lineup.html     # the lineup component — Phase 4 imports this
 │       ├── _nav.html  _results.html  _profile.html
-├── worker/
-│   └── scheduler.py         # Phase 5
+├── worker/                  # outside app/: the application must not import it
+│   ├── scheduler.py         # APScheduler, one replica, the entrypoint
+│   ├── jobs.py              # poll and sync, as plain functions
+│   └── runs.py              # WorkerRun recording and the monthly ceiling
 ├── sim/                     # Phase 2b standalone simulation
 ├── migrations/
 ├── tests/
@@ -994,7 +1292,6 @@ fe-fantasy/
 ├── wsgi.py
 ├── requirements.txt
 ├── requirements-dev.txt
-├── railway.toml
 ├── Procfile
 ├── .python-version
 ├── .env.example
@@ -1006,6 +1303,7 @@ Three deliberate choices:
 - **`providers/` exists from the first commit**, per the §6 mitigation. A vendor swap becomes a new module implementing `ResultsProvider`, rather than a refactor of everything that touches results.
 - **`scoring/` imports nothing from Flask or SQLAlchemy.** It takes plain result dicts and returns points. This resolves the Phase 1/2 ordering question and lets the simulation run without a database.
 - **`sim/` sits outside `app/`** so there is no route by which the web application can be imported into it.
+- **`worker/` sits outside `app/` for the mirror reason**: the worker may import from the application, and the application may not import the worker. That is why the session-window queries the admin health page and the poller both need live in `app/ingest/status.py` rather than in `worker/jobs.py`, where they were first written.
 
 ---
 
