@@ -1,0 +1,23 @@
+# Railway config for the WORKER service.
+#
+# Separate from railway.toml because both services deploy from this repo and
+# Railway resolves the root config for each of them — so a healthcheck path
+# meant for the web service is inherited by a process that serves no HTTP, and
+# the deploy is killed for failing a check it was never supposed to have.
+#
+# Point the worker service at this file: Settings -> Config as code.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python -m worker.scheduler"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# One replica, declared here rather than left to the dashboard. APScheduler
+# holds its schedule in process, so a second replica double-fires every job —
+# against a rate-limited free tier that means 429s, not duplicate work. This is
+# the only place that constraint can be written down; the process itself has no
+# way to detect a sibling.
+numReplicas = 1

@@ -2,8 +2,8 @@
 #
 # Two services from one repo, distinguished by start command:
 #
-#   web     gunicorn wsgi:app --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
-#   worker  python -m worker.scheduler
+#   web     this file, Procfile `web` process
+#   worker  railway.worker.toml, one replica, no healthcheck
 #
 # The worker arrives in Phase 5.5, not Phase 1 as an earlier note here claimed
 # — there was nothing to poll until Season 13 was published, and an idle
