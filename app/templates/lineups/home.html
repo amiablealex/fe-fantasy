@@ -4,7 +4,7 @@
 {% block content %}
 
 {% if not current_user.is_authenticated %}
-<h1 class="page-title">Formula E Fantasy</h1>
+<h1 class="page-title">{{ config.APP_NAME }}</h1>
 <div class="prose">
   <p>Pick four drivers and a team. They score from real race weekends across
     the season — one transfer per weekend, bankable up to two.</p>
@@ -87,6 +87,39 @@
     {%- else %}Change your lineup{% endif -%}
   </a>
 </div>
+
+{#- ---- Where you stand --------------------------------------------------
+    Below the deadline and the transfer count, deliberately. Those are the two
+    things a player can still act on; this is the reason they came back. It
+    only appears once a weekend has been scored, because "P1 of 1, 0 points"
+    before the season starts is worse than nothing. -#}
+{% if standings %}
+<details class="disclosure" open>
+  <summary>
+    <span class="disclosure__title">Standing</span>
+    <span class="disclosure__hint label"></span>
+  </summary>
+  <div class="disclosure__body">
+    <div class="ruled ruled--tight">
+      {% for s in standings %}
+      <a class="split" href="{{ url_for('leagues.detail', league_id=s.league.id) }}">
+        <span>
+          <span class="u-semi">{{ s.league.name }}</span>
+          <br><span class="label u-mid">
+            {%- if s.is_ranked -%}
+            {{ 'Joint ' if s.tied }}P{{ s.position }} of {{ s.members }}
+            {%- else -%}
+            Hidden from this table
+            {%- endif -%}
+          </span>
+        </span>
+        <span class="num u-semi">{{ fmt(s.total) }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+{% endif %}
 
 {% endif %}
 {% endblock %}

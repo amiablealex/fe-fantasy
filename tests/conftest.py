@@ -7,6 +7,7 @@ appears to.
 """
 from __future__ import annotations
 from types import SimpleNamespace
+from decimal import Decimal
 
 import pytest
 
@@ -17,6 +18,9 @@ from app.extensions import db as _db
 from app.models.user import User
 from app.models.calendar import Location, Meeting, Round, Season
 from app.models.grid import Driver, SeatEntry, Team
+from app.models.league import League, LeagueMembership
+from app.models.lineup import LineupSnapshot
+from app.models.score import RoundScore, PickScore
 from app.scoring import lineups as rules
 
 @pytest.fixture()
@@ -188,3 +192,108 @@ def make_meeting(db, season):
         return meeting
 
     return _make
+
+
+@pytest.fixture()
+def make_league(db):
+    """A league with its members already enrolled.
+
+    Codes are sequential rather than generated: a test that fails because two
+    random six-character codes collided would be maddening to diagnose and
+    proves nothing about the code the application actually generates.
+    """
+    state = {"n": 0}
+
+    def _make(name="Test League", members=(), is_global=False):
+        state["n"] += 1
+        league = League(
+            name=name,
+            invite_code=f"TEST{state['n']:03d}",
+            is_global=is_global,
+        )
+        db.session.add(league)
+        db.session.flush()
+        for user in members:
+            db.session.add(
+                LeagueMembership(league_id=league.id, user_id=user.id)
+            )
+        db.session.commit()
+        return league
+
+    return _make
+
+
+@pytest.fixture()
+def make_snapshot(db):
+    """A committed lineup, written directly.
+
+    Not through `service.commit`, deliberately: that enforces the open weekend
+    and the transfer budget, and a visibility test needs a lineup at a meeting
+    that has already locked — which commit will never write.
+    """
+    def _make(user, meeting, lineup, transfer_cost=0):
+        record = LineupSnapshot.build(
+            user_id=user.id,
+            season_id=meeting.season_id,
+            meeting_id=meeting.id,
+            lineup=lineup,
+            transfer_cost=transfer_cost,
+        )
+        db.session.add(record)
+        db.session.commit()
+        return record
+
+    return _make
+
+@pytest.fixture()
+def award(db, grid, make_snapshot):
+    """Give a user points at a meeting, with the score rows behind them.
+
+    A `PickScore` is not a free-standing number — it points at the snapshot
+    that earned it and the `RoundScore` it came from, and both are NOT NULL.
+    Writing a bare PickScore in a test would exercise a row shape the scoring
+    pass can never produce.
+
+    Each user is assigned their own driver so the `(round, driver)` uniqueness
+    on RoundScore holds while two players score differently at the same
+    weekend.
+    """
+    seats = {}
+
+    def _award(user, meeting, points):
+        if user.id not in seats:
+            seats[user.id] = grid.drivers[len(seats)]
+        driver = seats[user.id]
+        round_obj = meeting.rounds[0]
+        amount = Decimal(points)
+
+        snapshot = make_snapshot(user, meeting, grid.lineup())
+
+        score = RoundScore(
+            season_id=meeting.season_id,
+            round_id=round_obj.id,
+            kind="driver",
+            driver_id=driver.id,
+            points=amount,
+            breakdown=[],
+            participated=True,
+            ruleset_version="v1",
+        )
+        db.session.add(score)
+        db.session.flush()
+
+        db.session.add(PickScore(
+            user_id=user.id,
+            season_id=meeting.season_id,
+            meeting_id=meeting.id,
+            round_id=round_obj.id,
+            snapshot_id=snapshot.id,
+            round_score_id=score.id,
+            kind="driver",
+            driver_id=driver.id,
+            points=amount,
+        ))
+        db.session.commit()
+        return score
+
+    return _award

@@ -27,6 +27,9 @@ from app.auth.forms import (
     ResetPasswordForm,
 )
 from app.extensions import db
+from app.leagues import invite
+from app.leagues.forms import GlobalVisibilityForm
+from app.leagues.service import ensure_global_membership, is_hidden_globally
 from app.models.user import PasswordResetToken, User
 from app.utils import client_ip
 
@@ -109,7 +112,17 @@ def register():
 
         rate_limit.reset(BUCKET_REGISTER, _client_key())
 
-        # Phase 6 hook: consume a pending league invite here.
+        # Everyone is in the global league from the moment they exist, so a
+        # new account has a table to appear on without creating anything. The
+        # opt-out is a flag on the membership, not the absence of one.
+        ensure_global_membership(user)
+
+        outcome = invite.consume(user)
+        if outcome.joined:
+            flash(f"Account created. You have joined {outcome.league.name}.", "success")
+            return redirect(url_for("leagues.detail", league_id=outcome.league.id))
+        if outcome.message:
+            flash(outcome.message, "error")
         flash("Account created — welcome.", "success")
         return redirect(url_for("lineups.home"))
 
@@ -166,7 +179,13 @@ def login():
         user.last_seen_at = user.last_login_at
         db.session.commit()
 
-        # Phase 6 hook: consume a pending league invite here.
+        outcome = invite.consume(user)
+        if outcome.joined:
+            flash(f"You have joined {outcome.league.name}.", "success")
+            return redirect(url_for("leagues.detail", league_id=outcome.league.id))
+        if outcome.message:
+            flash(outcome.message, "error")
+
         next_url = request.args.get("next")
         if _is_safe_redirect(next_url):
             return redirect(next_url)
@@ -249,6 +268,7 @@ def account():
         email_form=ChangeEmailForm(current_user_id=current_user.id, email=current_user.email),
         password_form=ChangePasswordForm(),
         delete_form=DeleteAccountForm(),
+        visibility_form=GlobalVisibilityForm(show=not is_hidden_globally(current_user)),
         title="Account",
     )
 

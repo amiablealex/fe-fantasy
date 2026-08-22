@@ -57,6 +57,21 @@ class CommitRefused(Exception):
 # -----------------------------------------------------------------------------
 
 
+def current_season() -> Season | None:
+    """The season in play: the latest one synced.
+
+    Not a configured constant. Season 13 appears in the database when it is
+    first synced, and the app should follow it there rather than needing a
+    redeploy to notice.
+
+    Lives here rather than in a route because the league table asks the same
+    question the editor does, and two answers to it would eventually differ.
+    """
+    return db.session.scalars(
+        select(Season).order_by(Season.year.desc()).limit(1)
+    ).first()
+
+
 def season_meetings(season: Season) -> list[Meeting]:
     stmt = (
         select(Meeting)

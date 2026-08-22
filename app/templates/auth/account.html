@@ -23,6 +23,23 @@
   </form>
 </fieldset>
 
+{# Phrased positively. A checkbox that is checked by default and means "do
+   not" is read wrong by everybody. #}
+<fieldset class="panel">
+  <legend class="label panel__title">Global league</legend>
+  <form method="post" action="{{ url_for('leagues.global_visibility') }}">
+    {{ visibility_form.hidden_tag() }}
+    <div class="check">
+      {{ visibility_form.show(id="show-global") }}
+      <label for="show-global">Show me on the global {{ config.APP_NAME }} league</label>
+    </div>
+    {{ visibility_form.submit() }}
+  </form>
+  <p class="aftermatter">Turning this off removes you from the global table and
+    hides your past lineups from anyone who is not in a league with you. You can
+    still see everyone else. Your own leagues are unaffected.</p>
+</fieldset>
+
 <fieldset class="panel">
   <legend class="label panel__title">Password</legend>
   <form method="post" action="{{ url_for('auth.change_password') }}" novalidate>

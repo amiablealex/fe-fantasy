@@ -68,8 +68,12 @@
 </div>
 {% endif %}
 
+{#- `dirty` rather than `diff.has_changes`: the diff answers what a change
+    costs, which is measured against an earlier weekend. Whether there is
+    anything to save is measured against what is stored for this one, and for a
+    first-ever lineup those are not the same question. -#}
 <div class="actions">
-  {% if mode == 'edit' and diff.has_changes %}
+  {% if mode == 'edit' and dirty %}
   <a class="actions__reset" href="{{ base }}">Reset all</a>
   {% elif mode == 'empty' %}
   <span class="label">{{ filled }} of 5 slots filled</span>
@@ -77,7 +81,7 @@
   <span></span>
   {% endif %}
 
-  {% if complete and not problems and (mode == 'empty' or diff.has_changes) %}
+  {% if complete and not problems and dirty %}
   <a class="actions__commit" href="{{ draft_url(draft_drivers, draft_team) }}&amp;confirm=commit">
     {%- if mode == 'empty' %}Save lineup{% else %}Commit transfer{{ '' if diff.cost == 1 else 's' }}{% endif -%}
   </a>
@@ -197,29 +201,4 @@
 
 </div>{# /#editor #}
 {% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script>
-(function () {
-  // A <dialog> with the `open` attribute renders inline: no backdrop, no focus
-  // trap, no escape-to-close. showModal() is what makes it a modal.
-  function openAll(root) {
-    (root || document).querySelectorAll('dialog[data-modal]').forEach(function (d) {
-      if (!d.open) d.showModal();
-    });
-  }
-  openAll(document);
-
-  // Delegated from the document rather than bound per element, so markup that
-  // HTMX swaps in behaves exactly like markup that was there at load.
-  document.body.addEventListener('htmx:afterSwap', function (event) {
-    openAll(event.target);
-  });
-
-  document.addEventListener('click', function (event) {
-    if (event.target.tagName === 'DIALOG') event.target.close();
-  });
-})();
-</script>
 {% endblock %}

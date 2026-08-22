@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/primitives.css') }}">
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/dialogs.js') }}" defer></script>
 </head>
 <body>
 <div class="measure">
@@ -17,6 +18,7 @@
   <nav class="appbar__nav">
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('lineups.edit') }}">Lineup</a>
+      <a href="{{ url_for('leagues.index') }}">Leagues</a>
       <a href="{{ url_for('auth.account') }}">Account</a>
       {% if current_user.is_admin %}<a href="{{ url_for('admin.index') }}">Admin</a>{% endif %}
       <form method="post" action="{{ url_for('auth.logout') }}">

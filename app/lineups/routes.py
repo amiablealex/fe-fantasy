@@ -19,12 +19,10 @@ HTMX makes invisible and which this app can afford at twenty drivers.
 
 from __future__ import annotations
 
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from flask import (
     Blueprint,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -32,58 +30,18 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import select
 
 from app import palette
-from app.extensions import db
+from app.clock import now
+from app.leagues.standings import standings_for_user
 from app.lineups import draft, service
-from app.models.calendar import Season
+from app.meetings.scoring_bridge import fmt
+from app.lineups.service import current_season
 from app.scoring import lineups as rules
 
 lineups_bp = Blueprint(
     "lineups", __name__, template_folder="../templates/lineups"
 )
-
-
-def current_season() -> Season | None:
-    """The season in play: the latest one synced.
-
-    Not a configured constant. Season 13 appears in the database when it is
-    first synced, and the app should follow it there rather than needing a
-    redeploy to notice.
-    """
-    return db.session.scalars(
-        select(Season).order_by(Season.year.desc()).limit(1)
-    ).first()
-
-
-def now() -> datetime:
-    """The clock, overridable in development only.
-
-    Every deadline in the backfilled Season 12 is in the past, so without this
-    the editor has nothing to open against the only real data that exists and
-    could not be exercised until December. `FANTASY_NOW=2026-03-01T00:00:00Z`
-    in `.env` puts the app mid-season.
-
-    Not gated on `app.debug`: that is set at different points depending on the
-    entry point, so it means different things under `flask run`, gunicorn and a
-    shell. Gated on a loud warning instead — if this ever reaches Railway it
-    says so on every request.
-
-    Excluded under test: the suite builds its own calendars against the real
-    clock, and an override silently rewriting them would make every route test
-    a test of `.env`.
-    """
-    override = None if current_app.testing else os.environ.get("FANTASY_NOW")
-    if override:
-        current_app.logger.warning("Clock overridden by FANTASY_NOW=%s", override)
-        try:
-            return datetime.fromisoformat(
-                override.replace("Z", "+00:00")
-            ).astimezone(timezone.utc)
-        except ValueError:
-            current_app.logger.warning("FANTASY_NOW is not a datetime: %r", override)
-    return datetime.now(timezone.utc)
 
 
 def countdown(target: datetime | None, moment: datetime) -> str:
@@ -191,6 +149,11 @@ def home():
 
     ctx.update(
         state=state,
+        # Where they stand, in every league they are in. Below the deadline and
+        # the transfer count on the page, because those two are things a player
+        # can still act on and this is the reason they came back.
+        standings=standings_for_user(current_user, season, now=moment),
+        fmt=fmt,
         shown_meeting=shown_meeting,
         shown_locked=locked is not None,
         shown_drivers=drivers,
@@ -238,8 +201,29 @@ def edit():
         ]
 
     filled = len(draft_drivers) + (1 if draft_team is not None else 0)
+
+    # Two different questions, conflated until now.
+    #
+    # `diff` is measured against the *cost baseline* — the last snapshot from
+    # an earlier meeting — because that is what a transfer is charged against
+    # (§2). Whether there is anything worth saving is measured against what is
+    # stored for *this* meeting.
+    #
+    # They differ exactly when a player has committed for this weekend and has
+    # no earlier snapshot, which is every player's first-ever lineup. There the
+    # baseline is None, the diff is empty forever, and the commit affordance
+    # could never enable no matter what was changed.
+    #
+    # Compared slot by slot rather than by building a `Lineup`: an incomplete
+    # or hand-edited draft must answer this question rather than raise.
+    saved = state.snapshot.to_lineup() if state.snapshot else None
+    dirty = saved is None or (
+        set(draft_drivers) != set(saved.drivers) or draft_team != saved.team_id
+    )
+
     ctx.update(
         state=state,
+        dirty=dirty,
         draft_drivers=draft_drivers,
         draft_team=draft_team,
         edit_drivers=[draft.slot_view(state.roster, d) for d in draft_drivers],
