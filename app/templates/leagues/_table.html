@@ -1,0 +1,85 @@
+{# The league table.
+
+   Four columns, because five is where a name starts wrapping at 360px and a
+   wrapped name breaks the scan down the position column that the table exists
+   for. A season-by-weekend grid is not squeezed in here — that is one player's
+   question, and the friend profile answers it properly.
+
+   No coloured rows, no badges. The leader is first, which is the whole of what
+   leading means; your own row carries the reserved-gutter mark every other
+   "this is yours" in the app uses.
+#}
+
+{% macro movement(value) -%}
+{%- if value %}<span class="u-low num{{ ' is-negative' if value < 0 }}">
+  {%- if value < 0 %}&#8722;{{ -value }}{% else %}+{{ value }}{% endif -%}
+</span>{% endif -%}
+{%- endmacro %}
+
+
+{% macro range_switch(league, current) %}
+{#- Three ranges rather than a weekend picker. "Since we started" is the same
+    question as "who is in form", and one control answering both beats a
+    stored per-league setting that would need a table of its own. -#}
+<nav class="vswitch">
+  {% for label, value in [('Season', none), ('Last 3', 3), ('Last 5', 5)] %}
+  <a class="vswitch__tab"
+     href="{{ url_for('leagues.detail', league_id=league.id, last=value) }}"
+     {% if current == value %}aria-current="true"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+
+{% macro table(standings, profile=false) %}
+{% if standings.is_empty %}
+<p class="prose">No weekend has been scored yet. The table fills in once the
+  first deadline has passed and the results are in.</p>
+
+{% elif not standings.rows %}
+<p class="prose">Nobody in this league is showing on the table.</p>
+
+{% else %}
+<table class="table">
+  <thead>
+    <tr>
+      <th class="c-pos">Pos</th>
+      <th class="c-name">Player</th>
+      <th class="c-num">Last</th>
+      <th class="c-num">Points</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in standings.rows %}
+    <tr class="{{ 'is-yours' if row.is_you }}">
+      <td class="c-pos">
+        {{- '=' if row.tied }}{{ row.position }}
+      </td>
+      <td class="c-name">
+        {{ row.username }} {{ movement(row.movement) }}
+      </td>
+      <td class="c-num">{{ row.last if row.last is not none else '' }}</td>
+      <td class="c-num u-semi">{{ row.total }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p class="status">
+  {%- if standings.window -%}
+  Last {{ standings.meetings | length }} weekend{{ '' if standings.meetings | length == 1 else 's' }},
+  from {{ standings.meetings[0].display_name }}.
+  {%- else -%}
+  {{ standings.meetings | length }} weekend{{ '' if standings.meetings | length == 1 else 's' }} scored.
+  {%- endif -%}
+  {% if standings.provisional %}
+  {{ standings.latest.display_name }} is still being scored, so those figures
+  will still rise.
+  {% endif %}
+</p>
+
+{% if standings.truncated %}
+<p class="status">Showing the top of a long table, plus your own row.</p>
+{% endif %}
+{% endif %}
+{% endmacro %}

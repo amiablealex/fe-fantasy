@@ -27,6 +27,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.auth import rate_limit
+from app.clock import now
 from app.extensions import db
 from app.leagues import invite, service
 from app.leagues.forms import (
@@ -35,6 +36,8 @@ from app.leagues.forms import (
     JoinLeagueForm,
     RenameLeagueForm,
 )
+from app.leagues.standings import standings
+from app.lineups.service import current_season
 from app.models.league import League
 from app.models.user import User
 from app.utils import client_ip
@@ -86,6 +89,19 @@ def _member_league(league_id: int):
 
 def _share_url(league) -> str:
     return url_for("invite.landing", code=league.invite_code, _external=True)
+
+
+# The range control offers three options and the URL accepts exactly those.
+# Leaving it open would mean `?last=1000` renders a "last 1000 weekends"
+# heading, which is a small thing that reads as a broken page.
+WINDOWS = (3, 5)
+
+
+def _window() -> int | None:
+    raw = request.args.get("last")
+    if raw and raw.isdigit() and int(raw) in WINDOWS:
+        return int(raw)
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -207,12 +223,24 @@ def landing(code: str):
 @login_required
 def detail(league_id: int):
     league, membership = _member_league(league_id)
+    season = current_season()
+    window = _window()
+
+    table = None
+    if season is not None:
+        table = standings(
+            league, season, viewer=current_user, now=now(), window=window
+        )
+
     return render_template(
         "leagues/detail.html",
         league=league,
         membership=membership,
         members=service.members_of(league),
         cap=service.cap(),
+        season=season,
+        standings=table,
+        window=window,
         share_url=None if league.is_global else _share_url(league),
         rename_form=RenameLeagueForm(name=league.name),
         title=league.name,

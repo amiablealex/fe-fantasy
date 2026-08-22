@@ -7,6 +7,7 @@ appears to.
 """
 from __future__ import annotations
 from types import SimpleNamespace
+from decimal import Decimal
 
 import pytest
 
@@ -19,6 +20,7 @@ from app.models.calendar import Location, Meeting, Round, Season
 from app.models.grid import Driver, SeatEntry, Team
 from app.models.league import League, LeagueMembership
 from app.models.lineup import LineupSnapshot
+from app.models.score import RoundScore, PickScore
 from app.scoring import lineups as rules
 
 @pytest.fixture()
@@ -242,3 +244,56 @@ def make_snapshot(db):
         return record
 
     return _make
+
+@pytest.fixture()
+def award(db, grid, make_snapshot):
+    """Give a user points at a meeting, with the score rows behind them.
+
+    A `PickScore` is not a free-standing number — it points at the snapshot
+    that earned it and the `RoundScore` it came from, and both are NOT NULL.
+    Writing a bare PickScore in a test would exercise a row shape the scoring
+    pass can never produce.
+
+    Each user is assigned their own driver so the `(round, driver)` uniqueness
+    on RoundScore holds while two players score differently at the same
+    weekend.
+    """
+    seats = {}
+
+    def _award(user, meeting, points):
+        if user.id not in seats:
+            seats[user.id] = grid.drivers[len(seats)]
+        driver = seats[user.id]
+        round_obj = meeting.rounds[0]
+        amount = Decimal(points)
+
+        snapshot = make_snapshot(user, meeting, grid.lineup())
+
+        score = RoundScore(
+            season_id=meeting.season_id,
+            round_id=round_obj.id,
+            kind="driver",
+            driver_id=driver.id,
+            points=amount,
+            breakdown=[],
+            participated=True,
+            ruleset_version="v1",
+        )
+        db.session.add(score)
+        db.session.flush()
+
+        db.session.add(PickScore(
+            user_id=user.id,
+            season_id=meeting.season_id,
+            meeting_id=meeting.id,
+            round_id=round_obj.id,
+            snapshot_id=snapshot.id,
+            round_score_id=score.id,
+            kind="driver",
+            driver_id=driver.id,
+            points=amount,
+        ))
+        db.session.commit()
+        return score
+
+    return _award

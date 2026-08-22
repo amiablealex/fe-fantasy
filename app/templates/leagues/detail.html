@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field %}
+{% import "leagues/_table.html" as standings_ui %}
 
 {% block content %}
 <h1 class="page-title">{{ league.name }}</h1>
@@ -10,31 +11,54 @@
   {%- if league.is_global %} &middot; everyone who plays{% endif -%}
 </p>
 
-{#- The standings table lands here in 6.3. Until then the page answers the
-    other question a league page is for: who is in it.
+{#- The table leads. It is the reason the page exists; the membership list is
+    administration and sits below it. -#}
+{% if season %}
+{{ standings_ui.range_switch(league, window) }}
+{{ standings_ui.table(standings) }}
 
-    The loop variable is `m`, not `membership`: `membership` is the *viewer's*
-    row and the admin controls below depend on it. -#}
-<ul class="ruled">
-  {% for m, member in members %}
-  <li class="split{{ ' is-yours' if member.id == current_user.id }}">
-    <span>
-      <span class="u-semi">{{ member.username }}</span>
-      {% if m.is_admin %}<span class="label u-mid">Admin</span>{% endif %}
-      {% if m.hidden %}<span class="label u-low">Hidden</span>{% endif %}
-    </span>
-    {% if membership.is_admin and not league.is_global and member.id != current_user.id %}
-    <form method="post"
-          action="{{ url_for('leagues.remove', league_id=league.id, user_id=member.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="button--quiet">Remove</button>
-    </form>
-    {% else %}
-    <span class="status u-nowrap">{{ m.joined_at.strftime('%-d %b %Y') }}</span>
-    {% endif %}
-  </li>
-  {% endfor %}
-</ul>
+{% if standings.viewer_hidden %}
+<p class="notice">You are hidden, so you are not on this table. Change that in
+  <a href="{{ url_for('auth.account') }}">your account settings</a>.</p>
+{% endif %}
+
+{% else %}
+<p class="prose">No season has been synced yet, so there is nothing to rank.</p>
+{% endif %}
+
+
+<details class="disclosure">
+  <summary>
+    <span class="disclosure__title">Members</span>
+    <span class="disclosure__hint"></span>
+  </summary>
+
+  {#- The loop variable is `m`, not `membership`: `membership` is the viewer's
+      own row, and the admin controls depend on it. -#}
+  <div class="disclosure__body">
+  <ul class="ruled">
+    {% for m, member in members %}
+    <li class="split{{ ' is-yours' if member.id == current_user.id }}">
+      <span>
+        <span class="u-semi">{{ member.username }}</span>
+        {% if m.is_admin %}<span class="label u-mid">Admin</span>{% endif %}
+        {% if m.hidden %}<span class="label u-low">Hidden</span>{% endif %}
+      </span>
+      {% if membership.is_admin and not league.is_global and member.id != current_user.id %}
+      <form method="post"
+            action="{{ url_for('leagues.remove', league_id=league.id, user_id=member.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="button--quiet">Remove</button>
+      </form>
+      {% else %}
+      <span class="status u-nowrap">{{ m.joined_at.strftime('%-d %b %Y') }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  </div>
+</details>
+
 
 {% if league.is_global %}
 <p class="aftermatter">Everyone who plays is in this league. You can hide

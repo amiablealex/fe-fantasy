@@ -165,6 +165,12 @@ class Config:
     # global league, which is everybody by definition.
     MAX_LEAGUE_MEMBERS = _env_int("MAX_LEAGUE_MEMBERS", 50)
 
+    # The global league has no cap, so its table is the one that can grow
+    # without bound. The standings pivot in Python, which is fine at friend
+    # scale and is not the shape a genuinely large global table wants — a
+    # windowed query is the replacement, not a bigger number.
+    LEAGUE_TABLE_MAX_ROWS = _env_int("LEAGUE_TABLE_MAX_ROWS", 100)
+
     # Following an invite link and guessing at codes are the same request from
     # the same address, so they share one bucket. Looser than login: a code is
     # not a password, and a member re-tapping their own working link is never
