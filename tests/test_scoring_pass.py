@@ -26,6 +26,7 @@ from app.meetings.scoring import (
     score_round,
     score_season,
 )
+from app.meetings import reads
 from app.models.calendar import (
     SESSION_STATUS_COMPLETED,
     SESSION_TYPE_QUALIFYING,
@@ -516,3 +517,88 @@ def test_force_rescores_an_unchanged_season(db, season, grid, make_meeting, inge
 
     assert score_season(season).rounds_scored == 0
     assert score_season(season, force=True).rounds_scored == 1
+
+# -----------------------------------------------------------------------------
+# Reading the scores back
+# -----------------------------------------------------------------------------
+
+
+def test_participation_distinguishes_a_scored_zero_from_an_absence(
+    db, season, grid, make_meeting, ingest
+):
+    """Driver 14 is fifth in Group B and P15 on the road — present, and worth
+    nothing. Driver 0 is deleted from the classification entirely. Both store a
+    zero; only one of them took part."""
+    round_obj = make_meeting(1).rounds[0]
+    ingest(round_obj)
+
+    absent = grid.driver_at(0, 0).id
+    _db.session.execute(delete(Result).where(Result.driver_id == absent))
+    _db.session.commit()
+    score_round(round_obj)
+
+    rows = _scores(round_obj)
+    scored_nothing = rows[(SUBJECT_DRIVER, grid.driver_at(7, 0).id)]
+    assert scored_nothing.points == Decimal(0)
+    assert scored_nothing.participated
+
+    assert rows[(SUBJECT_DRIVER, absent)].points == Decimal(0)
+    assert not rows[(SUBJECT_DRIVER, absent)].participated
+
+
+def test_reads_reproduce_every_stored_total(scored_round, grid):
+    score_round(scored_round)
+    stored = reads.round_scores(scored_round)
+
+    assert stored.total_for(grid.driver_at(0, 0).id) == Decimal(20)
+    assert stored.total_for(grid.driver_at(0, 1).id) == Decimal(11)
+    assert stored.team_total(grid.teams[0].id) == Decimal("15.5")
+
+
+def test_reads_rebuild_the_breakdown_the_engine_produced(scored_round, grid):
+    score_round(scored_round)
+    winner = reads.round_scores(scored_round).score_for(grid.driver_at(0, 0).id)
+
+    assert winner.qualifying_total == Decimal(8)
+    assert winner.race_total == Decimal(12)
+    assert winner.fired("pole")
+    assert not winner.fired("fastest_lap")
+
+
+def test_reads_exclude_non_participants_from_the_classification(
+    db, season, grid, make_meeting, ingest
+):
+    """`drivers` holds participants only, mirroring the engine — which is what
+    lets the profile's `took_part` keep working against stored rows."""
+    round_obj = make_meeting(1).rounds[0]
+    ingest(round_obj)
+
+    absent = grid.driver_at(0, 0).id
+    _db.session.execute(delete(Result).where(Result.driver_id == absent))
+    _db.session.commit()
+    score_round(round_obj)
+
+    stored = reads.round_scores(round_obj)
+    assert absent not in stored.drivers
+    assert grid.driver_at(7, 0).id in stored.drivers
+    # Still answerable, and still zero.
+    assert stored.total_for(absent) == Decimal(0)
+
+
+def test_an_unscored_round_reads_as_empty(db, season, make_meeting):
+    assert reads.round_scores(make_meeting(1).rounds[0]).is_empty
+
+
+def test_season_scores_returns_every_scored_round(
+    db, season, grid, make_meeting, ingest
+):
+    meeting = make_meeting(1, rounds=2)
+    for round_obj in meeting.rounds:
+        ingest(round_obj)
+    score_season(season)
+
+    scored = reads.season_scores(season)
+    assert sorted(scored) == [1, 2]
+    for number, (round_obj, stored) in scored.items():
+        assert round_obj.round_number == number
+        assert stored.total_for(grid.driver_at(0, 0).id) == Decimal(20)

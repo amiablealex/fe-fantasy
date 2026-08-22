@@ -284,6 +284,10 @@ def score_round(
             driver_id=driver_id,
             points=score.total,
             breakdown=breakdown_from(score.qualifying, score.race),
+            # The engine returns a driver only if they appeared in qualifying
+            # or the race, so membership here is exactly participation — and
+            # it stays right for someone who took part and scored nothing.
+            participated=driver_id in scores.drivers,
             ruleset_version=ruleset.version,
             scored_at=now,
         )
@@ -302,6 +306,8 @@ def score_round(
             # half-sum rule explain itself on the page.
             breakdown=[],
             detail={"cars": [[car, str(scores.total_for(car))] for car in cars]},
+            # A team took part if it had cars on the grid this round.
+            participated=bool(cars),
             ruleset_version=ruleset.version,
             scored_at=now,
         )

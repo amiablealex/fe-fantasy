@@ -40,6 +40,8 @@ from app.extensions import db
 # Moved to app/lineups/ in Phase 4: production code must not import from a
 # debug-only package. Re-exported so this module's callers are unchanged.
 from app.lineups.roster import Roster, roster_for_round, seat_entries
+from app.meetings.reads import meeting_scores
+from app.meetings.reads import season_scores as stored_season_scores
 from app.models.calendar import STAGE_RACE, Meeting, Round, Season, Session
 from app.models.grid import Driver, Team
 from app.scoring import engine, lineups
@@ -168,31 +170,32 @@ def score_meeting(
     meeting is the transfer unit and the round is the scoring unit.
     """
     breakdowns: list[RoundBreakdown] = []
-    # One seat query for the whole meeting rather than one per round. The
-    # roster is a per-round question but the underlying rows are not.
+    # One seat query and one score query for the whole meeting, rather than one
+    # of each per round.
     seats = seat_entries(season)
+    stored = meeting_scores(meeting)
 
     for round_obj in sorted(meeting.rounds, key=lambda r: r.round_number):
-        qualifying, race_rows = round_payload(round_obj)
-        if not race_rows:
+        scores = stored.get(round_obj.round_number)
+        if scores is None or scores.is_empty:
             breakdowns.append(RoundBreakdown(
                 round=round_obj, picks=[], total=Decimal(0),
                 dream_total=Decimal(0), dream_tied=0,
-                issues=["no race classification stored"], scored=False,
+                issues=["not scored yet"], scored=False,
             ))
             continue
 
+        # Results are still read, for the context line under each pick.
+        # "Started P13, finished P5" describes what happened, which is a
+        # different question from what scored, and no stored score answers it.
+        qualifying, race_rows = round_payload(round_obj)
         roster = roster_for_round(season, round_obj.round_number, seats=seats)
-        ruleset = ruleset_for(round_obj)
-        scores = engine.score_round(qualifying, race_rows, ruleset=ruleset)
 
         def driver_total(driver_id: Any) -> Decimal:
             return scores.total_for(driver_id)
 
         def team_total(team_id: Any) -> Decimal:
-            return engine.score_team(
-                scores, roster.drivers_by_team.get(team_id, ()), ruleset=ruleset
-            )
+            return scores.team_total(team_id)
 
         dream = lineups.dream_team(roster.drivers_by_team, driver_total, team_total)
         dream_drivers = set()
@@ -561,22 +564,21 @@ def meeting_best_lineup(season: Season, meeting: Meeting) -> BestLineup:
     roster: Roster | None = None
     seats = seat_entries(season)
 
+    stored = meeting_scores(meeting)
+
     for round_obj in sorted(meeting.rounds, key=lambda r: r.round_number):
-        qualifying, race_rows = round_payload(round_obj)
-        if not race_rows:
+        scores = stored.get(round_obj.round_number)
+        if scores is None or scores.is_empty:
             continue
-        ruleset = ruleset_for(round_obj)
-        scores = engine.score_round(qualifying, race_rows, ruleset=ruleset)
         roster = roster_for_round(season, round_obj.round_number, seats=seats)
 
         for driver_id in roster.team_of_driver:
             driver_totals[driver_id] = (
                 driver_totals.get(driver_id, Decimal(0)) + scores.total_for(driver_id)
             )
-        for team_id, cars in roster.drivers_by_team.items():
+        for team_id in roster.drivers_by_team:
             team_totals[team_id] = (
-                team_totals.get(team_id, Decimal(0))
-                + engine.score_team(scores, cars, ruleset=ruleset)
+                team_totals.get(team_id, Decimal(0)) + scores.team_total(team_id)
             )
 
     if roster is None:
@@ -825,28 +827,17 @@ class Profile:
 
 
 def season_scores(season: Season) -> dict:
-    """Every round of a season, scored once.
+    """Every scored round of a season. A read, from Phase 5 onward.
 
-    Phase 5 stores `PickScore` per round and this becomes a read. Until then
-    the profile computes it, which is acceptable at seventeen rounds on a
-    development machine and would not be in production.
+    This used to rescore seventeen rounds on every profile view — loading
+    roughly nine hundred result rows and running the engine over all of them to
+    render one column of one table. It is now one indexed query against the
+    rows the scoring pass already wrote.
+
+    The objects it returns are shaped exactly like the engine's, which is why
+    the profiles below did not have to change.
     """
-    stmt = (
-        select(Round)
-        .where(Round.season_id == season.id)
-        .options(selectinload(Round.sessions).selectinload(Session.results))
-        .order_by(Round.round_number)
-    )
-    out = {}
-    for round_obj in db.session.scalars(stmt).unique():
-        qualifying, race_rows = round_payload(round_obj)
-        if not race_rows and not qualifying:
-            continue
-        out[round_obj.round_number] = (
-            round_obj,
-            engine.score_round(qualifying, race_rows, ruleset=ruleset_for(round_obj)),
-        )
-    return out
+    return stored_season_scores(season)
 
 
 def _cells_for(score) -> dict:
@@ -931,7 +922,10 @@ def team_profile(season: Season, team_id: Any) -> Profile | None:
             if car not in car_ids:
                 car_ids.append(car)
 
-        team_total = engine.score_team(score, cars, ruleset=ruleset_for(round_obj))
+        # The stored half-sum, not a recomputation. Recomputing would use
+        # whichever divisor is current rather than the one this round recorded.
+        team_total = score.team_total(team_id)
+
         grand += team_total
 
         car_rows.append({

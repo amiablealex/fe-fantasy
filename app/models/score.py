@@ -35,6 +35,7 @@ from decimal import Decimal
 from typing import Any, Iterable
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -152,6 +153,16 @@ class RoundScore(db.Model):
     # {"cars": [[driver_id, "9"], ...]} so the half-sum explains itself without
     # the reader needing the roster; drivers carry nothing.
     detail: Mapped[dict | None] = mapped_column(JSONB)
+
+    # Whether this subject was in the round's classification at all. A driver
+    # who raced and scored nothing and a driver who was not on the grid both
+    # end up at zero with an empty breakdown, and the profile table has to tell
+    # them apart — one is a blank cell, the other is a genuine nought.
+    #
+    # Non-participants still get a row, because a player may hold a driver who
+    # has left the grid and a PickScore must always have a RoundScore behind
+    # it. They are simply not part of the classification.
+    participated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Denormalised from the round. A score must say how it was reached without
     # a join, because the whole point of versioning is that the round's version
