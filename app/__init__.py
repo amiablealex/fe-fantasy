@@ -13,6 +13,12 @@ from app.extensions import csrf, db, login_manager, migrate
 # so Alembic autogenerate can see them. Do not remove.
 from app import models  # noqa: F401
 
+# pyflakes has no `noqa` support — that is flake8 — and an import kept purely
+# for its side effect is exactly what it exists to flag. Naming it in `__all__`
+# is how you tell it the name is deliberate, and it keeps the pre-commit check
+# in §11 silent when nothing is wrong.
+__all__ = ["create_app", "models"]
+
 
 def create_app(config_class=None) -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")

@@ -37,14 +37,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from flask import current_app
-from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload
 
 from app.extensions import db
 from app.ingest.results import ResultsReport, sync_session_results
 from app.meetings.scoring import score_season
-from app.models.calendar import SCORING_STAGES, Round, Season, Session
+from app.models.calendar import Season, Session
 from app.models.worker import JOB_POLL, JOB_SEASON_SYNC, WorkerRun
+# The session-window queries live in `app/ingest/status.py` because the admin
+# health page asks the same questions. The worker may import from the
+# application; the application may not import the worker, so the shared
+# definition has to sit on that side of the line.
+from app.ingest.status import due_sessions, next_session_start, stale_sessions
 from worker.runs import Run, budget
 
 log = logging.getLogger(__name__)
@@ -73,69 +76,6 @@ def target_season_year(now: datetime | None = None) -> int:
 # -----------------------------------------------------------------------------
 # Finding work, at no cost
 # -----------------------------------------------------------------------------
-
-
-def _scheduled_end():
-    """When a session was due to finish.
-
-    `end_time` where the provider gave one, `start_time` otherwise. A session
-    with neither is invisible to the poller and is reported rather than
-    guessed at — inventing a duration would mean fetching at the wrong moment
-    and never knowing why.
-    """
-    return func.coalesce(Session.end_time, Session.start_time)
-
-
-def _pending(now: datetime):
-    return (
-        select(Session)
-        .join(Round, Session.round_id == Round.id)
-        .options(joinedload(Session.round).joinedload(Round.season))
-        .where(
-            Session.stage.in_(SCORING_STAGES),
-            Session.results_ingested_at.is_(None),
-            _scheduled_end().isnot(None),
-        )
-    )
-
-
-def due_sessions(now: datetime | None = None) -> list[Session]:
-    """Sessions worth asking about right now. Costs no API calls."""
-    now = now or _utcnow()
-    config = current_app.config
-    grace = timedelta(minutes=config["POLL_SESSION_GRACE_MINUTES"])
-    give_up = timedelta(hours=config["POLL_GIVE_UP_HOURS"])
-
-    stmt = (
-        _pending(now)
-        .where(
-            _scheduled_end() <= now - grace,
-            _scheduled_end() >= now - give_up,
-        )
-        .order_by(_scheduled_end())
-    )
-    return list(db.session.scalars(stmt).unique())
-
-
-def stale_sessions(now: datetime | None = None) -> list[Session]:
-    """Sessions the poller gave up on.
-
-    Worth surfacing rather than forgetting: a session that never published is
-    a round that will stay provisional forever, and the remedy —
-    `flask backfill-results` — is manual by design.
-    """
-    now = now or _utcnow()
-    give_up = timedelta(hours=current_app.config["POLL_GIVE_UP_HOURS"])
-    stmt = _pending(now).where(_scheduled_end() < now - give_up)
-    return list(db.session.scalars(stmt).unique())
-
-
-def next_session_start(now: datetime | None = None) -> datetime | None:
-    """When the next scheduled session begins, across every season."""
-    now = now or _utcnow()
-    return db.session.scalar(
-        select(func.min(Session.start_time)).where(Session.start_time > now)
-    )
 
 
 def _should_attempt(session_row: Session, now: datetime) -> bool:

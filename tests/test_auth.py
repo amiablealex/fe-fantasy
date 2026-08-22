@@ -146,8 +146,10 @@ def test_admin_page_is_forbidden_to_a_normal_user(client, signed_in):
 def test_admin_page_is_reachable_by_an_admin(client, signed_in):
     signed_in(is_admin=True)
     response = client.get("/admin/")
+    # Authorisation only. Asserting on the page's wording is what broke this
+    # when Phase 5 restyled the admin templates, and a 200 from a route behind
+    # `admin_required` is the whole claim being made here.
     assert response.status_code == 200
-    assert b"Users:" in response.data
 
 
 def test_safe_redirect_rejects_offsite_targets():

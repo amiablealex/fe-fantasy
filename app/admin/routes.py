@@ -48,6 +48,25 @@ def index():
         title="Admin",
     )
 
+@admin_bp.route("/health")
+@admin_required
+def health():
+    """Sync health, provider quota and outstanding conflicts.
+
+    The page §10 said the admin surface needed first. Read-only: every remedy
+    it points at is a CLI command, because a button that rescores a season is
+    the kind of thing that gets pressed by accident on a race weekend.
+    """
+    from app.admin import health as health_queries
+
+    return render_template(
+        "admin/health.html",
+        health=health_queries.snapshot(),
+        ago=health_queries.ago,
+        title="Health",
+    )
+
+
 @admin_bp.route("/request-info")
 @admin_required
 def request_info():

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  Built entirely from primitives that already exist. A health page is exactly
+  the sort of screen that attracts status pills, coloured dots and a grid of
+  cards, all three of which SPEC.md §1 rules out — so the states here are
+  carried by rule weight, ink level and the words themselves.
+
+  `.budget` and `.budget.is-over` were built in Phase 3 for the transfer bank.
+  A monthly API allowance is the same shape of fact, so it reuses them rather
+  than getting a component of its own.
+#}
+<h1 class="page-title">Health</h1>
+
+<div class="stack stack--loose">
+
+  {# ---- Anything wrong, said once, at the top -------------------------- #}
+  {% if health.worker.is_silent %}
+    <p class="problem problem--error">
+      <span class="problem__mark" aria-hidden="true">!</span>
+      <span>
+        {% if health.worker.has_ever_run %}
+          The worker has not reported since {{ health.worker.since(health.worker.last_any) }}.
+          It heartbeats hourly even when idle, so silence means it is not running.
+        {% else %}
+          The worker has never reported. If the service is deployed, check its
+          logs for a start-up failure.
+        {% endif %}
+      </span>
+    </p>
+  {% endif %}
+
+  {# ---- Provider quota ------------------------------------------------- #}
+  <section>
+    <span class="label">Provider calls this month</span>
+    <div class="budget{% if health.budget.is_over %} is-over{% endif %}">
+      <p class="budget__figure">
+        <span class="figure figure--total">{{ health.budget.used }}</span>
+        <span class="u-low">of {{ health.budget.ceiling }}</span>
+      </p>
+      <p class="budget__figure budget__figure--quiet">
+        <span class="num">{{ health.budget.remaining }}</span>
+        <span class="u-low">left</span>
+      </p>
+    </div>
+    {% if health.budget.is_over %}
+      <p class="problem">
+        The ceiling is reached, so the poller and the sync are both refusing to
+        spend. Results will not arrive until the calendar month turns, or until
+        <code>OCB_MONTHLY_CALL_CEILING</code> is raised.
+      </p>
+    {% endif %}
+  </section>
+
+  {# ---- Worker --------------------------------------------------------- #}
+  <section class="panel">
+    <span class="panel__title label">Worker</span>
+    <dl class="pairs">
+      <dt>Last successful poll</dt>
+      <dd>{{ health.worker.since(health.worker.last_poll) or "never" }}</dd>
+
+      <dt>Last successful sync</dt>
+      <dd>{{ health.worker.since(health.worker.last_sync) or "never" }}</dd>
+
+      <dt>Runs still open</dt>
+      <dd class="num">{{ health.worker.unfinished }}</dd>
+    </dl>
+    {% if health.worker.unfinished %}
+      <p class="problem">
+        A run with no finish time is a worker that stopped mid-job. One is
+        normal if the worker is running right now; several mean it is
+        restarting.
+      </p>
+    {% endif %}
+  </section>
+
+  {# ---- Ingestion ------------------------------------------------------ #}
+  <section class="panel">
+    <span class="panel__title label">Results</span>
+    <dl class="pairs">
+      <dt>Sessions awaiting results</dt>
+      <dd class="num">{{ health.awaiting }}</dd>
+
+      <dt>Next session</dt>
+      <dd>{{ health.next_session_in or "none scheduled" }}</dd>
+
+      <dt>Given up on</dt>
+      <dd class="num{% if health.stale %} u-semi{% endif %}">{{ health.stale|length }}</dd>
+    </dl>
+
+    {% if health.stale %}
+      <p class="problem">
+        The poller stopped asking for these. Each one leaves its round
+        provisional until the results are fetched by hand:
+        <code>flask backfill-results {{ health.stale[0].round.season.year }}</code>.
+      </p>
+      <table class="table">
+        <thead>
+          <tr><th>Round</th><th>Session</th><th class="c-num">Due</th></tr>
+        </thead>
+        <tbody>
+          {% for session in health.stale %}
+            <tr>
+              <td class="c-name">R{{ session.round.round_number }}</td>
+              <td>{{ session.name }}</td>
+              <td class="c-num">{{ ago(session.end_time or session.start_time) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </section>
+
+  {# ---- Scoring -------------------------------------------------------- #}
+  <section class="panel">
+    <span class="panel__title label">Scoring</span>
+    {% if health.seasons %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Season</th>
+            <th class="c-num">Rounds</th>
+            <th class="c-num">Scored</th>
+            <th class="c-num">Provisional</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for season in health.seasons %}
+            <tr>
+              <td class="c-name">{{ season.display_name }}</td>
+              <td class="c-num">{{ season.rounds }}</td>
+              <td class="c-num">{{ season.scored }}</td>
+              <td class="c-num">{{ season.provisional or "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if health.seasons | selectattr("provisional") | list %}
+      <p class="aftermatter">
+        A provisional round has been scored from part of its sessions and will
+        rescore as the rest land. Every fantasy rule is additive per session, so
+        a provisional total only ever goes up.
+      </p>
+      {% endif %}
+    {% else %}
+      <p class="u-mid">No seasons synced.</p>
+    {% endif %}
+  </section>
+
+  {# ---- Sync conflicts ------------------------------------------------- #}
+  <section class="panel">
+    <span class="panel__title label">Sync conflicts</span>
+    {% if health.conflicts %}
+      <ul class="ruled ruled--tight">
+        {% for conflict in health.conflicts %}
+          <li>
+            <p class="split">
+              <span class="u-semi">{{ conflict.label }}</span>
+              <span class="u-low num">{{ ago(conflict.last_seen_at) }}</span>
+            </p>
+            <p class="u-mid">
+              {% if conflict.meeting %}{{ conflict.meeting.display_name }} &middot; {% endif %}
+              seen {{ conflict.occurrences }}
+              time{{ "" if conflict.occurrences == 1 else "s" }} since
+              {{ ago(conflict.first_seen_at) }}
+            </p>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="aftermatter">
+        A conflict means one meeting was left untouched by a resync; the rest
+        applied normally. Resolve in psql once the calendar is right.
+      </p>
+    {% else %}
+      <p class="u-mid">None outstanding.</p>
+    {% endif %}
+  </section>
+
+  {# ---- Run history ---------------------------------------------------- #}
+  <section class="panel">
+    <span class="panel__title label">Recent runs</span>
+    {% if health.runs %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th class="c-num">When</th>
+            <th class="c-num">Calls</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in health.runs %}
+            <tr>
+              <td class="c-name">{{ run.job }}</td>
+              <td class="c-num">{{ ago(run.started_at) }}</td>
+              <td class="c-num">{{ run.api_calls or "" }}</td>
+              <td class="{% if run.ok is false %}u-semi{% else %}u-mid{% endif %}">
+                {% if run.is_running %}
+                  <span class="status">running</span>
+                {% else %}
+                  {{ run.summary or "—" }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="aftermatter">
+        Idle ticks are not recorded; the hourly entry is the heartbeat that
+        proves the worker is alive on a quiet day.
+      </p>
+    {% else %}
+      <p class="u-mid">Nothing recorded yet.</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}
