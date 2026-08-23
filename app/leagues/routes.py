@@ -39,8 +39,7 @@ from app.leagues.forms import (
 from app.leagues.profile import player_profile, weekend_detail
 from app.meetings import display as bridge
 from app.meetings import queries as meeting_queries
-from app.meetings.bridge import ruleset_for
-from app.meetings import bracket as bracket_view
+from app.meetings.routes import results_context
 from app.leagues.standings import standings
 from app.lineups.service import current_season
 from app import palette
@@ -417,53 +416,17 @@ def profile(user_id: int):
     # once — only `base` and the marks differ, because the mark always belongs
     # to the lineup rendered directly above it.
     if selected is not None:
-        ctx.update(_player_results(subject, selected, ctx["detail"]))
+        ctx.update(results_context(
+            selected,
+            selected.sequence,
+            ctx["detail"].marked if ctx["detail"] else frozenset(),
+            base=url_for("players.profile", user_id=subject.id),
+        ))
         ctx["results_open"] = request.args.get("results") == "open"
 
     return render_template(
         "players/profile.html", title=subject.username, **ctx
     )
-
-
-def _player_results(subject, meeting, detail) -> dict:
-    """The Results disclosure, keyed to a player's profile rather than a weekend.
-
-    Deliberately not a second copy of `meetings._results_context`: that one
-    builds links back to `/weekend`, and a reader who switched round from a
-    friend's profile would be thrown onto a different page. Everything below
-    the link-building is the same reads.
-    """
-    ordered = sorted(meeting.rounds, key=lambda r: r.round_number)
-    if not ordered:
-        return {}
-
-    requested = request.args.get("r", type=int)
-    shown = next((r for r in ordered if r.round_number == requested), ordered[0])
-    stage = request.args.get("stage", "race")
-    if stage not in ("race", "qualifying"):
-        stage = "race"
-
-    rules = ruleset_for(shown)
-    results = meeting_queries.round_results(shown)
-    base = url_for("players.profile", user_id=subject.id)
-    return {
-        "base": base,
-        "sequence": meeting.sequence,
-        "meeting_rounds": ordered,
-        "shown_round": shown,
-        "stage": stage,
-        "results": results,
-        "scores": meeting_queries.round_scores(shown),
-        "bracket": bracket_view.build(results.qualifying, rules),
-        "bracket_rules": rules.qualifying,
-        "schedule": meeting_queries.round_schedule(shown),
-        "yours": detail.marked if detail else frozenset(),
-        "profile_base": (
-            f"{base}?m={meeting.sequence}&r={shown.round_number}"
-            f"&stage={stage}&results=open"
-        ),
-        "profile_hx": url_for("meetings.weekend_profile"),
-    }
 
 
 @players_bp.route("/players/<int:user_id>/results")
@@ -489,7 +452,12 @@ def player_results(user_id: int):
     detail = weekend_detail(
         current_user, subject, season, row.meeting, now=now()
     )
-    ctx = _player_results(subject, row.meeting, detail)
+    ctx = results_context(
+        row.meeting,
+        row.meeting.sequence,
+        detail.marked if detail else frozenset(),
+        base=url_for("players.profile", user_id=subject.id),
+    )
     if not ctx:
         return "", 204
     return render_template(

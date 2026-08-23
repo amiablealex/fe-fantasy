@@ -6,17 +6,18 @@
 
 {% block content %}
 
-<h1 class="page-title">{{ subject.username }}</h1>
+{#- No page title, no league list, no season figure above the fold.
 
-{% if profile and profile.leagues %}
-<p class="status">
-  {%- for league in profile.leagues -%}
-  {{ '' if loop.first else ' &middot; ' | safe }}{{ league.name }}
-  {%- endfor -%}
-</p>
-{% endif %}
+    Every scored view in this application opens with the same three rows — nav
+    bar, verdict, lineup — and the only thing that differs is the verdict's
+    label. Here that label is the player's name, which is the whole of what a
+    heading would have said. Anything else at the top pushes the component down
+    and breaks the one shape a reader has learnt.
 
+    The season figure has not gone; it sits below the lineup, where it is a
+    footnote to the weekend rather than a headline competing with it. -#}
 {% if not season or not profile or not profile.weekends %}
+<h1 class="page-title">{{ subject.username }}</h1>
 <p class="prose">
   {%- if not season -%}
   No season has been synced yet.
@@ -27,27 +28,14 @@
 
 {% else %}
 
-{#- The season figure first. It is the answer the page exists to give, and the
-    weekends below are the working. -#}
-<div class="slab">
-  <span class="label">Season {{ bridge.POINTS_ABBREVIATION }}</span>
-  <span class="figure figure--round num">{{ bridge.fmt(profile.total) }}</span>
-</div>
-<p class="status">
-  {{ profile.played }} weekend{{ '' if profile.played == 1 else 's' }} scored
-</p>
-
-{#- Arrows rather than a list, promoted from the styleguide rather than rebuilt.
-    A reader moves by one almost every time; the name opens the whole season,
-    where each weekend carries what it scored and what it cost in transfers.
-
-    The refs are built from the *visible* weekends rather than from the
+{#- The refs are built from the *visible* weekends rather than from the
     calendar, so an unlocked weekend has no arrow pointing at it — the nav
     cannot become a second route to something the visibility layer hides. -#}
+{% set keep = '&results=open&stage=' ~ stage if results_open else '' %}
 {% if nav %}
-{{ nav_ui.meeting_nav(nav, refs, sequence, base) }}
+{{ nav_ui.meeting_nav(nav, refs, sequence, base, keep) }}
 {% if menu %}
-{{ nav_ui.meeting_menu(refs, sequence, none, base, "", bridge) }}
+{{ nav_ui.meeting_menu(refs, sequence, none, base, keep, bridge) }}
 {% endif %}
 {% endif %}
 
@@ -57,17 +45,24 @@
     there — the whole reason the component has three states rather than three
     implementations. -#}
 {{ ui.verdict(bridge, detail.total,
-              heading=('Your weekend' if profile.is_you else 'Their weekend')) }}
+              heading=('Your weekend' if profile.is_you else subject.username)) }}
 
 {{ ui.lineup(palette, detail.picks[:4],
              detail.picks[4] if detail.picks | length > 4 else none,
              state='scored', bridge=bridge) }}
+
+<p class="status">
+  Season {{ bridge.fmt(profile.total) }} {{ bridge.POINTS_ABBREVIATION }}
+  &middot; {{ profile.played }} weekend{{ '' if profile.played == 1 else 's' }}
+  scored
+</p>
 
 {% for pick in detail.picks %}
 {#- The info mark, which this page did not have until the weekend view gave it
     a production route to point at. "Who is this driver" is a question a reader
     asks from someone else's lineup more often than from their own. -#}
 {{ ui.breakdown(bridge, palette, pick, loop.index0,
+                best_url=url_for('meetings.perfect_five', m=detail.meeting.sequence),
                 profile_url=(base ~ '?m=' ~ sequence ~ '&profile='
                              ~ ('t' if pick.is_team else 'd') ~ pick.subject.id),
                 profile_hx=(url_for('meetings.weekend_profile') ~ '?subject='
@@ -89,6 +84,12 @@
   </div>
 </details>
 {% endif %}
+
+<p class="status">
+  <a href="{{ url_for('meetings.perfect_five', m=detail.meeting.sequence) }}">
+    <span class="star">&#9733;</span>
+    View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}</a>
+</p>
 
 {% else %}
 <p class="prose">

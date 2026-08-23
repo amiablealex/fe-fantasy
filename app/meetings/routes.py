@@ -117,14 +117,21 @@ def your_driver_ids(meeting, locked: bool) -> frozenset:
     return view.marked_drivers(snapshot.to_lineup(), meeting)
 
 
-def _results_context(meeting, sequence: int, yours=frozenset()) -> dict:
-    """Everything the Results disclosure needs, for the page and the fragment.
+def results_context(meeting, sequence: int, yours=frozenset(), base=None) -> dict:
+    """Everything the Results disclosure needs, for a page and for its fragment.
 
-    One function, two callers. The disclosure body is rendered both inline and
-    by the HTMX route so a round or stage switch swaps in place rather than
-    reloading and throwing away the reader's scroll position — and building its
-    context in two places is how the two start disagreeing about which round is
-    shown.
+    One function, six callers: the weekend view, a friend's profile and the
+    Perfect Five, each inline and each as an HTMX fragment. The disclosure body
+    is rendered both ways so a round or stage switch swaps in place rather than
+    reloading and throwing away the reader's scroll position.
+
+    **`base` is the only thing that differs between the three pages.** Every
+    link in the disclosure is built from it, so a reader who switches round from
+    a friend's profile stays on that profile rather than being thrown onto
+    `/weekend`, and the fragment route each page needs is `base + "/results"`.
+    An earlier version had a second copy of this in `app/leagues/routes.py` that
+    differed in exactly that one line, which is how two copies of a read start
+    disagreeing about which round is shown.
     """
     shown, ordered = _chosen_round(meeting, request.args.get("r", type=int))
     if shown is None:
@@ -136,7 +143,7 @@ def _results_context(meeting, sequence: int, yours=frozenset()) -> dict:
 
     rules = ruleset_for(shown)
     results = queries.round_results(shown)
-    base = url_for("meetings.weekend")
+    base = base or url_for("meetings.weekend")
     return {
         "base": base,
         "sequence": sequence,
@@ -240,7 +247,7 @@ def weekend():
             committed=snapshot.meeting_id == meeting.id,
         )
 
-    ctx.update(_results_context(
+    ctx.update(results_context(
         meeting, sequence, your_driver_ids(meeting, locked)
     ))
     ctx["results_open"] = request.args.get("results") == "open"
@@ -253,32 +260,12 @@ def weekend():
     return render_template("meetings/weekend.html", **ctx)
 
 
-@meetings_bp.route("/weekend/perfect-five")
-@login_required
-def perfect_five():
-    """The highest-scoring valid lineup for one weekend.
+def _perfect_five_context(season, sequence: int) -> dict:
+    """The Perfect Five for one weekend, or the reason there isn't one.
 
-    Its own route rather than a section of the weekend page, and reached by a
-    quiet link rather than a banner. It answers "what was possible", which is a
-    question a player asks after they have read their own score — putting it
-    beside their own lineup would answer it before they asked, and on a bad
-    weekend that reads as a scoreboard rubbing it in.
-
-    Rendered through the same component in the same `scored` state, so the
-    comparison costs no reading: identical geometry means the eye lands on the
-    figures rather than re-learning a layout.
-
-    Nothing is starred here, because every slot is in the Perfect Five by
-    construction and a star against all five would say nothing.
-
-    Nor is there a comparison to the reader's own total. "You scored 34 of a
-    possible 61" is a scoreboard telling someone off, and this application has
-    no email, no reminders and no nagging anywhere else — the front page says
-    what you scored, and this page says what the weekend was worth. Those are
-    two facts, not a verdict.
+    Shared by the page and its results fragment so the two cannot disagree
+    about which weekend, or about which six drivers are marked.
     """
-    season = current_season()
-    sequence = request.args.get("m", type=int)
     meeting = queries.get_meeting(season, sequence) if season and sequence else None
     ctx = {
         "palette": palette,
@@ -288,17 +275,17 @@ def perfect_five():
         "sequence": sequence,
     }
     if meeting is None or not meeting.rounds:
-        return render_template("meetings/perfect_five.html", **ctx)
+        return ctx
 
-    # A weekend that has not locked has no best lineup worth showing, and
-    # publishing one before the deadline would hand out an answer key.
+    # A weekend that has not locked has no best picks worth showing, and
+    # publishing them before the deadline would hand out an answer key.
     if not meeting.is_locked(now()):
         ctx["too_early"] = True
-        return render_template("meetings/perfect_five.html", **ctx)
+        return ctx
 
     best = view.meeting_best_lineup(season, meeting)
     if best.lineup is None:
-        return render_template("meetings/perfect_five.html", **ctx)
+        return ctx
 
     breakdowns = view.score_meeting(season, meeting, best.lineup)
     picks = view.aggregate_meeting(breakdowns)
@@ -307,11 +294,82 @@ def perfect_five():
     view.mark_best(picks, best.lineup)
 
     ctx.update(
-        picks=picks,
         best=best,
+        picks=picks,
         total=sum((b.total for b in breakdowns if b.scored), 0),
+        # The marks under this lineup are the Perfect Five's own six, not the
+        # reader's. One rule everywhere: the mark belongs to the lineup rendered
+        # directly above it.
+        marked=view.marked_drivers(best.lineup, meeting),
     )
+    return ctx
+
+
+@meetings_bp.route("/weekend/perfect-five")
+@login_required
+def perfect_five():
+    """The four best-scoring drivers of a weekend, and the best-scoring team.
+
+    Its own route rather than a section of the weekend page, and reached by a
+    quiet link rather than a banner. It answers "what was possible", which is a
+    question a player asks after they have read their own score — putting it
+    beside their own lineup would answer it before they asked, and on a bad
+    weekend that reads as a scoreboard rubbing it in.
+
+    Rendered through the same component in the same `scored` state, under the
+    same nav bar, so the comparison costs no reading: identical geometry means
+    the eye lands on the figures rather than re-learning a layout.
+
+    There is no comparison to the reader's own total. "You scored 34 of a
+    possible 61" is a scoreboard telling someone off, and this application has
+    no email, no reminders and no nagging anywhere else — the front page says
+    what you scored, and this page says what the weekend was worth. Those are
+    two facts, not a verdict.
+    """
+    season = current_season()
+    sequence = request.args.get("m", type=int)
+    refs = [r for r in queries.meeting_refs(season) if r.scored] if season else []
+    if sequence is None:
+        sequence = queries.latest_scored(refs)
+
+    ctx = _perfect_five_context(season, sequence)
+    # Arrows across scored weekends only: a weekend with no Perfect Five is not
+    # somewhere an arrow should be able to land.
+    ctx.update(
+        refs=refs,
+        nav=queries.neighbours(refs, sequence) if sequence else None,
+        menu=request.args.get("menu"),
+    )
+
+    if ctx.get("picks"):
+        ctx.update(results_context(
+            ctx["meeting"], sequence, ctx["marked"],
+            base=url_for("meetings.perfect_five"),
+        ))
+        ctx["results_open"] = request.args.get("results") == "open"
+
     return render_template("meetings/perfect_five.html", **ctx)
+
+
+@meetings_bp.route("/weekend/perfect-five/results")
+@login_required
+def perfect_five_results():
+    """The Results disclosure body under the Perfect Five, for HTMX."""
+    season = current_season()
+    sequence = request.args.get("m", type=int)
+    ctx = _perfect_five_context(season, sequence)
+    if not ctx.get("picks"):
+        return "", 204
+
+    body = results_context(
+        ctx["meeting"], sequence, ctx["marked"],
+        base=url_for("meetings.perfect_five"),
+    )
+    if not body:
+        return "", 204
+    return render_template(
+        "meetings/_results_body.html", palette=palette, bridge=display, **body
+    )
 
 
 @meetings_bp.route("/weekend/results")
@@ -325,7 +383,7 @@ def weekend_results():
         return "", 204
 
     locked = meeting.is_locked(now())
-    ctx = _results_context(meeting, sequence, your_driver_ids(meeting, locked))
+    ctx = results_context(meeting, sequence, your_driver_ids(meeting, locked))
     if not ctx:
         return "", 204
     return render_template(
