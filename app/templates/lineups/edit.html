@@ -48,14 +48,37 @@
 
 {% for message in problems %}{{ ui.problem(message) }}{% endfor %}
 
-{#- No "In" tags while changes are free. The tag marks a slot that differs
-    from the cost baseline — the last snapshot from an earlier weekend — which
-    is what a transfer is charged against. In the grace period nothing is
-    charged, so a player experimenting accumulates tags that record no cost and
-    mean nothing; after a few swaps every slot carries one. -#}
+{#- Sits with the broken rules, because it is the same kind of fact: a state
+    the lineup is in, stated once, above the component it describes.
+
+    It is not an error, so it does not share red — a lineup waiting to be saved
+    is not a lineup that is wrong, and sharing the colour would empty red of
+    meaning exactly as §4.1 argues about the "In" tag.
+
+    Suppressed when a rule is broken, because two bars stacked would compete
+    and the broken rule is the one to act on first. Suppressed when the draft
+    is incomplete, because "3 of 5 slots filled" already says that and there is
+    nothing to save yet. -#}
+{% if dirty and complete and not problems %}
+{{ ui.problem(
+     'Unsaved changes. ' ~ ('Save your lineup' if mode == 'empty' or free
+                            else 'Commit your transfers') ~ ' to keep them.',
+     level='caution') }}
+{% endif %}
+
+{#- Two references, because there are two questions.
+
+    Past grace the tag marks a slot that differs from the cost baseline — the
+    last snapshot from an earlier weekend — so it survives committing and keeps
+    saying "this is the transfer you made this weekend", which is a fact worth
+    keeping on screen.
+
+    In grace nothing is charged, so that reading records a cost that does not
+    exist. The tag instead marks a slot that differs from what is stored for
+    *this* weekend, and clears the moment it is saved. -#}
 {{ ui.lineup(palette, edit_drivers, edit_team, state=mode,
              base_url=draft_url(draft_drivers, draft_team),
-             changed_ids=([] if free else diff.changed_ids)) }}
+             changed_ids=(unsaved.changed_ids if free else diff.changed_ids)) }}
 
 {% if free %}
 {#- Grace. Not a budget of zero and not a budget of two: a different sentence,
@@ -120,8 +143,14 @@
         even when it costs nothing. -#}
     {% if mode == 'edit' and not free %}
       {{ ui.transfer_summary(palette, diff) }}
-    {% elif mode == 'edit' and free and diff.has_changes %}
-      {{ ui.transfer_summary(palette, diff, show_cost=false) }}
+    {% elif mode == 'edit' and free and unsaved.has_changes %}
+      {#- `unsaved`, not `diff`: the dialog confirms what is about to be saved,
+          which is measured against what is stored for this weekend. Reading
+          the cost diff here re-listed every change made since the last
+          *weekend*, so committing one swap and then making a second showed
+          both — and the summary disagreed with the "In" tags six inches
+          above it. -#}
+      {{ ui.transfer_summary(palette, unsaved, show_cost=false) }}
       <p class="stage__context">No transfers are used. Changes are free until
         the first deadline.</p>
     {% else %}
@@ -152,7 +181,17 @@
     <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Close</a>
   </div>
   <div class="sheet__body">
-    {% set restorable = (([diff.team_out] if diff.team_out else []) if is_team_slot else diff.drivers_out) %}
+    {#- `unsaved`, not `diff`. "Put back" undoes something pending, so it is
+        measured against what is stored for this weekend — the same reference
+        the "In" tags and the confirmation dialog use.
+
+        Reading the cost diff here listed everything moved out since the last
+        *weekend*, including transfers already committed. Tapping one of those
+        did not undo anything: it made a fresh change, tagged it "In" and
+        enabled the save button, which is the opposite of what the control
+        offers. Past grace the two references coincide until a commit lands,
+        which is why this survived Phase 4. -#}
+    {% set restorable = (([unsaved.team_out] if unsaved.team_out else []) if is_team_slot else unsaved.drivers_out) %}
     {% if restorable %}
     {#- Which original replaced which is genuinely ambiguous once more than one
         slot has moved, so every outgoing pick is offered rather than a guess at
@@ -221,11 +260,29 @@
               this works with JavaScript off; with it on, HTMX swaps the dialog
               in and the draft in the URL is untouched. -#}
           {%- set subject = ('t' if is_team_slot else 'd') ~ option.id -%}
-          {{ prof.info_link(
-               url_for('meetings.weekend') ~ '?profile=' ~ subject,
-               (option.team.name if is_team_slot else option.label)
-                 ~ ' season stats',
-               hx = url_for('meetings.weekend_profile') ~ '?subject=' ~ subject) }}
+          {#- Written out rather than through `prof.info_link`, because this
+              link has to countermand the editor region it sits inside.
+
+              `#editor` carries hx-boost with hx-target, hx-select and
+              hx-push-url, and every descendant inherits all three. The macro
+              sets hx-get and hx-target but not hx-select, so HTMX fetched the
+              profile fragment, tried to select `#editor` out of it, found
+              nothing and swapped nothing — a silent no-op, with the URL
+              changing anyway because hx-push-url was inherited too.
+
+              hx-select="unset" and hx-push-url="false" are the opt-outs. The
+              href is the full page, so with JavaScript off this navigates to
+              the same sheet on the weekend view rather than to a bare
+              fragment. -#}
+          <a class="infomark figure"
+             href="{{ url_for('meetings.weekend') }}?profile={{ subject }}"
+             hx-get="{{ url_for('meetings.weekend_profile') }}?subject={{ subject }}"
+             hx-target="#profile-host"
+             hx-swap="innerHTML"
+             hx-select="unset"
+             hx-push-url="false"
+             aria-label="{{ (option.team.name if is_team_slot else option.label) }} season stats"
+             title="Season stats">i</a>
         </div>
       {% endfor %}
     </div>

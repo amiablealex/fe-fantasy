@@ -231,17 +231,28 @@ def edit():
     # to save" is measured against what is stored for *this* weekend and must
     # become false the moment it is. During grace nothing is charged, so the
     # second is the only question worth marking.
-    start = state.starting_draft
-    unsaved_ids = set()
-    if start is not None:
-        unsaved_ids = set(draft_drivers) - set(start.drivers)
-        if draft_team is not None and draft_team != start.team_id:
-            unsaved_ids.add(draft_team)
+    # The same diff, against a different baseline.
+    #
+    # `diff` above answers "what does this cost", measured against the last
+    # snapshot from an *earlier* meeting, and it stays true after committing —
+    # a transfer made this weekend is still a transfer made this weekend.
+    #
+    # This one answers "what is unsaved", measured against `starting_draft`:
+    # this weekend's snapshot if there is one, otherwise the lineup carried
+    # forward. It resets the moment a commit lands, which is the whole point.
+    #
+    # §11 records two earlier occasions where these were conflated. One diff
+    # object rather than a set of ids because the confirmation dialog needs the
+    # out-and-in lists too, and deriving those twice from two baselines is how
+    # the tags and the summary end up disagreeing.
+    unsaved = draft.transfer_diff(
+        state.roster, state.starting_draft, draft_drivers, draft_team
+    )
 
     ctx.update(
         state=state,
         dirty=dirty,
-        unsaved_ids=unsaved_ids,
+        unsaved=unsaved,
         draft_drivers=draft_drivers,
         draft_team=draft_team,
         edit_drivers=[draft.slot_view(state.roster, d) for d in draft_drivers],
