@@ -48,6 +48,17 @@
 </p>
 {% endif %}
 
+{#- The front page is the state of play: what locks next, what is left to
+    spend, where you stand. The weekend's detail — the breakdown per pick, the
+    classification, the bracket — is a destination rather than a section,
+    because none of it is something a player can act on. -#}
+{% if shown_locked %}
+<p class="status">
+  <a href="{{ url_for('meetings.weekend', m=shown_meeting.sequence) }}">Scores
+    and results for {{ shown_meeting.display_name }}</a>
+</p>
+{% endif %}
+
 {#- ---- The state of play ------------------------------------------------
     Three facts, in the order they matter: when it locks, what it would cost
     you not to act, and whether you have already done something about it.

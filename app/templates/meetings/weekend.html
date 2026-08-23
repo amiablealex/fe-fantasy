@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% import "lineups/_lineup.html" as ui %}
+{% import "meetings/_nav.html" as nav_ui %}
+{% import "meetings/_profile.html" as prof %}
+{% set base = url_for('meetings.weekend') %}
+{% block title %}Weekend{% endblock %}
+
+{% block content %}
+
+{% if not season %}
+<h1 class="page-title">Weekends</h1>
+<p class="prose">No season has been synced yet. Weekends appear here once the
+  calendar lands.</p>
+
+{% elif not refs %}
+<h1 class="page-title">Weekends</h1>
+<p class="prose">The season has been synced but has no weekends in it, which
+  should not happen. It is worth a look at the sync.</p>
+
+{% else %}
+
+{#- Carry an open Results section across a meeting change: collapsing it on
+    every arrow tap would punish exactly the reader who is browsing results. -#}
+{% set keep = '&results=open&stage=' ~ stage if results_open else '' %}
+{{ nav_ui.meeting_nav(nav, refs, sequence, base, keep) }}
+
+{% if menu %}
+{{ nav_ui.meeting_menu(refs, sequence, none, base, keep) }}
+{% endif %}
+
+{% if not meeting %}
+<p class="prose">There is no weekend {{ sequence }} in this season.</p>
+
+{% else %}
+
+{# ---- Before the deadline -------------------------------------------------
+   No lineup here, deliberately. You may read your own draft freely — on
+   /lineup, which is where editing lives. A second screen showing an editable
+   lineup is a second editor, and the two would drift. #}
+{% if not locked %}
+
+<div class="slab">
+  <span class="label">Locks in</span>
+  <span class="figure figure--round num">{{ countdown }}</span>
+</div>
+{% if meeting.deadline_at %}
+<p class="status">{{ meeting.deadline_at | local }}</p>
+{% endif %}
+
+{% if editable %}
+<div class="actions">
+  <span></span>
+  <a class="actions__commit" href="{{ url_for('lineups.edit') }}">Set your lineup</a>
+</div>
+{% else %}
+<p class="prose u-mid">Picks for this weekend open once the weekend before it
+  has locked.</p>
+{% endif %}
+
+{# ---- After the deadline ------------------------------------------------- #}
+{% elif picks %}
+
+{{ ui.verdict(bridge, total) }}
+{{ ui.lineup(palette, picks[:4], picks[4] if picks | length > 4 else none,
+             state='scored', bridge=bridge) }}
+
+{% if not committed %}
+{#- Carried forward rather than committed. Worth saying: a player who has not
+    opened the app since meeting 3 still scores, and a figure appearing against
+    a weekend they never touched reads as a mistake unless the page explains
+    it. -#}
+<p class="status">Carried forward — no changes were committed for this
+  weekend.</p>
+{% endif %}
+
+{% if nav.current and nav.current.provisional %}
+{#- §3: a partial score is a monotonically increasing partial sum, so it never
+    revises downward and is honest to show. It still has to say so, or a
+    half-scored weekend is read as a finished one. -#}
+<p class="status">Scoring so far. Not every session of this weekend is in
+  yet.</p>
+{% endif %}
+
+{% for pick in picks %}
+{{ ui.breakdown(bridge, palette, pick, loop.index0,
+                profile_url=(base ~ '?m=' ~ sequence ~ '&profile='
+                             ~ ('t' if pick.is_team else 'd') ~ pick.subject.id),
+                profile_hx=(url_for('meetings.weekend_profile') ~ '?subject='
+                            ~ ('t' if pick.is_team else 'd') ~ pick.subject.id)) }}
+{% endfor %}
+
+{% elif locked_drivers %}
+{#- A lineup was in, and the weekend has not been scored. The picks still
+    belong on screen: that is what the reader locked in, and a page that shows
+    nothing cannot tell "you had no lineup" apart from "no results yet". -#}
+{{ ui.lineup(palette, locked_drivers, locked_team, state='locked') }}
+<p class="status">Locked. No results have been scored for this weekend yet.</p>
+
+{% else %}
+<p class="prose">You had no lineup in for this weekend, so it scores nothing.
+  The results are below.</p>
+{% endif %}
+
+{# ---- Results -----------------------------------------------------------
+   A disclosure on the same page rather than a tab: collapsed, it costs a
+   reader who came for their own score nothing, and the round and stage
+   switches keep the section open by carrying a marker in the URL rather than
+   needing script to remember it. #}
+{% if results %}
+<details class="disclosure" id="results" {% if results_open %}open{% endif %}>
+  <summary>
+    <span class="disclosure__title">Results</span>
+    <span class="disclosure__hint label"></span>
+  </summary>
+  <div class="disclosure__body" id="results-body">
+    {% include "meetings/_results_body.html" %}
+  </div>
+</details>
+{% endif %}
+
+{# Host for an HTMX-loaded profile. The server-rendered one below is the
+   no-JavaScript path. #}
+<div id="profile-host"></div>
+
+{% if profile %}
+{{ prof.profile_sheet(bridge, palette, ui, profile, profile_close) }}
+{% endif %}
+
+{% endif %}{# meeting #}
+{% endif %}{# season and refs #}
+{% endblock %}

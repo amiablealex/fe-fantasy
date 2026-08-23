@@ -68,10 +68,12 @@ def _register_blueprints(app: Flask) -> None:
     from app.auth.routes import auth_bp
     from app.leagues.routes import invite_bp, leagues_bp, players_bp
     from app.lineups.routes import lineups_bp
+    from app.meetings.routes import meetings_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(lineups_bp)
+    app.register_blueprint(meetings_bp)
     app.register_blueprint(leagues_bp)
     app.register_blueprint(invite_bp)
     app.register_blueprint(players_bp)

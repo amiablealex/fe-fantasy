@@ -1,0 +1,40 @@
+{# The inside of the Results disclosure.
+
+   Rendered both by the weekend page and by the HTMX partial route, so switching
+   round or stage swaps this fragment in place instead of reloading the page and
+   throwing away the scroll position. One template, two callers — the
+   alternative is two that drift.
+
+   The styleguide version used `sg-empty` and `sg-note`, which live in
+   `styleguide.css` and are not loaded by the application shell. They are
+   ordinary prose here. #}
+{% import "meetings/_results.html" as res %}
+{% import "lineups/_lineup.html" as ui %}
+
+{% if results.has_results %}
+  {{ res.round_switch(meeting_rounds, shown_round, stage, sequence, base) }}
+  {{ res.stage_switch(stage, shown_round, sequence, base) }}
+  {% if stage == 'qualifying' %}
+    {% if results.qualifying %}
+      {{ res.qualifying(ui, palette, results.qualifying, profile_base, profile_hx) }}
+    {% else %}
+      <p class="prose u-mid">No qualifying results are stored for this round yet.</p>
+    {% endif %}
+  {% else %}
+    {% if results.race %}
+      {{ res.classification(ui, palette, results.race, none, profile_base, profile_hx) }}
+    {% else %}
+      <p class="prose u-mid">
+        {%- if results.qualifying -%}
+        Qualifying is in; the race has not been run.
+        {%- else -%}
+        No race classification is stored for this round yet.
+        {%- endif -%}
+      </p>
+    {% endif %}
+  {% endif %}
+{% else %}
+  {{ res.round_switch(meeting_rounds, shown_round, stage, sequence, base) }}
+  <p class="prose u-mid">Not raced yet. The weekend&#8217;s schedule, as published.</p>
+  {{ res.schedule(schedule) }}
+{% endif %}
