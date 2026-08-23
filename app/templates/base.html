@@ -13,11 +13,17 @@
 <body>
 <div class="measure">
 
+{#- Five destinations, in the order a player wants them: what to do next, what
+    happened, who is winning, and then the account. "Weekends" rather than
+    "Results" because the page is your score first and the classification
+    second — SPEC.md §5 names the unit Weekend in the interface and Meeting in
+    the model. -#}
 <header class="appbar">
   <a class="appbar__mark" href="{{ url_for('lineups.home') }}">{{ config.APP_NAME }}</a>
   <nav class="appbar__nav">
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('lineups.edit') }}">Lineup</a>
+      <a href="{{ url_for('meetings.weekend') }}">Weekends</a>
       <a href="{{ url_for('leagues.index') }}">Leagues</a>
       <a href="{{ url_for('auth.account') }}">Account</a>
       {% if current_user.is_admin %}<a href="{{ url_for('admin.index') }}">Admin</a>{% endif %}

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
-from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -98,7 +97,16 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(days=_env_int("SESSION_LIFETIME_DAYS", 30))
 
     APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
-    TIMEZONE = ZoneInfo(os.environ.get("DISPLAY_TIMEZONE", "Europe/London"))
+
+    # Every stored instant is UTC; every reader is in the UK. One zone for the
+    # installation rather than one per user — a per-user column would be a
+    # migration and a settings form for a preference nobody would change.
+    #
+    # The *name*, not a resolved ZoneInfo. Building the zone here would make a
+    # mistyped variable raise at import, before validate_production_config can
+    # name it; app/localtime.py resolves it at render and %Z reads GMT or BST
+    # off the zone itself, so nothing needs touching twice a year.
+    DISPLAY_TIMEZONE = os.environ.get("DISPLAY_TIMEZONE", "Europe/London")
 
     # Cloudflare sets CF-Connecting-IP to the true client address. Railway's
     # edge rebuilds X-Forwarded-For from its own peer, so the client never

@@ -13,9 +13,12 @@
 <body>
 <div class="measure">
 
+{# One page now. The meeting, lineup, results and profile screens moved into
+   the application in Phase 7 and their styleguide copies were deleted rather
+   than kept in step. #}
 <nav class="sg-nav">
   <a class="sg-btn" href="{{ url_for('styleguide.index') }}" {% if page == 'tokens' %}aria-current="true"{% endif %}>Tokens</a>
-  <a class="sg-btn" href="{{ url_for('styleguide.lineup') }}" {% if page == 'lineup' %}aria-current="true"{% endif %}>Meeting</a>
+  <a class="sg-btn" href="{{ url_for('lineups.home') }}">The app</a>
   <span class="sg-bar__vp label num" id="vp"></span>
 </nav>
 

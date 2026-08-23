@@ -9,10 +9,15 @@
      edit     slots are filled; tapping one opens the picker to swap
      scored   slots carry a meeting total; tapping one discloses the breakdown
 
+   Anything this file does not recognise renders filled and inert, which is what
+   a locked weekend needs and cost nothing to add.
+
    Slot order never re-sorts by score. A layout that reshuffles by performance
    cannot be read at a glance, which is the only thing this component is for.
 
-   Phase 4 imports this file rather than reimplementing it.
+   `bridge` is `app/meetings/display.py`. It is passed in rather than imported
+   because a Jinja macro cannot import a Python module, and every string it
+   supplies is wording rather than data.
 #}
 
 {% macro stripes(palette, team, block=false) -%}
@@ -120,55 +125,10 @@
 
   {{ slot(palette, team, state, 4, 'team', base_url,
           changed = team is not none and team.id in changed_ids, bridge=bridge) }}
-
-
 </div>
 {% endmacro %}
 
 
-{# The headline figure, above the lineup rather than below it: it is the answer
-   the screen exists to give, and an answer belongs at the top. Its own row,
-   with the lineup beneath.
-
-   The only dark element in the app — the page ground stays paper, so §1 holds.
-   Built as a stack so later lines (this week's average, the highest score in
-   the league) drop in beneath the headline without a redesign. #}
-{% macro verdict(bridge, total, heading=none) %}
-<div class="verdict">
-  <div class="verdict__main">
-    <span class="verdict__label label">{{ heading or 'Your weekend' }}</span>
-    <span class="verdict__figure figure num">{{ bridge.fmt(total) }}</span>
-  </div>
-</div>
-{% endmacro %}
-
-
-{# Disclosed on tap, never shown by default. Split by round, then qualifying
-   against race: two separate contests with different ceilings, and merging
-   them hides which half of the weekend went well. #}
-{# The headline figure, above the lineup rather than below it: it is the answer
-   the screen exists to give, and an answer belongs at the top. Its own row,
-   with the lineup beneath.
-
-   The only dark element in the app — the page ground stays paper, so §1 holds.
-   Built as a stack so later lines (this week's average, the highest score in
-   the league) drop in beneath the headline without a redesign. #}
-{% macro verdict(bridge, total, heading=none) %}
-<div class="verdict">
-  <div class="verdict__main">
-    <span class="verdict__label label">{{ heading or 'Your weekend' }}</span>
-    <span class="verdict__figure figure num">{{ bridge.fmt(total) }}</span>
-  </div>
-</div>
-{% endmacro %}
-
-
-{# Disclosed on tap, never shown by default.
-
-   Both sections always render when the driver took part, even at zero, each
-   led by a plain sentence about what happened. A zero has to be legible as a
-   result — "eliminated in Group A P15" — rather than as an absence, because
-   "no rules fired" cannot tell those apart. #}
 {# The headline figure, above the lineup rather than below it: it is the answer
    the screen exists to give, and an answer belongs at the top. Its own row,
    with the lineup beneath.
@@ -191,9 +151,13 @@
    Each round is its own block with its own heading, because a double-header
    otherwise reads as one long list and the two races blur together.
 
-   Within a round, each section leads with a heading — the stage, its subtotal,
-   and a sentence of context — then a rule, then the rows that scored. The
-   context has to sit inside the heading rather than above the rows: styled
+   Within a round, each section leads with a heading — the stage and a sentence
+   of context — then a rule, then the rows that scored. Both sections render
+   even at zero when the driver took part: a zero has to be legible as a result
+   ("eliminated in Group A P15") rather than as an absence, because "no rules
+   fired" cannot tell those apart.
+
+   The context has to sit inside the heading rather than above the rows: styled
    like a row it reads as a rule that failed to score, which is precisely
    backwards. #}
 {% macro stage(bridge, label, components, context, fallback) %}
@@ -245,7 +209,7 @@
   <section class="round-block">
     <header class="round-block__head">
       <span class="round-block__format label">Round {{ detail.round.round_number }} &middot; {{ detail.round.format_label }}</span>
-      <span class="round-block__total figure figure--total num">{{ detail.total }}</span>
+      <span class="round-block__total figure figure--total num">{{ bridge.fmt(detail.total) }}</span>
     </header>
 
     {% if pick.is_team %}
@@ -274,8 +238,16 @@
 {# A broken constraint, stated once above the lineup. The mark is a glyph from
    the display face inside a ruled square — a character we already ship, not an
    icon asset. #}
-{% macro problem(message) %}
-<p class="problem problem--error">
+{# A state stated once, above the lineup, in the place the reader already looks
+   for one. Two levels, because they are different facts:
+
+     error     a rule is broken and the lineup cannot be saved as it stands
+     caution   nothing is wrong; something is waiting to be saved
+
+   The mark is a glyph from the display face inside a ruled square — a character
+   we already ship, not an icon asset. #}
+{% macro problem(message, level='error') %}
+<p class="problem problem--{{ level }}">
   <span class="problem__mark figure" aria-hidden="true">!</span>
   <span>{{ message }}</span>
 </p>
@@ -286,7 +258,7 @@
    Out and in, then the cost. Reuses the breakdown's heading language rather
    than inventing a second one: the reader has already learnt to read a bold
    heading with a figure on the right. #}
-{% macro transfer_summary(palette, diff) %}
+{% macro transfer_summary(palette, diff, show_cost=true) %}
 <div class="summary">
   {% if diff.drivers_out or diff.team_out %}
   <div class="summary__side">
@@ -314,10 +286,16 @@
   </div>
   {% endif %}
 
+  {#- Suppressed during the grace period. "This uses 3 transfers" is false
+      while changes are free, and it is the one figure in this dialog a player
+      would act on — so it must never be a number that turns out not to apply.
+      What changed still shows; only the price comes off. -#}
+  {% if show_cost %}
   <div class="summary__cost">
     <span class="label">This uses</span>
     <span><span class="figure figure--total num">{{ diff.cost }}</span>
       <span class="label">transfer{{ '' if diff.cost == 1 else 's' }}</span></span>
   </div>
+  {% endif %}
 </div>
 {% endmacro %}

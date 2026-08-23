@@ -40,7 +40,14 @@
 {% endmacro %}
 
 
-{% macro meeting_menu(refs, sequence, latest, base, keep="") %}
+{# The weekend list, behind the name in the nav bar.
+
+   `bridge` and a ref's `points`/`note` are optional: on the weekend view this
+   is about the calendar, and on the friend profile the same list is also the
+   season at a glance — what each weekend scored and what it cost in transfers.
+   One menu carrying both beats a menu for moving and a list for reading, which
+   is what that page had before. #}
+{% macro meeting_menu(refs, sequence, latest, base, keep="", bridge=none) %}
 <dialog class="sheet sheet--narrow" data-modal>
   <div class="sheet__head">
     <span class="u-semi">Weekends</span>
@@ -57,11 +64,16 @@
           <span class="option__name">{{ ref.name }}</span>
         </span>
         <span class="option__meta">
+          {% if bridge and ref.points is not none %}
+          <span class="num u-semi">{{ bridge.fmt(ref.points) }}</span>
+          {% else %}
           <span class="label">
             {%- if ref.is_double_header %}Rounds {{ ref.rounds | join('–') }}
             {%- else %}Round {{ ref.rounds[0] if ref.rounds }}{% endif -%}
           </span>
-          {% if not ref.scored %}<span class="option__note">Not raced</span>{% endif %}
+          {% endif %}
+          {% if ref.note %}<span class="option__note">{{ ref.note }}</span>
+          {% elif not ref.scored %}<span class="option__note">Not raced</span>{% endif %}
         </span>
       </a>
       {% endfor %}
@@ -71,3 +83,36 @@
 {% endmacro %}
 
 
+
+
+{# The same bar, for a screen that cannot move between weekends.
+
+   The front page shows the one weekend that is live and the editor the one
+   weekend that is open — SPEC.md §2 permits editing no other — so arrows there
+   would advertise navigation the application refuses. The rule across the app
+   is **arrows where you can move, this where you cannot**, and this exists so
+   that "cannot move" does not also mean "looks like a different screen".
+
+   Identical structure to `meeting_nav`, so identical geometry: four children,
+   with empty spacers where the arrows would be. Spacers rather than the flat
+   arrow glyphs, because a flat arrow means "you are at the end of a list" and
+   there is no list here to be at the end of. #}
+{% macro meeting_masthead(name, context, href=none) %}
+<nav class="mnav" aria-label="Weekend">
+  <span class="mnav__arrow is-flat" aria-hidden="true"></span>
+
+  {% if href %}
+  <a class="mnav__name" href="{{ href }}">
+    <span class="mnav__label">{{ name }}</span>
+  </a>
+  {% else %}
+  <span class="mnav__name">
+    <span class="mnav__label">{{ name }}</span>
+  </span>
+  {% endif %}
+
+  <span class="mnav__context label">{{ context }}</span>
+
+  <span class="mnav__arrow is-flat" aria-hidden="true"></span>
+</nav>
+{% endmacro %}

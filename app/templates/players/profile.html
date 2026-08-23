@@ -1,19 +1,23 @@
 {% extends "base.html" %}
 {% import "lineups/_lineup.html" as ui %}
+{% import "meetings/_nav.html" as nav_ui %}
+{% import "meetings/_profile.html" as prof %}
+{% set base = url_for('players.profile', user_id=subject.id) %}
 
 {% block content %}
 
-<h1 class="page-title">{{ subject.username }}</h1>
+{#- No page title, no league list, no season figure above the fold.
 
-{% if profile and profile.leagues %}
-<p class="status">
-  {%- for league in profile.leagues -%}
-  {{ '' if loop.first else ' &middot; ' | safe }}{{ league.name }}
-  {%- endfor -%}
-</p>
-{% endif %}
+    Every scored view in this application opens with the same three rows — nav
+    bar, verdict, lineup — and the only thing that differs is the verdict's
+    label. Here that label is the player's name, which is the whole of what a
+    heading would have said. Anything else at the top pushes the component down
+    and breaks the one shape a reader has learnt.
 
+    The season figure has not gone; it sits below the lineup, where it is a
+    footnote to the weekend rather than a headline competing with it. -#}
 {% if not season or not profile or not profile.weekends %}
+<h1 class="page-title">{{ subject.username }}</h1>
 <p class="prose">
   {%- if not season -%}
   No season has been synced yet.
@@ -24,44 +28,73 @@
 
 {% else %}
 
-{#- The season figure first. It is the answer the page exists to give, and the
-    weekend list below is the working. -#}
-<div class="slab">
-  <span class="label">Season</span>
-  <span class="figure figure--round num">{{ bridge.fmt(profile.total) }}</span>
-</div>
-<p class="status">
-  {{ profile.played }} weekend{{ '' if profile.played == 1 else 's' }} scored
-</p>
-
+{#- The refs are built from the *visible* weekends rather than from the
+    calendar, so an unlocked weekend has no arrow pointing at it — the nav
+    cannot become a second route to something the visibility layer hides. -#}
+{% set keep = '&results=open&stage=' ~ stage if results_open else '' %}
+{% if nav %}
+{{ nav_ui.meeting_nav(nav, refs, sequence, base, keep) }}
+{% if menu %}
+{{ nav_ui.meeting_menu(refs, sequence, none, base, keep, bridge) }}
+{% endif %}
+{% endif %}
 
 {% if detail %}
 {#- One weekend, scored, in the same component the player sees on their own
     front page. Tapping a slot discloses the breakdown, exactly as it does
     there — the whole reason the component has three states rather than three
     implementations. -#}
-<header class="masthead">
-  <span class="masthead__venue">{{ detail.meeting.display_name }}</span>
-  <span class="masthead__meta status">
-    Round{{ 's' if detail.meeting.rounds | length > 1 }}
-    {{ detail.meeting.rounds | map(attribute='round_number') | join(' &amp; ') }}
-  </span>
-</header>
-
 {{ ui.verdict(bridge, detail.total,
-              heading=('Your weekend' if profile.is_you else 'Their weekend')) }}
+              heading=('Your weekend' if profile.is_you else subject.username)) }}
 
 {{ ui.lineup(palette, detail.picks[:4],
              detail.picks[4] if detail.picks | length > 4 else none,
              state='scored', bridge=bridge) }}
 
+<p class="status">
+  Season {{ bridge.fmt(profile.total) }} {{ bridge.POINTS_ABBREVIATION }}
+  &middot; {{ profile.played }} weekend{{ '' if profile.played == 1 else 's' }}
+  scored
+</p>
+
 {% for pick in detail.picks %}
-{{ ui.breakdown(bridge, palette, pick, loop.index0) }}
+{#- The info mark, which this page did not have until the weekend view gave it
+    a production route to point at. "Who is this driver" is a question a reader
+    asks from someone else's lineup more often than from their own. -#}
+{{ ui.breakdown(bridge, palette, pick, loop.index0,
+                best_url=url_for('meetings.perfect_five', m=detail.meeting.sequence),
+                profile_url=(base ~ '?m=' ~ sequence ~ '&profile='
+                             ~ ('t' if pick.is_team else 'd') ~ pick.subject.id),
+                profile_hx=(url_for('meetings.weekend_profile') ~ '?subject='
+                            ~ ('t' if pick.is_team else 'd') ~ pick.subject.id)) }}
 {% endfor %}
+
+{#- Above the disclosure, not below it: it belongs to the lineup, and a reader
+    who opens Results should not have it move down the page under a table. -#}
+<p class="status status--right">
+  <a href="{{ url_for('meetings.perfect_five', m=detail.meeting.sequence) }}">
+    <span class="star">&#9733;</span>
+    View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}</a>
+</p>
+
+{#- Their picks marked in the classification, under their lineup — the same
+    shape a reader learns on their own weekend page. The mark always belongs to
+    the lineup rendered directly above it, so here it is their six and not
+    yours. -#}
+{% if results %}
+<details class="disclosure" id="results" {% if results_open %}open{% endif %}>
+  <summary>
+    <span class="disclosure__title">Results</span>
+    <span class="disclosure__hint label"></span>
+  </summary>
+  <div class="disclosure__body" id="results-body">
+    {% include "meetings/_results_body.html" %}
+  </div>
+</details>
 {% endif %}
 
 
-{% if not detail %}
+{% else %}
 <p class="prose">
   {%- if profile.latest_with_lineup is none -%}
   {{ subject.username }} has no lineup for any weekend that has locked yet.
@@ -71,34 +104,13 @@
 </p>
 {% endif %}
 
-<details class="disclosure" {% if not detail %}open{% endif %}>
-  <summary>
-    <span class="disclosure__title">By weekend</span>
-    <span class="disclosure__hint label"></span>
-  </summary>
-  <div class="disclosure__body">
-    {#- Newest first. A profile is mostly read to answer "how are they doing
-        lately", and the weekend the page opened on is the top row. -#}
-    <div class="ruled ruled--tight">
-      {% for row in profile.weekends %}
-      <a class="split{{ ' option--current' if detail and row.meeting.id == detail.meeting.id }}"
-         href="{{ url_for('players.profile', user_id=subject.id, m=row.meeting.sequence) }}">
-        <span>
-          <span class="u-semi">{{ row.meeting.display_name }}</span>
-          {% if row.committed and row.transfer_cost %}
-          <br><span class="label u-mid">{{ row.transfer_cost }} transfer{{ '' if row.transfer_cost == 1 else 's' }}</span>
-          {% elif not row.snapshot %}
-          <br><span class="label u-low">No lineup</span>
-          {% endif %}
-        </span>
-        <span class="num u-semi">
-          {{- bridge.fmt(row.points) if row.scored else '&#183;' | safe -}}
-        </span>
-      </a>
-      {% endfor %}
-    </div>
-  </div>
-</details>
+{# Host for an HTMX-loaded driver or team profile. The server-rendered one
+   below is the no-JavaScript path. #}
+<div id="profile-host"></div>
+
+{% if subject_profile %}
+{{ prof.profile_sheet(bridge, palette, ui, subject_profile, profile_close) }}
+{% endif %}
 
 {% endif %}
 {% endblock %}

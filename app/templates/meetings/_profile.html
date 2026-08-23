@@ -4,10 +4,15 @@
    driver has scored across the season, and splitting it by contest would give
    two grand totals instead of one.
 
-   TP sits immediately after the round, before the rules, so the first column a
+   FP sits immediately after the round, before the rules, so the first column a
    reader scans is the answer and everything to its right is the explanation.
-   Every row's rule cells sum to its TP; every column's foot sums to the grand
+   Every row's rule cells sum to its FP; every column's foot sums to the grand
    total.
+
+   FP, not TP. The heading used to read "total points", which is a phrase this
+   application has no use for: there is one kind of point here and it is the
+   fantasy kind. Formula E's own championship points are ingested for the
+   payload sanity check and are never shown.
 
    Zeros are suppressed to a faint mark. Nine columns of "0" is noise, and a
    blank is what makes the cells that fired legible at a glance — which is what
@@ -33,7 +38,7 @@
       </tr>
       <tr>
         <th class="ptable__rnd">R</th>
-        <th class="ptable__tp">TP</th>
+        <th class="ptable__tp">{{ bridge.POINTS_ABBREVIATION }}</th>
         {% for key, code, label in bridge.PROFILE_COLUMNS %}
         <th class="{{ 'ptable__split' if loop.index0 == 0 or loop.index0 == bridge.PROFILE_QUALIFYING_COLUMNS }}"
             title="{{ label }}">{{ code }}</th>
@@ -73,7 +78,7 @@
   {% for key, code, label in bridge.PROFILE_COLUMNS %}
   <dt class="label">{{ code }}</dt><dd>{{ label }}</dd>
   {% endfor %}
-  <dt class="label">TP</dt><dd>Total points for the round</dd>
+  <dt class="label">{{ bridge.POINTS_ABBREVIATION }}</dt><dd>{{ bridge.POINTS_NAME }} for the round</dd>
 </dl>
 {% endmacro %}
 
@@ -119,6 +124,38 @@ rather than rounded.</p>
 {% endmacro %}
 
 
+{# Season history.
+
+   Two columns and one row per season, which is the whole of it. Fantasy points
+   only: there is no attempt to reconstruct a career from Formula E's own
+   championship results, because the ruleset was tuned against Season 12's
+   format, the duels qualifying it scores did not exist before Season 8, and a
+   figure for Season 3 would look authoritative and mean nothing.
+
+   The season on screen is absent, deliberately. The wide table above already is
+   that season in full, and repeating its total two inches lower invites the
+   reader to check the arithmetic against a figure that is the same figure.
+
+   Below a heavy rule, because the unit is the same but the scope is not — and
+   a reader scanning down must not take the last row of one table for the first
+   row of the other. #}
+{% macro history_table(bridge, profile) %}
+{% if profile.history %}
+<div class="phistory">
+  <h4 class="phistory__title">Season history</h4>
+  <div class="ruled ruled--tight">
+    {% for row in profile.history %}
+    <div class="split">
+      <span class="u-semi">{{ row.season.display_name }}</span>
+      <span class="num u-semi">{{ bridge.fmt(row.total) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
 {% macro profile_sheet(bridge, palette, ui, profile, close_url) %}
 <dialog class="sheet" data-modal>
   <div class="sheet__head sheet__head--pick">
@@ -135,13 +172,25 @@ rather than rounded.</p>
   </div>
   <div class="sheet__body">
     <div class="split pprofile__head">
-      <span class="label">Season total</span>
+      <span class="label">Season {{ bridge.POINTS_ABBREVIATION }}</span>
       <span class="figure figure--total num">{{ bridge.fmt(profile.grand_total) }}</span>
     </div>
-    {% if profile.kind == 'driver' %}
+    {#- Before the season has scored anything the table would be eleven column
+        headings above nothing, which reads as a page that failed to load
+        rather than as a season that has not started. The history below is the
+        whole of what there is to say, and in the weeks before the opener it is
+        the reason the sheet is worth opening at all. -#}
+    {% if not profile.rows %}
+      <p class="prose u-mid">Nothing scored yet this season.</p>
+    {% elif profile.kind == 'driver' %}
       {{ driver_table(bridge, profile) }}
     {% else %}
       {{ team_table(bridge, profile) }}
+    {% endif %}
+    {{ history_table(bridge, profile) }}
+    {% if not profile.rows and not profile.history %}
+    <p class="prose u-mid">No earlier season either — this game starts counting
+      with Season 12.</p>
     {% endif %}
   </div>
 </dialog>

@@ -61,7 +61,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.extensions import db
 from app.lineups.roster import roster_for_round, seat_entries
 from app.lineups.service import effective_snapshots
-from app.meetings.scoring_bridge import round_payload, ruleset_for
+from app.meetings.bridge import round_payload, ruleset_for
 from app.models.calendar import SCORING_STAGES, STAGE_RACE, Round, Season, Session
 from app.models.lineup import PICK_DRIVER, LineupSnapshot
 from app.models.score import (

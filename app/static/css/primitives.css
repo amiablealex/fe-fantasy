@@ -432,14 +432,59 @@
   .slots__fill.is-over { text-decoration: underline; text-decoration-thickness: 2px; }
 
   /* ---- Problem -----------------------------------------------------------
-     A constraint that is currently broken. Stated as what to do, in the
-     interface's voice, never as an apology. */
+     A state the lineup is in, stated once, above the component it describes.
+     Always as what to do, in the interface's voice, never as an apology.
+
+     Two levels, and they are different facts:
+
+       error     a rule is broken; this cannot be saved as it stands
+       caution   nothing is wrong; something is waiting to be saved
+
+     Layout lives here and colour lives on the modifier. It used to be the
+     other way round — the whole grid, gap and padding sat on `.problem--error`
+     three hundred lines away, and `.problem__mark` hardcoded `--error` with no
+     modifier of its own — so a second level could not be added without either
+     duplicating the layout or inheriting the wrong hue.
+
+     The mark is a glyph from the display face inside a ruled square: a
+     character we already ship, not an icon asset. */
   .problem {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    margin-block-start: var(--space-3);
     font-size: var(--step-2);
     line-height: var(--leading-prose);
     border-inline-start: var(--rule-mark) solid var(--text);
-    padding-inline-start: var(--space-4);
-    margin-block-start: var(--space-3);
+  }
+
+  .problem--error {
+    color: var(--error);
+    border-inline-start-color: var(--error);
+    background: var(--error-recessed);
+  }
+
+  /* Not an error. A lineup waiting to be saved is not a lineup that is wrong,
+     and sharing red would empty red of meaning — the same argument §4.1 makes
+     about never marking a transferred-in pick in the error colour. */
+  .problem--caution {
+    color: var(--caution);
+    border-inline-start-color: var(--caution);
+    background: var(--caution-recessed);
+  }
+
+  .problem__mark {
+    display: grid;
+    place-items: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    /* currentColor, so the square follows its bar rather than needing one
+       modifier per level. */
+    border: var(--rule-mark) solid currentColor;
+    font-size: var(--step-3);
+    line-height: 1;
   }
 
 
@@ -740,30 +785,6 @@
 
   .stage__rules { margin-block-start: var(--space-3); }
 
-  /* ---- Error -------------------------------------------------------------
-     The one non-team chroma. The mark is a glyph from the display face inside
-     a ruled square — a character we already ship, not an icon asset. */
-  .problem--error {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: var(--space-4);
-    color: var(--error);
-    border-inline-start-color: var(--error);
-    border-inline-start-width: var(--rule-mark);
-    background: var(--error-recessed);
-    padding: var(--space-4);
-  }
-
-  .problem__mark {
-    display: grid;
-    place-items: center;
-    inline-size: 1.5rem;
-    block-size: 1.5rem;
-    border: var(--rule-mark) solid var(--error);
-    font-size: var(--step-3);
-    line-height: 1;
-  }
 
   /* ---- Dialog ------------------------------------------------------------
      The picker is a task with a start, an end and a result, so it is a modal —
@@ -1620,4 +1641,252 @@
     color: var(--text-mid);
   }
   .aftermatter > * + * { margin-block-start: var(--space-3); }
+}
+/* ---------------------------------------------------------------------------
+   The qualifying bracket
+   ---------------------------------------------------------------------------
+   Appended in stage 7.4. A layer can be reopened, so this merges into the
+   `components` layer declared in tokens.css and wins over earlier rules in it
+   by source order — which is what a later addition should do. Adding it
+   unlayered would beat every layer in the project, and tokens.css keeps that
+   escape hatch empty on purpose.
+
+   Phase 3 recorded an open risk: that the intended bracket was buildable from
+   `.ruled`, the team band and the three rule weights, and that this was an
+   argument rather than a demonstration. It needed no new token and no new
+   primitive — only this arrangement of the ones that were already there. The
+   risk is closed. */
+
+@layer components {
+
+  .bracket {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+  }
+
+  /* Heavy rule: a section is one of a screen's major regions. */
+  .bracket__section-title {
+    margin: 0 0 var(--space-4);
+    padding-block-end: var(--space-2);
+    border-block-end: var(--rule-heavy) solid var(--text);
+    font-family: var(--face-text);
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+  .bracket__stage + .bracket__stage {
+    margin-block-start: var(--space-6);
+  }
+
+  /* Mark rule: a duel is a unit, and the gap alone does not say so at four
+     pairs in a column. */
+  .bracket__stage--duel + .bracket__stage--duel {
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-5);
+    border-block-start: var(--rule-mark) solid var(--rule-strong);
+  }
+
+  /* The stage heading is also the column rubric, so it takes the row's grid.
+     Descendant selectors rather than bare classes: the cells reuse
+     `.bracket__pos` and friends to inherit their widths and alignment, and the
+     head has to win the typography back from them. */
+  .bracket__head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
+    margin-block-end: var(--space-2);
+  }
+
+  .bracket__head > * {
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+  .bracket__head .bracket__pos,
+  .bracket__head .bracket__time,
+  .bracket__head .bracket__fp {
+    color: var(--text-low);
+  }
+
+  .bracket__head .bracket__title {
+    color: var(--text-mid);
+  }
+
+  /* Four columns: slot, driver and team, time, points. The name column takes
+     what is left, which is what keeps this readable at 360px without an
+     ellipsis anywhere. */
+  .bracket__row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
+    padding-block: var(--space-3);
+    border-block-start: var(--rule-hair) solid var(--rule);
+    font-size: var(--step-3);
+    line-height: var(--leading-data);
+  }
+
+  /* `:first-of-type` matches on element type rather than class, and the first
+     div in a stage is the heading — so the obvious spelling never matched and
+     every stage opened with a stray hairline under its own title. These are
+     adjacency rules instead: no hairline directly under a heading, and none
+     directly under the cut, which carries its own heavier rule. */
+  .bracket__head + .bracket__row,
+  .bracket__cut + .bracket__row {
+    border-block-start: 0;
+  }
+
+  /* Elimination is ink, not opacity. Opacity would dull the team stripe, and
+     the stripe is the recognition aid — it has to stay at full strength
+     whether or not the driver went out. No strikethrough either: it reads as
+     deleted, and these drivers did compete. */
+  .bracket__row--out .bracket__name,
+  .bracket__row--out .bracket__pos,
+  .bracket__row--out .bracket__time {
+    color: var(--text-low);
+    font-weight: var(--weight-regular);
+  }
+
+  .bracket__pos {
+    min-width: 1.4em;
+    color: var(--text-low);
+    font-size: var(--step-2);
+    text-align: right;
+  }
+
+  .bracket__who {
+    min-width: 0;
+  }
+
+  .bracket__name {
+    font-weight: var(--weight-semi);
+    font-stretch: var(--width-narrow);
+  }
+
+  a.bracket__name {
+    color: inherit;
+  }
+
+  .bracket__time {
+    color: var(--text-mid);
+    font-size: var(--step-2);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .bracket__fp {
+    min-width: 1.8em;
+    font-weight: var(--weight-semi);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .bracket__nil {
+    color: var(--text-low);
+  }
+
+  /* One line for ten rows. Captioning each driver with whether they went
+     through would say the same thing ten times; a rule with a word on it says
+     it once, in the place it happens. */
+  .bracket__cut {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-block: var(--space-3) var(--space-1);
+    color: var(--text-low);
+  }
+
+  .bracket__cut::after {
+    content: "";
+    flex: 1;
+    border-block-start: var(--rule-mark) solid var(--rule-strong);
+  }
+
+}
+/* ---------------------------------------------------------------------------
+   Season history, inside a driver or team profile
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5. Same unit as the table above it, different scope — so
+   a heavy rule separates them. Without it a reader scanning down takes the
+   first history row for another round of the season table, which is the one
+   misreading this block can cause. */
+
+@layer components {
+
+  .phistory {
+    margin-block-start: var(--space-7);
+    padding-block-start: var(--space-5);
+    border-block-start: var(--rule-heavy) solid var(--text);
+  }
+
+  .phistory__title {
+    margin: 0 0 var(--space-3);
+    font-family: var(--face-text);
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+}
+/* ---------------------------------------------------------------------------
+   The personal mark, on a bracket row
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5b. `.is-yours` hangs its rule off `> :first-child`,
+   which is right for a `<tr>` — a table cell is as tall as its row — and wrong
+   for a grid. In the bracket the first child is `.bracket__pos`, a
+   baseline-aligned grid item: in a group row that is one line of text tall, so
+   the rule covered the driver's name and stopped short of the team beneath it,
+   and in a duel row the cell is empty, so it had no height and the rule
+   vanished entirely. The marks were being applied correctly the whole way
+   through the bracket; they had nothing to be tall against.
+
+   So the rule hangs off the row, which is what `tr.is-yours` already does by
+   another route. The inherited pseudo-element is cancelled rather than
+   overridden, because two absolutely positioned rules a pixel apart is worse
+   than either alone. */
+
+@layer components {
+
+  .bracket__row.is-yours > :first-child::before {
+    content: none;
+  }
+
+  .bracket__row.is-yours {
+    position: relative;
+  }
+
+  .bracket__row.is-yours::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(-1 * var(--mark-gutter));
+    inline-size: var(--mark-width);
+    background: var(--mark);
+  }
+
+}
+/* ---------------------------------------------------------------------------
+   A trailing link under a component
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5d. The Perfect Five link sits below the lineup and above
+   the Results disclosure on both the weekend view and a friend's profile.
+   Right-aligned because it reads as an onward move rather than as a caption on
+   the thing above it — the same reason `.actions__commit` sits right. */
+
+@layer components {
+
+  .status--right {
+    text-align: right;
+  }
+
 }

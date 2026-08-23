@@ -37,7 +37,9 @@ from app.leagues.forms import (
     RenameLeagueForm,
 )
 from app.leagues.profile import player_profile, weekend_detail
-from app.meetings import scoring_bridge as bridge
+from app.meetings import display as bridge
+from app.meetings import queries as meeting_queries
+from app.meetings.routes import results_context
 from app.leagues.standings import standings
 from app.lineups.service import current_season
 from app import palette
@@ -364,7 +366,8 @@ def profile(user_id: int):
 
     season = current_season()
     ctx = {"palette": palette, "bridge": bridge, "season": season,
-           "subject": subject, "profile": None, "detail": None}
+           "subject": subject, "profile": None, "detail": None,
+           "refs": [], "nav": None, "subject_profile": None}
     if season is None:
         return render_template("players/profile.html", title=subject.username, **ctx)
 
@@ -385,6 +388,113 @@ def profile(user_id: int):
             current_user, subject, season, selected, now=moment
         )
 
+    # Arrow navigation, promoted from the styleguide rather than rebuilt — the
+    # same path `_lineup.html` and the scoring bridge took. The refs are built
+    # from the *visible* weekends rather than from the calendar, so an unlocked
+    # weekend has no arrow pointing at it and the nav cannot become a second
+    # route to something the visibility layer hides.
+    ctx["refs"] = _profile_refs(summary)
+    if selected is not None:
+        ctx["nav"] = meeting_queries.neighbours(ctx["refs"], selected.sequence)
+        ctx["sequence"] = selected.sequence
+    ctx["menu"] = request.args.get("menu")
+
+    # Driver and team profiles open over the page here exactly as they do on the
+    # weekend view, so a reader can ask "who is this" from a breakdown without
+    # leaving the player they were looking at.
+    raw_subject = request.args.get("profile")
+    if raw_subject and len(raw_subject) > 1 and raw_subject[1:].isdigit():
+        subject_id = int(raw_subject[1:])
+        if raw_subject[0] == "d":
+            ctx["subject_profile"] = meeting_queries.driver_profile(season, subject_id)
+        elif raw_subject[0] == "t":
+            ctx["subject_profile"] = meeting_queries.team_profile(season, subject_id)
+    ctx["profile_close"] = request.url.split("&profile=")[0]
+
+    # The classification, under their lineup, with their picks marked. Same
+    # template the weekend view includes and the same shape a reader learns
+    # once — only `base` and the marks differ, because the mark always belongs
+    # to the lineup rendered directly above it.
+    if selected is not None:
+        ctx.update(results_context(
+            selected,
+            selected.sequence,
+            ctx["detail"].marked if ctx["detail"] else frozenset(),
+            base=url_for("players.profile", user_id=subject.id),
+        ))
+        ctx["results_open"] = request.args.get("results") == "open"
+
     return render_template(
         "players/profile.html", title=subject.username, **ctx
     )
+
+
+@players_bp.route("/players/<int:user_id>/results")
+@login_required
+def player_results(user_id: int):
+    """The Results disclosure body, for HTMX to swap in place.
+
+    Same visibility gate as the page: a weekend not in the player's visible list
+    is not reachable here either, so this cannot become the endpoint that
+    forgets the deadline.
+    """
+    subject = visibility.visible_user(current_user, user_id)
+    season = current_season()
+    if subject is None or season is None:
+        return "", 204
+
+    summary = player_profile(current_user, subject, season, now=now())
+    raw = request.args.get("m")
+    row = summary.row_for(int(raw)) if raw and raw.isdigit() else None
+    if row is None:
+        return "", 204
+
+    detail = weekend_detail(
+        current_user, subject, season, row.meeting, now=now()
+    )
+    ctx = results_context(
+        row.meeting,
+        row.meeting.sequence,
+        detail.marked if detail else frozenset(),
+        base=url_for("players.profile", user_id=subject.id),
+    )
+    if not ctx:
+        return "", 204
+    return render_template(
+        "meetings/_results_body.html", palette=palette, bridge=bridge, **ctx
+    )
+
+
+def _profile_refs(summary) -> list:
+    """This player's visible weekends, in calendar order, as nav entries.
+
+    `MeetingRef` carries optional `points` and `note`, which the weekend view
+    leaves unset. Here they are the point: the menu behind the name is also the
+    season at a glance, so it shows what each weekend scored and what it cost in
+    transfers. That replaces the separate "By weekend" list, which was a second
+    place to read the same rows.
+
+    The transfer cost is the stored slot diff for a locked weekend — a past
+    fact. Never the transfer *bank*, which moves the moment they commit for the
+    open weekend and would leak whether they have.
+    """
+    refs = []
+    for row in sorted(summary.weekends, key=lambda r: r.meeting.sequence):
+        if row.committed and row.transfer_cost:
+            note = f"{row.transfer_cost} transfer" + (
+                "" if row.transfer_cost == 1 else "s"
+            )
+        elif row.snapshot is None:
+            note = "No lineup"
+        else:
+            note = None
+        refs.append(meeting_queries.MeetingRef(
+            sequence=row.meeting.sequence,
+            name=row.meeting.display_name,
+            scored=row.scored,
+            provisional=False,
+            rounds=[r.round_number for r in row.meeting.rounds],
+            points=row.points,
+            note=note,
+        ))
+    return refs
