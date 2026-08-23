@@ -40,7 +40,14 @@
 {% endmacro %}
 
 
-{% macro meeting_menu(refs, sequence, latest, base, keep="") %}
+{# The weekend list, behind the name in the nav bar.
+
+   `bridge` and a ref's `points`/`note` are optional: on the weekend view this
+   is about the calendar, and on the friend profile the same list is also the
+   season at a glance — what each weekend scored and what it cost in transfers.
+   One menu carrying both beats a menu for moving and a list for reading, which
+   is what that page had before. #}
+{% macro meeting_menu(refs, sequence, latest, base, keep="", bridge=none) %}
 <dialog class="sheet sheet--narrow" data-modal>
   <div class="sheet__head">
     <span class="u-semi">Weekends</span>
@@ -57,11 +64,16 @@
           <span class="option__name">{{ ref.name }}</span>
         </span>
         <span class="option__meta">
+          {% if bridge and ref.points is not none %}
+          <span class="num u-semi">{{ bridge.fmt(ref.points) }}</span>
+          {% else %}
           <span class="label">
             {%- if ref.is_double_header %}Rounds {{ ref.rounds | join('–') }}
             {%- else %}Round {{ ref.rounds[0] if ref.rounds }}{% endif -%}
           </span>
-          {% if not ref.scored %}<span class="option__note">Not raced</span>{% endif %}
+          {% endif %}
+          {% if ref.note %}<span class="option__note">{{ ref.note }}</span>
+          {% elif not ref.scored %}<span class="option__note">Not raced</span>{% endif %}
         </span>
       </a>
       {% endfor %}

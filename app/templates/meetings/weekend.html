@@ -81,13 +81,23 @@
   yet.</p>
 {% endif %}
 
+{% set best_url = url_for('meetings.perfect_five', m=sequence) %}
 {% for pick in picks %}
-{{ ui.breakdown(bridge, palette, pick, loop.index0,
+{{ ui.breakdown(bridge, palette, pick, loop.index0, best_url=best_url,
                 profile_url=(base ~ '?m=' ~ sequence ~ '&profile='
                              ~ ('t' if pick.is_team else 'd') ~ pick.subject.id),
                 profile_hx=(url_for('meetings.weekend_profile') ~ '?subject='
                             ~ ('t' if pick.is_team else 'd') ~ pick.subject.id)) }}
 {% endfor %}
+
+{#- Quiet, and below the lineup rather than beside it. "What was possible" is a
+    question a player asks after they have read their own score; putting it in
+    the headline answers it before they asked, and on a bad weekend that reads
+    as a scoreboard rubbing it in. -#}
+<p class="status">
+  <a href="{{ best_url }}"><span class="star">&#9733;</span>
+    View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}</a>
+</p>
 
 {% elif locked_drivers %}
 {#- A lineup was in, and the weekend has not been scored. The picks still

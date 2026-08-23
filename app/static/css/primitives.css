@@ -1790,3 +1790,30 @@
   }
 
 }
+/* ---------------------------------------------------------------------------
+   Season history, inside a driver or team profile
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5. Same unit as the table above it, different scope — so
+   a heavy rule separates them. Without it a reader scanning down takes the
+   first history row for another round of the season table, which is the one
+   misreading this block can cause. */
+
+@layer components {
+
+  .phistory {
+    margin-block-start: var(--space-7);
+    padding-block-start: var(--space-5);
+    border-block-start: var(--rule-heavy) solid var(--text);
+  }
+
+  .phistory__title {
+    margin: 0 0 var(--space-3);
+    font-family: var(--face-text);
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+}

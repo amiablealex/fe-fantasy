@@ -11,7 +11,7 @@ handing it a `MeetingRef` cannot.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -25,6 +25,7 @@ from app.meetings.reads import round_scores as stored_round_scores
 from app.meetings.reads import season_scores as stored_season_scores
 from app.models.calendar import STAGE_RACE, Meeting, Round, Season, Session
 from app.models.grid import Driver, Team
+from app.models.score import SUBJECT_TEAM, RoundScore
 from app.scoring.engine import fastest_lap_driver_ids
 
 ZERO = Decimal(0)
@@ -69,13 +70,22 @@ def get_meeting(season: Season, sequence: int) -> Meeting | None:
 
 @dataclass
 class MeetingRef:
-    """One entry in the meeting nav."""
+    """One entry in the meeting nav.
+
+    `points` and `note` are optional and unset on the weekend view, where the
+    nav is about the calendar. The friend profile sets them, because there the
+    same list is also the season at a glance — what each weekend scored and
+    what it cost in transfers. One menu carrying both beats a menu for moving
+    and a list for reading, which is what that page had.
+    """
 
     sequence: int
     name: str
     scored: bool
     provisional: bool
     rounds: list[int]
+    points: Decimal | None = None
+    note: str | None = None
 
     @property
     def is_double_header(self) -> bool:
@@ -271,6 +281,9 @@ class Profile:
     # Team profiles only: the two cars, and their per-round scores.
     cars: list = None
     car_rows: list = None
+    # Every other season this subject scored in. Empty until a second season
+    # exists, which is the correct rendering of "no history".
+    history: list = field(default_factory=list)
 
 
 def round_scores(round_obj: Round):
@@ -297,6 +310,50 @@ def season_scores(season: Season) -> dict:
     the profile templates did not have to change.
     """
     return stored_season_scores(season)
+
+
+def subject_history(kind: str, subject_id: Any, exclude_season: Season) -> list:
+    """What this driver or team scored in every season but the one on screen.
+
+    Fantasy points, and only fantasy points. There is no attempt to reconstruct
+    a career from Formula E's own championship results: the fantasy ruleset was
+    tuned against Season 12's format, the duels qualifying it scores did not
+    exist before Season 8, and a figure for Season 3 would look authoritative
+    and mean nothing. This game starts counting when this game started.
+
+    The current season is excluded because the wide table above already is that
+    season, in full — repeating its total two inches lower invites the reader to
+    check the arithmetic against a figure that is the same figure.
+
+    One `GROUP BY` over rows the scoring pass already wrote. No migration, no
+    provider call: `RoundScore` is season-scoped and user-independent, so a
+    driver's history is a sum over rows that were stored the day each round was
+    scored.
+    """
+    subject_column = (
+        RoundScore.team_id if kind == "team" else RoundScore.driver_id
+    )
+    kind_clause = (
+        RoundScore.kind == SUBJECT_TEAM
+        if kind == "team"
+        else RoundScore.kind != SUBJECT_TEAM
+    )
+
+    stmt = (
+        select(Season, db.func.sum(RoundScore.points))
+        .join(Season, RoundScore.season_id == Season.id)
+        .where(
+            subject_column == subject_id,
+            kind_clause,
+            RoundScore.season_id != exclude_season.id,
+        )
+        .group_by(Season.id)
+        .order_by(Season.year.desc())
+    )
+    return [
+        {"season": season, "total": total or ZERO}
+        for season, total in db.session.execute(stmt)
+    ]
 
 
 def _cells_for(score) -> dict:
@@ -349,6 +406,7 @@ def driver_profile(season: Season, driver_id: Any) -> Profile | None:
     return Profile(
         subject=driver, team=team, kind="driver",
         rows=rows, totals=totals, grand_total=grand,
+        history=subject_history("driver", driver_id, season),
     )
 
 
@@ -412,4 +470,5 @@ def team_profile(season: Season, team_id: Any) -> Profile | None:
         subject=team, team=team, kind="team",
         rows=rows, totals=car_totals, grand_total=grand,
         cars=[c for c in cars if c], car_rows=car_rows,
+        history=subject_history("team", team_id, season),
     )

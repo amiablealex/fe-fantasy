@@ -124,6 +124,38 @@ rather than rounded.</p>
 {% endmacro %}
 
 
+{# Season history.
+
+   Two columns and one row per season, which is the whole of it. Fantasy points
+   only: there is no attempt to reconstruct a career from Formula E's own
+   championship results, because the ruleset was tuned against Season 12's
+   format, the duels qualifying it scores did not exist before Season 8, and a
+   figure for Season 3 would look authoritative and mean nothing.
+
+   The season on screen is absent, deliberately. The wide table above already is
+   that season in full, and repeating its total two inches lower invites the
+   reader to check the arithmetic against a figure that is the same figure.
+
+   Below a heavy rule, because the unit is the same but the scope is not — and
+   a reader scanning down must not take the last row of one table for the first
+   row of the other. #}
+{% macro history_table(bridge, profile) %}
+{% if profile.history %}
+<div class="phistory">
+  <h4 class="phistory__title">Season history</h4>
+  <div class="ruled ruled--tight">
+    {% for row in profile.history %}
+    <div class="split">
+      <span class="u-semi">{{ row.season.display_name }}</span>
+      <span class="num u-semi">{{ bridge.fmt(row.total) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
 {% macro profile_sheet(bridge, palette, ui, profile, close_url) %}
 <dialog class="sheet" data-modal>
   <div class="sheet__head sheet__head--pick">
@@ -148,6 +180,7 @@ rather than rounded.</p>
     {% else %}
       {{ team_table(bridge, profile) }}
     {% endif %}
+    {{ history_table(bridge, profile) }}
   </div>
 </dialog>
 {% endmacro %}

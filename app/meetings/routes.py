@@ -96,7 +96,28 @@ def _chosen_round(meeting, requested: int | None):
     return shown, ordered
 
 
-def _results_context(meeting, sequence: int) -> dict:
+def your_driver_ids(meeting, locked: bool) -> frozenset:
+    """The viewer's own driver picks for this weekend, for marking the results.
+
+    **Scoped to the meeting on screen, never to the lineup they hold now.** A
+    reader browsing back to Jeddah in April must see the four drivers they had
+    in December, not the four they have today — and because the results always
+    sit underneath the lineup that produced the score above them, the marks and
+    the slots are the same five picks forty pixels apart. That co-location is
+    what makes the mark unambiguous without a legend explaining it.
+
+    Empty before the deadline, which is when there is nothing but a schedule to
+    mark anyway.
+    """
+    if not locked or not current_user.is_authenticated:
+        return frozenset()
+    snapshot = service.effective_snapshot(current_user, meeting)
+    if snapshot is None or not snapshot.is_complete:
+        return frozenset()
+    return frozenset(snapshot.to_lineup().drivers)
+
+
+def _results_context(meeting, sequence: int, yours=frozenset()) -> dict:
     """Everything the Results disclosure needs, for the page and the fragment.
 
     One function, two callers. The disclosure body is rendered both inline and
@@ -131,6 +152,7 @@ def _results_context(meeting, sequence: int) -> dict:
         # after Jeddah must not rewrite what December was worth.
         "bracket": bracket.build(results.qualifying, rules),
         "bracket_rules": rules.qualifying,
+        "yours": yours,
         "schedule": queries.round_schedule(shown),
         "profile_base": (
             f"{base}?m={sequence}&r={shown.round_number}"
@@ -218,7 +240,9 @@ def weekend():
             committed=snapshot.meeting_id == meeting.id,
         )
 
-    ctx.update(_results_context(meeting, sequence))
+    ctx.update(_results_context(
+        meeting, sequence, your_driver_ids(meeting, locked)
+    ))
     ctx["results_open"] = request.args.get("results") == "open"
 
     # Profiles open over whatever is already on screen and close by dropping the
@@ -227,6 +251,75 @@ def weekend():
     ctx["profile_close"] = request.url.split("&profile=")[0]
 
     return render_template("meetings/weekend.html", **ctx)
+
+
+@meetings_bp.route("/weekend/perfect-five")
+@login_required
+def perfect_five():
+    """The highest-scoring valid lineup for one weekend.
+
+    Its own route rather than a section of the weekend page, and reached by a
+    quiet link rather than a banner. It answers "what was possible", which is a
+    question a player asks after they have read their own score — putting it
+    beside their own lineup would answer it before they asked, and on a bad
+    weekend that reads as a scoreboard rubbing it in.
+
+    Rendered through the same component in the same `scored` state, so the
+    comparison costs no reading: identical geometry means the eye lands on the
+    figures rather than re-learning a layout.
+
+    Nothing is starred here. Every slot is in the Perfect Five by construction,
+    so a star against all five would say nothing; how many of them the player
+    actually held is stated in a sentence instead, which is the fact they came
+    for.
+    """
+    season = current_season()
+    sequence = request.args.get("m", type=int)
+    meeting = queries.get_meeting(season, sequence) if season and sequence else None
+    ctx = {
+        "palette": palette,
+        "bridge": display,
+        "season": season,
+        "meeting": meeting,
+        "sequence": sequence,
+    }
+    if meeting is None or not meeting.rounds:
+        return render_template("meetings/perfect_five.html", **ctx)
+
+    # A weekend that has not locked has no best lineup worth showing, and
+    # publishing one before the deadline would hand out an answer key.
+    if not meeting.is_locked(now()):
+        ctx["too_early"] = True
+        return render_template("meetings/perfect_five.html", **ctx)
+
+    best = view.meeting_best_lineup(season, meeting)
+    if best.lineup is None:
+        return render_template("meetings/perfect_five.html", **ctx)
+
+    breakdowns = view.score_meeting(season, meeting, best.lineup)
+    picks = view.aggregate_meeting(breakdowns)
+
+    yours = your_driver_ids(meeting, True)
+    snapshot = service.effective_snapshot(current_user, meeting)
+    your_total = None
+    shared = 0
+    if snapshot is not None and snapshot.is_complete:
+        lineup = snapshot.to_lineup()
+        shared = len(lineup.drivers & best.lineup.drivers) + (
+            1 if lineup.team_id == best.lineup.team_id else 0
+        )
+        mine = view.score_meeting(season, meeting, lineup)
+        your_total = sum((b.total for b in mine if b.scored), 0)
+
+    ctx.update(
+        picks=picks,
+        best=best,
+        total=sum((b.total for b in breakdowns if b.scored), 0),
+        your_total=your_total,
+        shared=shared,
+        yours=yours,
+    )
+    return render_template("meetings/perfect_five.html", **ctx)
 
 
 @meetings_bp.route("/weekend/results")
@@ -239,7 +332,8 @@ def weekend_results():
     if meeting is None or not meeting.rounds:
         return "", 204
 
-    ctx = _results_context(meeting, sequence)
+    locked = meeting.is_locked(now())
+    ctx = _results_context(meeting, sequence, your_driver_ids(meeting, locked))
     if not ctx:
         return "", 204
     return render_template(

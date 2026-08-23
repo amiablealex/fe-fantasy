@@ -11,8 +11,8 @@
    pairs, a heavy rule above each section heading. No new primitive was needed,
    which is the demonstration Phase 3 recorded as owed. #}
 
-{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx) %}
-<div class="bracket__row{{ ' bracket__row--out' if r.eliminated }}">
+{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx, yours) %}
+<div class="bracket__row{{ ' bracket__row--out' if r.eliminated }}{{ ' is-yours' if r.driver_id in yours }}">
   {#- Always emitted, even in a duel where the order is already obvious from
       the styling: the cell holds the grid's first column open, so a duel row
       and a group row keep the same four-column rhythm down the page. -#}
@@ -25,6 +25,7 @@
     {% else %}
     <span class="bracket__name">{{ r.driver.short_label if r.driver else '—' }}</span>
     {% endif %}
+    {% if r.is_pole %}<span class="bracket__pole label">Pole</span>{% endif %}
     <br>{{ ui.stripes(palette, r.team) }}
     <span class="team-name">{{ r.team.name if r.team }}</span>
   </span>
@@ -41,18 +42,10 @@
 {% endmacro %}
 
 
-{% macro stage(ui, bridge, palette, s, profile_base, profile_hx) %}
+{% macro stage(ui, bridge, palette, s, profile_base, profile_hx, yours) %}
 <div class="bracket__stage{{ ' bracket__stage--duel' if s.is_duel }}">
-  {#- The stage heading doubles as the column rubric: the same four-column grid
-      as the rows beneath, so the labels sit exactly over the columns they name.
-      A separate header row would be a third heading level above ten rows, and
-      putting the labels on the section title instead would leave Group B's
-      rows twelve lines below the only place that says what FP means. -#}
   <div class="bracket__head">
-    <span class="bracket__pos">{% if not s.is_duel %}P{% endif %}</span>
-    <span class="bracket__title">{{ s.label }}</span>
-    <span class="bracket__time">Time</span>
-    <span class="bracket__fp">{{ bridge.POINTS_ABBREVIATION }}</span>
+    <span class="bracket__title label">{{ s.label }}</span>
   </div>
   {% for r in s.rows %}
     {#- One line for ten rows. Captioning every driver with whether they went
@@ -61,20 +54,20 @@
     {% if s.cut_after and loop.index0 == s.cut_after %}
     <div class="bracket__cut"><span class="label">Eliminated</span></div>
     {% endif %}
-    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx) }}
+    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx, yours) }}
   {% endfor %}
 </div>
 {% endmacro %}
 
 
-{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none) %}
+{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none, yours=[]) %}
 {% if sections %}
 <div class="bracket">
   {% for section in sections %}
   <section class="bracket__section">
     <h3 class="bracket__section-title">{{ section.title }}</h3>
     {% for s in section.stages %}
-      {{ stage(ui, bridge, palette, s, profile_base, profile_hx) }}
+      {{ stage(ui, bridge, palette, s, profile_base, profile_hx, yours) }}
     {% endfor %}
   </section>
   {% endfor %}
@@ -88,7 +81,8 @@
 <p class="pkey__note">{{ bridge.POINTS_ABBREVIATION }} is what each stage was
 worth: {{ rules.group_progress }} for reaching the Duels,
 {{ rules.duel_win }} for winning a duel, {{ rules.pole }} more for pole. A
-driver&#8217;s figures add up to their qualifying total.</p>
+driver&#8217;s figures add up to their qualifying total.{% if yours %} A rule in
+the margin marks the four drivers you had in for this weekend.{% endif %}</p>
 {% else %}
 <p class="prose u-mid">No qualifying results are stored for this round yet.</p>
 {% endif %}

@@ -66,7 +66,7 @@
    A zero is printed rather than suppressed. §4.2 suppresses zeros across eleven
    columns because nine noughts drown the two cells that fired; in a single
    column a nought is the answer, and a blank would read as missing data. #}
-{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none) %}
+{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none, yours=[]) %}
 <table class="table">
   <thead>
     <tr>
@@ -82,7 +82,7 @@
     {% for r in rows %}
     {% set delta = (r.grid_position - r.position) if (r.has_grid_position and r.position) else none %}
     {% set fp = scores.score_for(r.driver_id).race_total if scores else none %}
-    <tr>
+    <tr{{ ' class="is-yours"' | safe if r.driver_id in yours }}>
       <td class="c-pos num">{{ r.position or '—' }}</td>
       <td class="c-name">
         {% if profile_base %}
@@ -112,7 +112,8 @@
 <p class="pkey__note">{{ bridge.POINTS_ABBREVIATION }} is what this race was
 worth in this game — {{ bridge.POINTS_NAME | lower }}, not Formula E&#8217;s own
 championship points. The star marks the quickest lap of the race, which scores
-here however far down the order it was set.</p>
+here however far down the order it was set.{% if yours %} A rule in the margin
+marks the four drivers you had in for this weekend.{% endif %}</p>
 {% endmacro %}
 
 
