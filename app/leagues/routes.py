@@ -37,7 +37,7 @@ from app.leagues.forms import (
     RenameLeagueForm,
 )
 from app.leagues.profile import player_profile, weekend_detail
-from app.meetings import scoring_bridge as bridge
+from app.meetings import display as bridge
 from app.leagues.standings import standings
 from app.lineups.service import current_season
 from app import palette
