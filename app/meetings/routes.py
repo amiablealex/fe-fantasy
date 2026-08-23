@@ -33,7 +33,8 @@ from app.clock import now
 from app.lineups import draft, service
 from app.lineups.routes import countdown
 from app.lineups.service import current_season
-from app.meetings import display, queries, view
+from app.meetings import bracket, display, queries, view
+from app.meetings.bridge import ruleset_for
 
 meetings_bp = Blueprint(
     "meetings", __name__, template_folder="../templates/meetings"
@@ -112,6 +113,8 @@ def _results_context(meeting, sequence: int) -> dict:
     if stage not in (STAGE_RACE, STAGE_QUALIFYING):
         stage = STAGE_RACE
 
+    rules = ruleset_for(shown)
+    results = queries.round_results(shown)
     base = url_for("meetings.weekend")
     return {
         "base": base,
@@ -119,10 +122,15 @@ def _results_context(meeting, sequence: int) -> dict:
         "meeting_rounds": ordered,
         "shown_round": shown,
         "stage": stage,
-        "results": queries.round_results(shown),
+        "results": results,
         # The FP column. `RoundScore` is user-independent, so this is one
         # read of thirty rows regardless of who is looking at the page.
         "scores": queries.round_scores(shown),
+        # The bracket derives its per-stage figures from position plus the
+        # round's own recorded ruleset, never from the current one — a re-tune
+        # after Jeddah must not rewrite what December was worth.
+        "bracket": bracket.build(results.qualifying, rules),
+        "bracket_rules": rules.qualifying,
         "schedule": queries.round_schedule(shown),
         "profile_base": (
             f"{base}?m={sequence}&r={shown.round_number}"

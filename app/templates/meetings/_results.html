@@ -116,37 +116,6 @@ here however far down the order it was set.</p>
 {% endmacro %}
 
 
-{# Qualifying, stage by stage. A placeholder shape: the bracket is stage 7.3 and
-   replaces everything inside this macro. What is here is honest and readable in
-   the meantime — every session, in bracket order, with its classification. #}
-{% macro qualifying(ui, palette, stages, profile_base=none, profile_hx=none) %}
-{% for s in stages %}
-<section class="qstage">
-  <div class="qstage__head">
-    <span class="label">{{ s.name }}</span>
-  </div>
-  <div class="ruled ruled--tight">
-    {% for r in s.rows %}
-    <div class="split">
-      <span>
-        <span class="u-low num">{{ r.position or '—' }}</span>
-        {% if profile_base %}
-        <a class="c-driver u-semi" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
-           hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
-           hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
-        {% else %}<span class="u-semi">{{ r.driver.short_label }}</span>{% endif %}
-        <br>{{ ui.stripes(palette, r.team) }}
-        <span class="team-name">{{ r.team.name if r.team }}</span>
-      </span>
-      <span class="c-time num">{{ r.display_time or r.lap_time or '—' }}</span>
-    </div>
-    {% endfor %}
-  </div>
-</section>
-{% endfor %}
-{% endmacro %}
-
-
 {# Before a weekend has been raced. The schedule is already ingested, so this
    costs nothing and is the most useful thing the page can say in the days
    before a race.

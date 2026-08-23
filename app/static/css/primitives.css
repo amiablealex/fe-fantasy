@@ -1621,3 +1621,161 @@
   }
   .aftermatter > * + * { margin-block-start: var(--space-3); }
 }
+/* ---------------------------------------------------------------------------
+   The qualifying bracket
+   ---------------------------------------------------------------------------
+   Appended in stage 7.4. A layer can be reopened, so this merges into the
+   `components` layer declared in tokens.css and wins over earlier rules in it
+   by source order — which is what a later addition should do. Adding it
+   unlayered would beat every layer in the project, and tokens.css keeps that
+   escape hatch empty on purpose.
+
+   Phase 3 recorded an open risk: that the intended bracket was buildable from
+   `.ruled`, the team band and the three rule weights, and that this was an
+   argument rather than a demonstration. It needed no new token and no new
+   primitive — only this arrangement of the ones that were already there. The
+   risk is closed. */
+
+@layer components {
+
+  .bracket {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+  }
+
+  /* Heavy rule: a section is one of a screen's major regions. */
+  .bracket__section-title {
+    margin: 0 0 var(--space-4);
+    padding-block-end: var(--space-2);
+    border-block-end: var(--rule-heavy) solid var(--text);
+    font-family: var(--face-text);
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+  .bracket__stage + .bracket__stage {
+    margin-block-start: var(--space-6);
+  }
+
+  /* Mark rule: a duel is a unit, and the gap alone does not say so at four
+     pairs in a column. */
+  .bracket__stage--duel + .bracket__stage--duel {
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-5);
+    border-block-start: var(--rule-mark) solid var(--rule-strong);
+  }
+
+  .bracket__head {
+    margin-block-end: var(--space-2);
+  }
+
+  .bracket__title {
+    color: var(--text-mid);
+  }
+
+  /* Four columns: slot, driver and team, time, points. The name column takes
+     what is left, which is what keeps this readable at 360px without an
+     ellipsis anywhere. */
+  .bracket__row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
+    padding-block: var(--space-3);
+    border-block-start: var(--rule-hair) solid var(--rule);
+    font-size: var(--step-3);
+    line-height: var(--leading-data);
+  }
+
+  /* `:first-of-type` matches on element type rather than class, and the first
+     div in a stage is the heading — so the obvious spelling never matched and
+     every stage opened with a stray hairline under its own title. These are
+     adjacency rules instead: no hairline directly under a heading, and none
+     directly under the cut, which carries its own heavier rule. */
+  .bracket__head + .bracket__row,
+  .bracket__cut + .bracket__row {
+    border-block-start: 0;
+  }
+
+  /* Elimination is ink, not opacity. Opacity would dull the team stripe, and
+     the stripe is the recognition aid — it has to stay at full strength
+     whether or not the driver went out. No strikethrough either: it reads as
+     deleted, and these drivers did compete. */
+  .bracket__row--out .bracket__name,
+  .bracket__row--out .bracket__pos,
+  .bracket__row--out .bracket__time {
+    color: var(--text-low);
+    font-weight: var(--weight-regular);
+  }
+
+  .bracket__pos {
+    min-width: 1.4em;
+    color: var(--text-low);
+    font-size: var(--step-2);
+    text-align: right;
+  }
+
+  .bracket__who {
+    min-width: 0;
+  }
+
+  .bracket__name {
+    font-weight: var(--weight-semi);
+    font-stretch: var(--width-narrow);
+  }
+
+  a.bracket__name {
+    color: inherit;
+  }
+
+  /* The one label in the bracket that is a claim rather than a heading, so it
+     is set in full ink against a recessed fill — the same treatment a broken
+     rule gets, without the error hue, because pole is not a fault. */
+  .bracket__pole {
+    margin-inline-start: var(--space-3);
+    padding: 0 var(--space-2);
+    background: var(--surface-recessed);
+    border: var(--rule-hair) solid var(--rule-strong);
+    color: var(--text);
+  }
+
+  .bracket__time {
+    color: var(--text-mid);
+    font-size: var(--step-2);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .bracket__fp {
+    min-width: 1.8em;
+    font-weight: var(--weight-semi);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .bracket__nil {
+    color: var(--text-low);
+  }
+
+  /* One line for ten rows. Captioning each driver with whether they went
+     through would say the same thing ten times; a rule with a word on it says
+     it once, in the place it happens. */
+  .bracket__cut {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-block: var(--space-3) var(--space-1);
+    color: var(--text-low);
+  }
+
+  .bracket__cut::after {
+    content: "";
+    flex: 1;
+    border-block-start: var(--rule-mark) solid var(--rule-strong);
+  }
+
+}
