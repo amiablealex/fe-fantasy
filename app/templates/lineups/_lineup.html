@@ -238,8 +238,16 @@
 {# A broken constraint, stated once above the lineup. The mark is a glyph from
    the display face inside a ruled square — a character we already ship, not an
    icon asset. #}
-{% macro problem(message) %}
-<p class="problem problem--error">
+{# A state stated once, above the lineup, in the place the reader already looks
+   for one. Two levels, because they are different facts:
+
+     error     a rule is broken and the lineup cannot be saved as it stands
+     caution   nothing is wrong; something is waiting to be saved
+
+   The mark is a glyph from the display face inside a ruled square — a character
+   we already ship, not an icon asset. #}
+{% macro problem(message, level='error') %}
+<p class="problem problem--{{ level }}">
   <span class="problem__mark figure" aria-hidden="true">!</span>
   <span>{{ message }}</span>
 </p>
@@ -250,7 +258,7 @@
    Out and in, then the cost. Reuses the breakdown's heading language rather
    than inventing a second one: the reader has already learnt to read a bold
    heading with a figure on the right. #}
-{% macro transfer_summary(palette, diff) %}
+{% macro transfer_summary(palette, diff, show_cost=true) %}
 <div class="summary">
   {% if diff.drivers_out or diff.team_out %}
   <div class="summary__side">
@@ -278,10 +286,16 @@
   </div>
   {% endif %}
 
+  {#- Suppressed during the grace period. "This uses 3 transfers" is false
+      while changes are free, and it is the one figure in this dialog a player
+      would act on — so it must never be a number that turns out not to apply.
+      What changed still shows; only the price comes off. -#}
+  {% if show_cost %}
   <div class="summary__cost">
     <span class="label">This uses</span>
     <span><span class="figure figure--total num">{{ diff.cost }}</span>
       <span class="label">transfer{{ '' if diff.cost == 1 else 's' }}</span></span>
   </div>
+  {% endif %}
 </div>
 {% endmacro %}

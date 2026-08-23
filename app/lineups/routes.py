@@ -221,9 +221,27 @@ def edit():
         set(draft_drivers) != set(saved.drivers) or draft_team != saved.team_id
     )
 
+    # Which slots are unsaved. Measured against `starting_draft` — this
+    # weekend's snapshot if there is one, otherwise the lineup carried
+    # forward — which is deliberately not the cost baseline.
+    #
+    # §11 records the last time these two questions were conflated. They are
+    # different again here: "what did this transfer cost" is measured against an
+    # earlier weekend and stays true after committing, while "is there anything
+    # to save" is measured against what is stored for *this* weekend and must
+    # become false the moment it is. During grace nothing is charged, so the
+    # second is the only question worth marking.
+    start = state.starting_draft
+    unsaved_ids = set()
+    if start is not None:
+        unsaved_ids = set(draft_drivers) - set(start.drivers)
+        if draft_team is not None and draft_team != start.team_id:
+            unsaved_ids.add(draft_team)
+
     ctx.update(
         state=state,
         dirty=dirty,
+        unsaved_ids=unsaved_ids,
         draft_drivers=draft_drivers,
         draft_team=draft_team,
         edit_drivers=[draft.slot_view(state.roster, d) for d in draft_drivers],

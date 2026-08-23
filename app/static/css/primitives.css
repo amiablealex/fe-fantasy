@@ -432,14 +432,59 @@
   .slots__fill.is-over { text-decoration: underline; text-decoration-thickness: 2px; }
 
   /* ---- Problem -----------------------------------------------------------
-     A constraint that is currently broken. Stated as what to do, in the
-     interface's voice, never as an apology. */
+     A state the lineup is in, stated once, above the component it describes.
+     Always as what to do, in the interface's voice, never as an apology.
+
+     Two levels, and they are different facts:
+
+       error     a rule is broken; this cannot be saved as it stands
+       caution   nothing is wrong; something is waiting to be saved
+
+     Layout lives here and colour lives on the modifier. It used to be the
+     other way round — the whole grid, gap and padding sat on `.problem--error`
+     three hundred lines away, and `.problem__mark` hardcoded `--error` with no
+     modifier of its own — so a second level could not be added without either
+     duplicating the layout or inheriting the wrong hue.
+
+     The mark is a glyph from the display face inside a ruled square: a
+     character we already ship, not an icon asset. */
   .problem {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    margin-block-start: var(--space-3);
     font-size: var(--step-2);
     line-height: var(--leading-prose);
     border-inline-start: var(--rule-mark) solid var(--text);
-    padding-inline-start: var(--space-4);
-    margin-block-start: var(--space-3);
+  }
+
+  .problem--error {
+    color: var(--error);
+    border-inline-start-color: var(--error);
+    background: var(--error-recessed);
+  }
+
+  /* Not an error. A lineup waiting to be saved is not a lineup that is wrong,
+     and sharing red would empty red of meaning — the same argument §4.1 makes
+     about never marking a transferred-in pick in the error colour. */
+  .problem--caution {
+    color: var(--caution);
+    border-inline-start-color: var(--caution);
+    background: var(--caution-recessed);
+  }
+
+  .problem__mark {
+    display: grid;
+    place-items: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    /* currentColor, so the square follows its bar rather than needing one
+       modifier per level. */
+    border: var(--rule-mark) solid currentColor;
+    font-size: var(--step-3);
+    line-height: 1;
   }
 
 
@@ -740,30 +785,6 @@
 
   .stage__rules { margin-block-start: var(--space-3); }
 
-  /* ---- Error -------------------------------------------------------------
-     The one non-team chroma. The mark is a glyph from the display face inside
-     a ruled square — a character we already ship, not an icon asset. */
-  .problem--error {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: var(--space-4);
-    color: var(--error);
-    border-inline-start-color: var(--error);
-    border-inline-start-width: var(--rule-mark);
-    background: var(--error-recessed);
-    padding: var(--space-4);
-  }
-
-  .problem__mark {
-    display: grid;
-    place-items: center;
-    inline-size: 1.5rem;
-    block-size: 1.5rem;
-    border: var(--rule-mark) solid var(--error);
-    font-size: var(--step-3);
-    line-height: 1;
-  }
 
   /* ---- Dialog ------------------------------------------------------------
      The picker is a task with a start, an end and a result, so it is a modal —
@@ -1851,6 +1872,21 @@
     inset-inline-start: calc(-1 * var(--mark-gutter));
     inline-size: var(--mark-width);
     background: var(--mark);
+  }
+
+}
+/* ---------------------------------------------------------------------------
+   A trailing link under a component
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5d. The Perfect Five link sits below the lineup and above
+   the Results disclosure on both the weekend view and a friend's profile.
+   Right-aligned because it reads as an onward move rather than as a caption on
+   the thing above it — the same reason `.actions__commit` sits right. */
+
+@layer components {
+
+  .status--right {
+    text-align: right;
   }
 
 }

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "lineups/_lineup.html" as ui %}
+{% import "meetings/_nav.html" as nav_ui %}
 {% block title %}Lineup{% endblock %}
 
 {% block content %}
@@ -33,22 +34,58 @@
 {{ base }}?d={{ drivers | join(',') }}&t={{ team if team is not none else '' }}{% if open is not none %}&open={{ open }}{% endif %}
 {%- endmacro %}
 
-<header class="masthead">
-  <span class="masthead__venue">{{ meeting.display_name }}</span>
-  <span class="masthead__meta status">
-    Round{{ 's' if meeting.rounds | length > 1 }}
-    {{ meeting.rounds | map(attribute='round_number') | join(' & ') }}
-    &middot; locks in {{ countdown }}
-  </span>
-</header>
+{#- The same bar every scored view opens with, minus the arrows: only one
+    weekend is editable (§2), so arrows here would advertise navigation the
+    application refuses. Same geometry, so the editor is recognisably the same
+    application as the weekend it will be scored on. -#}
+{% set free = state.budget.unlimited %}
+{{ nav_ui.meeting_masthead(
+     meeting.display_name,
+     'Round' ~ ('s' if meeting.rounds | length > 1 else '') ~ ' '
+     ~ (meeting.rounds | map(attribute='round_number') | join(' & '))
+     ~ ' · locks in ' ~ countdown) }}
 
 {% for message in problems %}{{ ui.problem(message) }}{% endfor %}
 
+{#- Promoted to sit with the broken rules, because it is the same kind of fact:
+    a state the lineup is in, stated once, above the component it describes.
+
+    It is not an error, so it does not share red — a lineup waiting to be saved
+    is not a lineup that is wrong, and sharing the colour would empty red of
+    meaning exactly as §4.1 argues about the "In" tag. It reads as caution
+    instead.
+
+    Suppressed when a rule is broken: two bars stacked would compete, and the
+    broken rule is the one to act on first. Suppressed when the draft is
+    incomplete, because "3 of 5 slots filled" already says that and there is
+    nothing to save yet. -#}
+{% if dirty and complete and not problems %}
+{{ ui.problem(
+     'Unsaved changes. ' ~ ('Save your lineup' if mode == 'empty' or free
+                            else 'Commit your transfers') ~ ' to keep them.',
+     level='caution') }}
+{% endif %}
+
+{#- No "In" tags while changes are free. The tag marks a slot that differs
+    from the cost baseline — the last snapshot from an earlier weekend — which
+    is what a transfer is charged against. In the grace period nothing is
+    charged, so a player experimenting accumulates tags that record no cost and
+    mean nothing; after a few swaps every slot carries one. -#}
+{#- Two references, because there are two questions.
+
+    Past grace the tag marks a slot that differs from the cost baseline — the
+    last snapshot from an earlier weekend — so it survives committing and keeps
+    saying "this is the transfer you made this weekend", which is a fact worth
+    keeping on screen.
+
+    In grace nothing is charged, so that reading records a cost that does not
+    exist. The tag instead marks a slot that differs from what is stored for
+    *this* weekend, and clears the moment it is saved. -#}
 {{ ui.lineup(palette, edit_drivers, edit_team, state=mode,
              base_url=draft_url(draft_drivers, draft_team),
-             changed_ids=diff.changed_ids) }}
+             changed_ids=(unsaved_ids if free else diff.changed_ids)) }}
 
-{% if state.budget.unlimited %}
+{% if free %}
 {#- Grace. Not a budget of zero and not a budget of two: a different sentence,
     because the number would be read as a limit when there is none. -#}
 <p class="notice">Change anything you like until the deadline. Transfers start
@@ -83,7 +120,8 @@
 
   {% if complete and not problems and dirty %}
   <a class="actions__commit" href="{{ draft_url(draft_drivers, draft_team) }}&amp;confirm=commit">
-    {%- if mode == 'empty' %}Save lineup{% else %}Commit transfer{{ '' if diff.cost == 1 else 's' }}{% endif -%}
+    {%- if mode == 'empty' or free %}Save lineup
+    {%- else %}Commit transfer{{ '' if diff.cost == 1 else 's' }}{% endif -%}
   </a>
   {% else %}
   <span class="actions__commit is-disabled" aria-disabled="true">
@@ -98,16 +136,25 @@
 {% if confirm and complete and not problems %}
 <dialog class="sheet sheet--narrow" data-modal>
   <div class="sheet__head">
-    <span class="u-semi">{{ 'Save lineup' if mode == 'empty' else 'Confirm transfers' }}</span>
+    <span class="u-semi">{{ 'Save lineup' if mode == 'empty' or free else 'Confirm transfers' }}</span>
     <a class="sheet__close" href="{{ draft_url(draft_drivers, draft_team) }}">Cancel</a>
   </div>
   <div class="sheet__body">
-    {% if mode == 'edit' %}
+    {#- The cost line is suppressed while changes are free. "This uses 3
+        transfers" is false during grace — nothing is spent — and it is the one
+        sentence in the editor a player would act on, so it must not be a
+        figure that turns out not to apply. The out-and-in summary still shows
+        where there is something to summarise: what changed is a fair question
+        even when it costs nothing. -#}
+    {% if mode == 'edit' and not free %}
       {{ ui.transfer_summary(palette, diff) }}
+    {% elif mode == 'edit' and free and diff.has_changes %}
+      {{ ui.transfer_summary(palette, diff, show_cost=false) }}
+      <p class="stage__context">No transfers are used. Changes are free until
+        the first deadline.</p>
     {% else %}
       <p class="stage__context">Your lineup is set for {{ meeting.display_name }}.
-        {% if state.budget.unlimited %}You can still change it freely until the
-        deadline.{% endif %}</p>
+        {% if free %}You can still change it freely until the deadline.{% endif %}</p>
     {% endif %}
     {#- A real POST, unboosted: a commit changes the header, flashes a message
         and must not be repeatable by a back button. -#}

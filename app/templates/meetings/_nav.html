@@ -83,3 +83,36 @@
 {% endmacro %}
 
 
+
+
+{# The same bar, for a screen that cannot move between weekends.
+
+   The front page shows the one weekend that is live and the editor the one
+   weekend that is open — SPEC.md §2 permits editing no other — so arrows there
+   would advertise navigation the application refuses. The rule across the app
+   is **arrows where you can move, this where you cannot**, and this exists so
+   that "cannot move" does not also mean "looks like a different screen".
+
+   Identical structure to `meeting_nav`, so identical geometry: four children,
+   with empty spacers where the arrows would be. Spacers rather than the flat
+   arrow glyphs, because a flat arrow means "you are at the end of a list" and
+   there is no list here to be at the end of. #}
+{% macro meeting_masthead(name, context, href=none) %}
+<nav class="mnav" aria-label="Weekend">
+  <span class="mnav__arrow is-flat" aria-hidden="true"></span>
+
+  {% if href %}
+  <a class="mnav__name" href="{{ href }}">
+    <span class="mnav__label">{{ name }}</span>
+  </a>
+  {% else %}
+  <span class="mnav__name">
+    <span class="mnav__label">{{ name }}</span>
+  </span>
+  {% endif %}
+
+  <span class="mnav__context label">{{ context }}</span>
+
+  <span class="mnav__arrow is-flat" aria-hidden="true"></span>
+</nav>
+{% endmacro %}

@@ -218,6 +218,19 @@
     --error: oklch(0.42 0.19 27);
     --error-recessed: oklch(0.96 0.02 27);
 
+    /* The second non-team chroma, and the last. A broken rule and an unsaved
+       change are different states — one blocks, one only waits — and colour
+       says so faster than wording does.
+       
+       Under the same constraint --error is: outside the team clamp, so it can
+       never be mistaken for an identity. Yellows are the reason
+       --team-l-bright exists at all, since a yellow seed cannot hold chroma at
+       --team-l; this sits at 0.47, far below that ceiling, where no stripe on
+       the grid can reach. Used as text and as a heavy rule; never as a
+       stripe. */
+    --caution: oklch(0.47 0.13 78);
+    --caution-recessed: oklch(0.965 0.045 88);
+
     --focus: var(--ink-900);
     --focus-offset: 2px;
   }

@@ -69,6 +69,14 @@
                             ~ ('t' if pick.is_team else 'd') ~ pick.subject.id)) }}
 {% endfor %}
 
+{#- Above the disclosure, not below it: it belongs to the lineup, and a reader
+    who opens Results should not have it move down the page under a table. -#}
+<p class="status status--right">
+  <a href="{{ url_for('meetings.perfect_five', m=detail.meeting.sequence) }}">
+    <span class="star">&#9733;</span>
+    View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}</a>
+</p>
+
 {#- Their picks marked in the classification, under their lineup — the same
     shape a reader learns on their own weekend page. The mark always belongs to
     the lineup rendered directly above it, so here it is their six and not
@@ -85,11 +93,6 @@
 </details>
 {% endif %}
 
-<p class="status">
-  <a href="{{ url_for('meetings.perfect_five', m=detail.meeting.sequence) }}">
-    <span class="star">&#9733;</span>
-    View this weekend&#8217;s {{ bridge.DREAM_TEAM_NAME }}</a>
-</p>
 
 {% else %}
 <p class="prose">

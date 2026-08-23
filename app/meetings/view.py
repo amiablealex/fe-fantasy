@@ -117,12 +117,11 @@ def score_meeting(
         # No star is decided here. This used to brute-force a per-round legal
         # dream team — 20,160 combinations on every page view — and every
         # production caller then threw the answer away by calling `mark_best`
-        # with the meeting-level Perfect Five. Worse than wasted: the one
-        # caller that forgot to overwrite it rendered per-round stars against a
+        # with the meeting-level Perfect Five. Worse than wasted: the one caller
+        # that forgot to overwrite it rendered per-round stars against a
         # meeting-level total, so two of five slots starred and three did not.
         # A star is a fact about the meeting, so only `mark_best` sets one.
         picks: list[PickScore] = []
-
         for driver_id in sorted(lineup.drivers, key=lambda d: -scores.total_for(d)):
             driver = roster.drivers.get(driver_id)
             score = scores.score_for(driver_id)
@@ -409,13 +408,22 @@ def mark_best(picks: list[PickMeetingScore], best: lineups.Lineup | None) -> Non
     Per-round stars would contradict a meeting-level total: a driver can be one
     of round 7's best five and not round 8's, and a single star against a
     combined figure has to mean one thing.
-    """
-    if best is None:
-        for pick in picks:
-            pick.in_dream_team = False
-        return
 
-    members = set(best.drivers) | {best.team_id}
+    **Compared within kind, never against one merged set.** Drivers and teams
+    are separate tables with independent primary key sequences, so at this grid
+    size driver 4 and team 4 are the same integer — and an earlier version
+    tested every pick against `set(best.drivers) | {best.team_id}`, which
+    starred any driver whose id collided with the best team's. It presented as
+    a star on a pick that was nowhere near the Perfect Five, intermittently,
+    depending on whether the collision landed on a driver anyone held.
+    """
+    drivers = set(best.drivers) if best else set()
+    team_id = best.team_id if best else None
     for pick in picks:
         subject_id = getattr(pick.subject, "id", None)
-        pick.in_dream_team = subject_id in members
+        if subject_id is None:
+            pick.in_dream_team = False
+        elif pick.is_team:
+            pick.in_dream_team = subject_id == team_id
+        else:
+            pick.in_dream_team = subject_id in drivers
