@@ -1817,3 +1817,40 @@
   }
 
 }
+/* ---------------------------------------------------------------------------
+   The personal mark, on a bracket row
+   ---------------------------------------------------------------------------
+   Appended in stage 7.5b. `.is-yours` hangs its rule off `> :first-child`,
+   which is right for a `<tr>` — a table cell is as tall as its row — and wrong
+   for a grid. In the bracket the first child is `.bracket__pos`, a
+   baseline-aligned grid item: in a group row that is one line of text tall, so
+   the rule covered the driver's name and stopped short of the team beneath it,
+   and in a duel row the cell is empty, so it had no height and the rule
+   vanished entirely. The marks were being applied correctly the whole way
+   through the bracket; they had nothing to be tall against.
+
+   So the rule hangs off the row, which is what `tr.is-yours` already does by
+   another route. The inherited pseudo-element is cancelled rather than
+   overridden, because two absolutely positioned rules a pixel apart is worse
+   than either alone. */
+
+@layer components {
+
+  .bracket__row.is-yours > :first-child::before {
+    content: none;
+  }
+
+  .bracket__row.is-yours {
+    position: relative;
+  }
+
+  .bracket__row.is-yours::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(-1 * var(--mark-gutter));
+    inline-size: var(--mark-width);
+    background: var(--mark);
+  }
+
+}

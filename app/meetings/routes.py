@@ -97,14 +97,14 @@ def _chosen_round(meeting, requested: int | None):
 
 
 def your_driver_ids(meeting, locked: bool) -> frozenset:
-    """The viewer's own driver picks for this weekend, for marking the results.
+    """The signed-in reader's own marked drivers for this weekend.
 
     **Scoped to the meeting on screen, never to the lineup they hold now.** A
-    reader browsing back to Jeddah in April must see the four drivers they had
-    in December, not the four they have today — and because the results always
-    sit underneath the lineup that produced the score above them, the marks and
-    the slots are the same five picks forty pixels apart. That co-location is
-    what makes the mark unambiguous without a legend explaining it.
+    reader browsing back to Jeddah in April must see the picks they had in
+    December, not the ones they have today — and because the results always sit
+    underneath the lineup that produced the score above them, the marks and the
+    slots are the same picks forty pixels apart. That co-location is what makes
+    the mark unambiguous without a legend explaining it.
 
     Empty before the deadline, which is when there is nothing but a schedule to
     mark anyway.
@@ -114,7 +114,7 @@ def your_driver_ids(meeting, locked: bool) -> frozenset:
     snapshot = service.effective_snapshot(current_user, meeting)
     if snapshot is None or not snapshot.is_complete:
         return frozenset()
-    return frozenset(snapshot.to_lineup().drivers)
+    return view.marked_drivers(snapshot.to_lineup(), meeting)
 
 
 def _results_context(meeting, sequence: int, yours=frozenset()) -> dict:
@@ -268,10 +268,14 @@ def perfect_five():
     comparison costs no reading: identical geometry means the eye lands on the
     figures rather than re-learning a layout.
 
-    Nothing is starred here. Every slot is in the Perfect Five by construction,
-    so a star against all five would say nothing; how many of them the player
-    actually held is stated in a sentence instead, which is the fact they came
-    for.
+    Nothing is starred here, because every slot is in the Perfect Five by
+    construction and a star against all five would say nothing.
+
+    Nor is there a comparison to the reader's own total. "You scored 34 of a
+    possible 61" is a scoreboard telling someone off, and this application has
+    no email, no reminders and no nagging anywhere else — the front page says
+    what you scored, and this page says what the weekend was worth. Those are
+    two facts, not a verdict.
     """
     season = current_season()
     sequence = request.args.get("m", type=int)
@@ -298,26 +302,14 @@ def perfect_five():
 
     breakdowns = view.score_meeting(season, meeting, best.lineup)
     picks = view.aggregate_meeting(breakdowns)
-
-    yours = your_driver_ids(meeting, True)
-    snapshot = service.effective_snapshot(current_user, meeting)
-    your_total = None
-    shared = 0
-    if snapshot is not None and snapshot.is_complete:
-        lineup = snapshot.to_lineup()
-        shared = len(lineup.drivers & best.lineup.drivers) + (
-            1 if lineup.team_id == best.lineup.team_id else 0
-        )
-        mine = view.score_meeting(season, meeting, lineup)
-        your_total = sum((b.total for b in mine if b.scored), 0)
+    # All five, which is the point: it is what makes the star mean the same
+    # thing here as it does on a weekend page, where only some picks carry it.
+    view.mark_best(picks, best.lineup)
 
     ctx.update(
         picks=picks,
         best=best,
         total=sum((b.total for b in breakdowns if b.scored), 0),
-        your_total=your_total,
-        shared=shared,
-        yours=yours,
     )
     return render_template("meetings/perfect_five.html", **ctx)
 

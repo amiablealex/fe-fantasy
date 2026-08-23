@@ -27,6 +27,28 @@ from app.scoring import lineups
 ZERO = Decimal(0)
 
 
+def marked_drivers(lineup: lineups.Lineup | None, meeting: Meeting) -> frozenset:
+    """Every driver in a results table that fed a lineup: six, not four.
+
+    The four driver picks, plus both cars of the team pick — because the team
+    slot scores half the sum of its two drivers, so those rows are as much a
+    part of the figure above them as the four are. One rule across the whole
+    application: **the mark means this row fed the score you are looking at.**
+
+    Which makes it correct on a friend's profile as well as your own. The mark
+    belongs to the lineup rendered directly above it, whoever's lineup that is.
+
+    The roster resolves against the meeting's first round, which is the round
+    the lineup was locked against.
+    """
+    if lineup is None or not meeting.rounds:
+        return frozenset()
+    first = min(r.round_number for r in meeting.rounds)
+    roster = roster_for_round(meeting.season, first)
+    cars = roster.drivers_by_team.get(lineup.team_id, [])
+    return frozenset(lineup.drivers) | frozenset(cars)
+
+
 # -----------------------------------------------------------------------------
 # One round
 # -----------------------------------------------------------------------------
@@ -92,16 +114,15 @@ def score_meeting(
         def team_total(team_id: Any) -> Decimal:
             return scores.team_total(team_id)
 
-        dream = lineups.dream_team(
-            roster.drivers_by_team, scores.total_for, team_total
-        )
-        dream_drivers: set = set()
-        dream_teams: set = set()
-        for candidate in dream.lineups:
-            dream_drivers |= candidate.drivers
-            dream_teams.add(candidate.team_id)
-
+        # No star is decided here. This used to brute-force a per-round legal
+        # dream team — 20,160 combinations on every page view — and every
+        # production caller then threw the answer away by calling `mark_best`
+        # with the meeting-level Perfect Five. Worse than wasted: the one
+        # caller that forgot to overwrite it rendered per-round stars against a
+        # meeting-level total, so two of five slots starred and three did not.
+        # A star is a fact about the meeting, so only `mark_best` sets one.
         picks: list[PickScore] = []
+
         for driver_id in sorted(lineup.drivers, key=lambda d: -scores.total_for(d)):
             driver = roster.drivers.get(driver_id)
             score = scores.score_for(driver_id)
@@ -112,7 +133,6 @@ def score_meeting(
                 team=roster.team_for(driver_id),
                 total=score.total,
                 components=score.components,
-                in_dream_team=driver_id in dream_drivers,
                 quali_context=display.qualifying_context(qualifying, driver_id),
                 race_context=display.race_context(race_rows, driver_id),
             ))
@@ -131,7 +151,6 @@ def score_meeting(
             team=team,
             total=team_total(lineup.team_id),
             components=(),
-            in_dream_team=lineup.team_id in dream_teams,
             detail=car_detail,
         ))
 
@@ -139,8 +158,8 @@ def score_meeting(
             round=round_obj,
             picks=picks,
             total=sum((p.total for p in picks), ZERO),
-            dream_total=dream.total,
-            dream_tied=len(dream.lineups),
+            dream_total=ZERO,
+            dream_tied=0,
             issues=scores.issues,
         ))
 
@@ -261,7 +280,7 @@ def aggregate_meeting(breakdowns: list[RoundBreakdown]) -> list[PickMeetingScore
 
 
 # -----------------------------------------------------------------------------
-# The Perfect Five — the best possible lineup for a meeting
+# The Perfect Five — the five best picks of a weekend
 # -----------------------------------------------------------------------------
 
 
@@ -272,24 +291,20 @@ class BestLineup:
     tied: int
 
 
-def meeting_best_lineup(season: Season, meeting: Meeting) -> BestLineup:
-    """The highest-scoring valid lineup across a whole meeting.
+def _meeting_totals(season: Season, meeting: Meeting):
+    """Driver and team scores summed across a meeting, plus best finish.
 
-    Not the same as the best lineup for each round taken separately: a
-    double-header scores one lineup twice, so the question is which five picks
-    maximise the *sum*. Driver and team scores are totalled across the rounds
-    first, then the brute force runs once over those totals.
-
-    Ties are kept rather than broken, per SPEC.md §3 — a high tie rate says the
-    scoring gradient is too coarse, and discarding ties would discard the
-    measurement.
+    The finishing position is carried for the tiebreak below. It is read from
+    the race classification rather than from a stored score because no stored
+    score answers "where did they come" — that is `Result`'s question.
     """
-    driver_totals: dict[Any, Decimal] = {}
-    team_totals: dict[Any, Decimal] = {}
-    roster: Roster | None = None
+    stored = meeting_scores(meeting)
     seats = seat_entries(season)
 
-    stored = meeting_scores(meeting)
+    driver_totals: dict[Any, Decimal] = {}
+    team_totals: dict[Any, Decimal] = {}
+    best_finish: dict[Any, int] = {}
+    roster: Roster | None = None
 
     for round_obj in sorted(meeting.rounds, key=lambda r: r.round_number):
         scores = stored.get(round_obj.round_number)
@@ -306,22 +321,93 @@ def meeting_best_lineup(season: Season, meeting: Meeting) -> BestLineup:
                 team_totals.get(team_id, ZERO) + scores.team_total(team_id)
             )
 
-    if roster is None:
+        _, race_rows = round_payload(round_obj)
+        for row in race_rows:
+            position = row.get("position")
+            driver_id = row.get("driver_id")
+            if position is None or driver_id is None:
+                continue
+            current = best_finish.get(driver_id)
+            if current is None or position < current:
+                best_finish[driver_id] = position
+
+    return roster, driver_totals, team_totals, best_finish
+
+
+# A driver who did not finish anywhere sorts behind everyone who did, without
+# needing a branch in the sort key.
+_UNPLACED = 10**6
+
+
+def meeting_best_lineup(season: Season, meeting: Meeting) -> BestLineup:
+    """The four best-scoring drivers and the best-scoring team.
+
+    **Deliberately not the best *valid* lineup.** An earlier version brute-forced
+    every legal combination, which produced a page a reader could not parse: a
+    driver who outscored three of the five was absent because a higher-scoring
+    team-mate had taken his team's slot, and no caption fixes that — you have to
+    hold the constraint set in your head to understand why. It also tied
+    constantly, on six of seventeen Season 12 rounds and across as many as
+    eighteen lineups, so "this is the answer" was rarely true.
+
+    What is lost is a benchmark: this is not a lineup anybody could have
+    fielded, and the page says so in a sentence. What is gained is that the star
+    on a pick now means one simple thing — it was one of the five best picks of
+    the weekend.
+
+    Scored across the whole meeting rather than per round, because a
+    double-header scores one lineup twice and the question is which picks
+    maximise the sum.
+
+    **The order is total, then the driver's best finishing position, then the
+    id.** Two drivers cannot share a finishing position, so the second key
+    settles every tie the first leaves and ties cannot reach the page at all.
+    The third exists only so a driver who never finished still sorts
+    deterministically — `seat_entries()` has no `ORDER BY`, and before this the
+    winner of a tie could differ between two requests for the same weekend,
+    which is exactly what made a starred pick sometimes fail to appear here.
+
+    `dream_team` and `valid_lineups` stay in `app/scoring/lineups.py`: the
+    Season 12 simulation measures the tie rate over legal lineups (SPEC.md §9,
+    question 7) and that is still the right question to ask there.
+    """
+    roster, driver_totals, team_totals, best_finish = _meeting_totals(season, meeting)
+    if roster is None or not driver_totals or not team_totals:
         return BestLineup(None, ZERO, 0)
 
-    best = lineups.dream_team(
-        roster.drivers_by_team,
-        lambda d: driver_totals.get(d, ZERO),
-        lambda t: team_totals.get(t, ZERO),
+    ranked = sorted(
+        driver_totals,
+        key=lambda d: (-driver_totals[d], best_finish.get(d, _UNPLACED), str(d)),
     )
-    return BestLineup(best.best, best.total, len(best.lineups))
+    if len(ranked) < lineups.DRIVER_SLOTS:
+        return BestLineup(None, ZERO, 0)
+    drivers = ranked[:lineups.DRIVER_SLOTS]
+
+    def team_finish(team_id: Any) -> int:
+        cars = roster.drivers_by_team.get(team_id, [])
+        return min((best_finish.get(c, _UNPLACED) for c in cars), default=_UNPLACED)
+
+    team_id = min(
+        team_totals,
+        key=lambda t: (-team_totals[t], team_finish(t), str(t)),
+    )
+
+    total = sum((driver_totals[d] for d in drivers), ZERO) + team_totals[team_id]
+
+    # A `Lineup` even though the picks need not form a legal one: `Lineup.of`
+    # checks only that there are four distinct drivers, and returning the same
+    # type keeps every caller — the shim, the friend profile, the styleguide —
+    # working unchanged.
+    return BestLineup(
+        lineup=lineups.Lineup.of(drivers, team_id), total=total, tied=1
+    )
 
 
 def mark_best(picks: list[PickMeetingScore], best: lineups.Lineup | None) -> None:
-    """Star the picks that appear in the meeting's best lineup.
+    """Star the picks that were among the five best of the weekend.
 
-    Per-round stars would contradict a meeting-level total: a driver can make
-    round 7's best lineup and not round 8's, and a single star against a
+    Per-round stars would contradict a meeting-level total: a driver can be one
+    of round 7's best five and not round 8's, and a single star against a
     combined figure has to mean one thing.
     """
     if best is None:

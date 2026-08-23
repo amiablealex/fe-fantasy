@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from app.extensions import db
 from app.leagues import visibility
 from app.meetings import view as bridge
+from app.meetings.view import marked_drivers
 from app.models.calendar import Meeting
 from app.models.league import League
 from app.models.lineup import LineupSnapshot
@@ -135,6 +136,10 @@ class WeekendDetail:
     picks: list
     total: Decimal
     dream_tied: int
+    # Every driver whose row in the classification fed this figure: the four
+    # picks plus both cars of the team pick. The mark under a lineup always
+    # belongs to the lineup above it, whoever's lineup that is.
+    marked: frozenset = frozenset()
 
 
 def weekend_detail(
@@ -163,4 +168,5 @@ def weekend_detail(
         picks=picks,
         total=sum((b.total for b in breakdowns if b.scored), ZERO),
         dream_tied=best.tied,
+        marked=marked_drivers(snapshot.to_lineup(), meeting),
     )

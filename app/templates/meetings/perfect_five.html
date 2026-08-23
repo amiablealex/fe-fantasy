@@ -5,17 +5,17 @@
 {% block content %}
 
 {% if not meeting %}
-<h1 class="page-title">Perfect Five</h1>
+<h1 class="page-title">{{ bridge.DREAM_TEAM_NAME }}</h1>
 <p class="prose">There is no such weekend in this season.</p>
 
 {% elif too_early %}
 <header class="masthead">
   <span class="masthead__venue">{{ meeting.display_name }}</span>
 </header>
-{#- Before the deadline the best lineup is an answer key, and there is nothing
+{#- Before the deadline the best picks are an answer key, and there is nothing
     to be best at yet. -#}
-<p class="prose">This weekend has not locked yet. The Perfect Five appears once
-  it has been raced and scored.</p>
+<p class="prose">This weekend has not locked yet. The
+  {{ bridge.DREAM_TEAM_NAME }} appears once it has been raced and scored.</p>
 
 {% elif not picks %}
 <header class="masthead">
@@ -37,40 +37,14 @@
 {{ ui.lineup(palette, picks[:4], picks[4] if picks | length > 4 else none,
              state='scored', bridge=bridge) }}
 
-{#- What the reader came for, in the order they want it: how far off were you,
-    and did you have any of these. Stated rather than starred — every slot on
-    this page is in the Perfect Five by construction, so a star against all five
-    would say nothing at all. -#}
-<div class="slab">
-  <span class="label">
-    {%- if your_total is none %}You had no lineup in
-    {%- elif total > your_total %}Ahead of yours by
-    {%- else %}You matched it{% endif -%}
-  </span>
-  {% if your_total is not none and total > your_total %}
-  <span class="figure figure--round num">{{ bridge.fmt(total - your_total) }}</span>
-  {% endif %}
-</div>
-
-{% if your_total is not none %}
-<p class="status">
-  {%- if shared == 0 -%}
-  None of your five picks made it.
-  {%- elif shared == 5 -%}
-  You had all five. This was your lineup.
-  {%- else -%}
-  You had {{ shared }} of these five.
-  {%- endif -%}
-</p>
-{% endif %}
-
-{% if best.tied > 1 %}
-{#- SPEC.md §3 keeps ties rather than breaking them: a high tie rate says the
-    scoring gradient is too coarse, and discarding ties would discard the
-    measurement. So the page has to admit there is more than one right answer
-    rather than implying this is the only one. -#}
-<p class="status">Tied across {{ best.tied }} lineups. This is one of them.</p>
-{% endif %}
+{#- Said once, plainly. These are the four best-scoring drivers and the
+    best-scoring team, which is what the name means and what a reader expects —
+    but the one-driver-per-team rule does not apply to them, so this need not be
+    a lineup anybody could have picked. Without this sentence a reader tries to
+    copy it into the editor and is refused with no explanation. -#}
+<p class="prose u-mid">The four best-scoring drivers of the weekend and the
+  best-scoring team. Team limits do not apply here, so this is not necessarily
+  a lineup you could have fielded.</p>
 
 {% for pick in picks %}
 {{ ui.breakdown(bridge, palette, pick, loop.index0,

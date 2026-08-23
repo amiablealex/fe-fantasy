@@ -39,6 +39,8 @@ from app.leagues.forms import (
 from app.leagues.profile import player_profile, weekend_detail
 from app.meetings import display as bridge
 from app.meetings import queries as meeting_queries
+from app.meetings.bridge import ruleset_for
+from app.meetings import bracket as bracket_view
 from app.leagues.standings import standings
 from app.lineups.service import current_season
 from app import palette
@@ -410,8 +412,88 @@ def profile(user_id: int):
             ctx["subject_profile"] = meeting_queries.team_profile(season, subject_id)
     ctx["profile_close"] = request.url.split("&profile=")[0]
 
+    # The classification, under their lineup, with their picks marked. Same
+    # template the weekend view includes and the same shape a reader learns
+    # once — only `base` and the marks differ, because the mark always belongs
+    # to the lineup rendered directly above it.
+    if selected is not None:
+        ctx.update(_player_results(subject, selected, ctx["detail"]))
+        ctx["results_open"] = request.args.get("results") == "open"
+
     return render_template(
         "players/profile.html", title=subject.username, **ctx
+    )
+
+
+def _player_results(subject, meeting, detail) -> dict:
+    """The Results disclosure, keyed to a player's profile rather than a weekend.
+
+    Deliberately not a second copy of `meetings._results_context`: that one
+    builds links back to `/weekend`, and a reader who switched round from a
+    friend's profile would be thrown onto a different page. Everything below
+    the link-building is the same reads.
+    """
+    ordered = sorted(meeting.rounds, key=lambda r: r.round_number)
+    if not ordered:
+        return {}
+
+    requested = request.args.get("r", type=int)
+    shown = next((r for r in ordered if r.round_number == requested), ordered[0])
+    stage = request.args.get("stage", "race")
+    if stage not in ("race", "qualifying"):
+        stage = "race"
+
+    rules = ruleset_for(shown)
+    results = meeting_queries.round_results(shown)
+    base = url_for("players.profile", user_id=subject.id)
+    return {
+        "base": base,
+        "sequence": meeting.sequence,
+        "meeting_rounds": ordered,
+        "shown_round": shown,
+        "stage": stage,
+        "results": results,
+        "scores": meeting_queries.round_scores(shown),
+        "bracket": bracket_view.build(results.qualifying, rules),
+        "bracket_rules": rules.qualifying,
+        "schedule": meeting_queries.round_schedule(shown),
+        "yours": detail.marked if detail else frozenset(),
+        "profile_base": (
+            f"{base}?m={meeting.sequence}&r={shown.round_number}"
+            f"&stage={stage}&results=open"
+        ),
+        "profile_hx": url_for("meetings.weekend_profile"),
+    }
+
+
+@players_bp.route("/players/<int:user_id>/results")
+@login_required
+def player_results(user_id: int):
+    """The Results disclosure body, for HTMX to swap in place.
+
+    Same visibility gate as the page: a weekend not in the player's visible list
+    is not reachable here either, so this cannot become the endpoint that
+    forgets the deadline.
+    """
+    subject = visibility.visible_user(current_user, user_id)
+    season = current_season()
+    if subject is None or season is None:
+        return "", 204
+
+    summary = player_profile(current_user, subject, season, now=now())
+    raw = request.args.get("m")
+    row = summary.row_for(int(raw)) if raw and raw.isdigit() else None
+    if row is None:
+        return "", 204
+
+    detail = weekend_detail(
+        current_user, subject, season, row.meeting, now=now()
+    )
+    ctx = _player_results(subject, row.meeting, detail)
+    if not ctx:
+        return "", 204
+    return render_template(
+        "meetings/_results_body.html", palette=palette, bridge=bridge, **ctx
     )
 
 
