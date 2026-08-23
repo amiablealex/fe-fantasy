@@ -6,6 +6,7 @@ import logging
 from flask import Flask, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app import localtime
 from app.config import get_config, validate_production_config
 from app.extensions import csrf, db, login_manager, migrate
 
@@ -33,6 +34,10 @@ def create_app(config_class=None) -> Flask:
     _configure_logging(app)
     validate_production_config(app)
     _init_extensions(app)
+    # Every datetime is stored UTC and every reader is in the UK, so the
+    # conversion happens once, at render, through a filter rather than in each
+    # template's own strftime.
+    localtime.register(app)
     _register_blueprints(app)
     _register_user_loader()
     _register_hooks(app)

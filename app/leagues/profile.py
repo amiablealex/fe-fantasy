@@ -27,7 +27,7 @@ from sqlalchemy import func, select
 
 from app.extensions import db
 from app.leagues import visibility
-from app.meetings import scoring_bridge as bridge
+from app.meetings import view as bridge
 from app.models.calendar import Meeting
 from app.models.league import League
 from app.models.lineup import LineupSnapshot

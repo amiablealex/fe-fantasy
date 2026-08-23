@@ -59,7 +59,7 @@
   <span class="figure figure--round num">{{ countdown }}</span>
 </div>
 <p class="status">{{ open_meeting.display_name }}{% if open_meeting.deadline_at %},
-  {{ open_meeting.deadline_at.strftime('%-d %B, %H:%M') }} UTC{% endif %}</p>
+  {{ open_meeting.deadline_at | local }}{% endif %}</p>
 
 {% if state.budget.unlimited %}
 <p class="notice">Free changes until the first deadline. Transfers start

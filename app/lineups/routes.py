@@ -35,7 +35,7 @@ from app import palette
 from app.clock import now
 from app.leagues.standings import standings_for_user
 from app.lineups import draft, service
-from app.meetings.scoring_bridge import fmt
+from app.meetings.display import fmt
 from app.lineups.service import current_season
 from app.scoring import lineups as rules
 

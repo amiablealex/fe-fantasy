@@ -1,0 +1,386 @@
+"""Reads, returning shapes a template can consume directly.
+
+The third of the four modules `scoring_bridge` became. Everything here is a
+`select()` and a reshaping; nothing scores, nothing words anything, and nothing
+takes a lineup. Callers are routes.
+
+The dataclasses are deliberately not ORM objects. A route that hands a template
+a `Round` invites the template to walk a relationship and issue a query per row;
+handing it a `MeetingRef` cannot.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload, selectinload
+
+from app.extensions import db
+from app.lineups.roster import roster_for_round, seat_entries
+from app.meetings import display
+from app.meetings.reads import season_scores as stored_season_scores
+from app.models.calendar import STAGE_RACE, Meeting, Round, Season, Session
+from app.models.grid import Driver, Team
+
+ZERO = Decimal(0)
+
+
+# -----------------------------------------------------------------------------
+# Meetings
+# -----------------------------------------------------------------------------
+
+
+def meetings(season: Season) -> list[Meeting]:
+    stmt = (
+        select(Meeting)
+        .where(Meeting.season_id == season.id)
+        .options(
+            joinedload(Meeting.location),
+            selectinload(Meeting.rounds),
+        )
+        .order_by(Meeting.sequence)
+    )
+    return list(db.session.scalars(stmt).unique())
+
+
+def get_meeting(season: Season, sequence: int) -> Meeting | None:
+    stmt = (
+        select(Meeting)
+        .where(Meeting.season_id == season.id, Meeting.sequence == sequence)
+        .options(
+            joinedload(Meeting.location),
+            selectinload(Meeting.rounds)
+            .selectinload(Round.sessions)
+            .selectinload(Session.results),
+        )
+    )
+    return db.session.scalars(stmt).unique().one_or_none()
+
+
+# -----------------------------------------------------------------------------
+# Navigation
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class MeetingRef:
+    """One entry in the meeting nav."""
+
+    sequence: int
+    name: str
+    scored: bool
+    provisional: bool
+    rounds: list[int]
+
+    @property
+    def is_double_header(self) -> bool:
+        return len(self.rounds) > 1
+
+
+def meeting_refs(season: Season) -> list[MeetingRef]:
+    """Every meeting, in calendar order, and whether it has been scored.
+
+    Cheap enough to run on every page: eleven rows in S12, thirteen in S13.
+
+    `scored` reads `Round.scored_at`, not whether any session has results. Those
+    diverged the moment partial scoring shipped: a Saturday weekend with
+    qualifying ingested and no race has results and no scores, and calling it
+    scored puts a figure-shaped hole in the nav. `provisional` carries the other
+    half of the same fact, so a caller can say "so far" rather than implying a
+    weekend is finished.
+    """
+    refs = []
+    for meeting in meetings(season):
+        rounds = sorted(meeting.rounds, key=lambda r: r.round_number)
+        scored_rounds = [r for r in rounds if r.scored_at is not None]
+        refs.append(MeetingRef(
+            sequence=meeting.sequence,
+            name=meeting.display_name,
+            scored=bool(scored_rounds),
+            # Provisional if anything about the weekend is still incomplete:
+            # a round mid-score, or a double-header with only one round in.
+            provisional=(
+                any(r.scoring_provisional for r in scored_rounds)
+                or 0 < len(scored_rounds) < len(rounds)
+            ),
+            rounds=[r.round_number for r in rounds],
+        ))
+    return refs
+
+
+def latest_scored(refs: list[MeetingRef]) -> int | None:
+    scored = [r.sequence for r in refs if r.scored]
+    return max(scored) if scored else None
+
+
+@dataclass
+class Neighbours:
+    previous: int | None
+    next: int | None
+    current: MeetingRef | None
+
+
+def neighbours(refs: list[MeetingRef], sequence: int) -> Neighbours:
+    """Previous and next meeting, or None at either end.
+
+    None means the arrow is shown flat rather than removed. A control that
+    disappears makes the layout jump and teaches nothing; a flat one says you
+    are at the end.
+    """
+    order = [r.sequence for r in refs]
+    current = next((r for r in refs if r.sequence == sequence), None)
+    if sequence not in order:
+        return Neighbours(None, None, current)
+    index = order.index(sequence)
+    return Neighbours(
+        previous=order[index - 1] if index > 0 else None,
+        next=order[index + 1] if index < len(order) - 1 else None,
+        current=current,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Results and schedule
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class StageResults:
+    """One qualifying session's classification, in bracket order."""
+
+    stage: str
+    stage_index: int | None
+    name: str
+    rows: list
+
+
+@dataclass
+class RoundResults:
+    round: Round
+    qualifying: list[StageResults]
+    race: list
+    has_results: bool
+
+
+# Bracket order, so a round reads groups then duels regardless of how the
+# provider ordered its schedule.
+_STAGE_ORDER = {
+    "group": 0,
+    "quarter_final": 1,
+    "semi_final": 2,
+    "final": 3,
+}
+
+
+def round_results(round_obj: Round) -> RoundResults:
+    qualifying: list[StageResults] = []
+    race: list = []
+
+    for session in sorted(round_obj.sessions, key=lambda s: s.ordinal):
+        rows = sorted(
+            session.results,
+            key=lambda r: (r.position is None, r.position or 0),
+        )
+        if session.stage == STAGE_RACE:
+            race = rows
+        elif session.is_scoring_qualifying and rows:
+            qualifying.append(StageResults(
+                stage=session.stage,
+                stage_index=session.stage_index,
+                name=session.name,
+                rows=rows,
+            ))
+
+    qualifying.sort(key=lambda s: (_STAGE_ORDER.get(s.stage, 9), s.stage_index or 0))
+    return RoundResults(
+        round=round_obj,
+        qualifying=qualifying,
+        race=race,
+        has_results=bool(race or qualifying),
+    )
+
+
+@dataclass
+class ScheduledSession:
+    name: str
+    type: str
+    start_time: Any
+    status: str | None
+
+
+def round_schedule(round_obj: Round) -> list[ScheduledSession]:
+    """Every session of a round in schedule order, results or not.
+
+    What a meeting has to show before it has been raced. Practice and shakedown
+    sessions are included here even though they are never ingested for results —
+    the reader wants the weekend, not the scoring surface.
+    """
+    return [
+        ScheduledSession(
+            name=session.name,
+            type=session.type,
+            start_time=session.start_time,
+            status=session.status,
+        )
+        for session in sorted(round_obj.sessions, key=lambda s: s.ordinal)
+    ]
+
+
+# -----------------------------------------------------------------------------
+# Profiles
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class ProfileRow:
+    round_number: int
+    format_label: str
+    total: Decimal
+    cells: dict           # column key -> Decimal
+    took_part: bool
+
+
+@dataclass
+class Profile:
+    subject: Any
+    team: Team | None
+    kind: str                     # "driver" | "team"
+    rows: list[ProfileRow]
+    totals: dict
+    grand_total: Decimal
+    # Team profiles only: the two cars, and their per-round scores.
+    cars: list = None
+    car_rows: list = None
+
+
+def season_scores(season: Season) -> dict:
+    """Every scored round of a season. A read, from Phase 5 onward.
+
+    This used to rescore seventeen rounds on every profile view — loading
+    roughly nine hundred result rows and running the engine over all of them to
+    render one column of one table. It is now one indexed query against the rows
+    the scoring pass already wrote.
+
+    The objects it returns are shaped exactly like the engine's, which is why
+    the profile templates did not have to change.
+    """
+    return stored_season_scores(season)
+
+
+def _cells_for(score) -> dict:
+    """One round's components, collapsed onto the profile's columns."""
+    cells = {key: ZERO for key, _, _ in display.PROFILE_COLUMNS}
+    for component in score.components:
+        key = display.profile_column_key(component.rule)
+        if key in cells:
+            cells[key] += component.points
+    return cells
+
+
+def driver_profile(season: Season, driver_id: Any) -> Profile | None:
+    scored = season_scores(season)
+    if not scored:
+        return None
+
+    driver = db.session.get(Driver, driver_id)
+    if driver is None:
+        return None
+
+    rows: list[ProfileRow] = []
+    totals = {key: ZERO for key, _, _ in display.PROFILE_COLUMNS}
+    grand = ZERO
+    team = None
+    seats = seat_entries(season)
+
+    for round_number in sorted(scored):
+        round_obj, score = scored[round_number]
+        took_part = driver_id in score.drivers
+        driver_score = score.score_for(driver_id)
+        cells = _cells_for(driver_score)
+
+        for key, value in cells.items():
+            totals[key] += value
+        grand += driver_score.total
+
+        rows.append(ProfileRow(
+            round_number=round_number,
+            format_label=round_obj.format_label,
+            total=driver_score.total,
+            cells=cells,
+            took_part=took_part,
+        ))
+
+        if team is None:
+            roster = roster_for_round(season, round_number, seats=seats)
+            team = roster.team_for(driver_id)
+
+    return Profile(
+        subject=driver, team=team, kind="driver",
+        rows=rows, totals=totals, grand_total=grand,
+    )
+
+
+def team_profile(season: Season, team_id: Any) -> Profile | None:
+    """A team's season: both cars per round, and what the pick scored.
+
+    Showing the halves beside the sum makes the half-sum rule explain itself,
+    which is the same trick the breakdown's "Half of Cassidy 9, Vergne 0" line
+    does.
+    """
+    scored = season_scores(season)
+    if not scored:
+        return None
+
+    team = db.session.get(Team, team_id)
+    if team is None:
+        return None
+
+    car_ids: list = []
+    rows: list[ProfileRow] = []
+    car_rows: list = []
+    grand = ZERO
+    seats = seat_entries(season)
+
+    for round_number in sorted(scored):
+        round_obj, score = scored[round_number]
+        roster = roster_for_round(season, round_number, seats=seats)
+        cars = roster.drivers_by_team.get(team_id, [])
+        for car in cars:
+            if car not in car_ids:
+                car_ids.append(car)
+
+        # The stored half-sum, not a recomputation. Recomputing would use
+        # whichever divisor is current rather than the one this round recorded.
+        team_total = score.team_total(team_id)
+        grand += team_total
+
+        car_rows.append({
+            "round_number": round_number,
+            "format_label": round_obj.format_label,
+            "cars": {car: score.total_for(car) for car in cars},
+            "total": team_total,
+        })
+        rows.append(ProfileRow(
+            round_number=round_number,
+            format_label=round_obj.format_label,
+            total=team_total,
+            cells={},
+            took_part=bool(cars),
+        ))
+
+    roster = roster_for_round(season, min(scored), seats=seats)
+    cars = [roster.drivers.get(c) for c in car_ids]
+
+    car_totals = {
+        car_id: sum((r["cars"].get(car_id, ZERO) for r in car_rows), ZERO)
+        for car_id in car_ids
+    }
+
+    return Profile(
+        subject=team, team=team, kind="team",
+        rows=rows, totals=car_totals, grand_total=grand,
+        cars=[c for c in cars if c], car_rows=car_rows,
+    )
