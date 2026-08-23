@@ -14,31 +14,26 @@
 
 {% elif not season or not open_meeting %}
 <h1 class="page-title">Your lineup</h1>
+
+{% if not season %}
 {#- The pre-season. Production sits here from registration until the provider
     publishes the Season 13 calendar, which is most of the autumn, and "come
-    back later" is the whole of what the page said. Leagues carry no season, so
-    they are the one thing that genuinely works now — and setting one up before
-    anyone else arrives is worth doing early rather than on the eve of Jeddah,
-    when there is no email to remind anybody. -#}
-<p class="prose">
-  {%- if not season -%}
-  No season has been synced yet. Picks open as soon as the calendar lands —
-  the app checks once a day and will pick it up on its own.
-  {%- else -%}
-  Every deadline this season has passed.
-  {%- endif -%}
-</p>
-{% if not season %}
+    back later" was the whole of what the page said. Leagues carry no season,
+    so they are the one thing that genuinely works now — and setting one up
+    before anyone else arrives is worth doing early rather than on the eve of
+    Jeddah, when there is no email to remind anybody. -#}
+<p class="prose">No season has been synced yet. Picks open as soon as the
+  calendar lands — the app checks once a day and will pick it up on its own.</p>
 <p class="prose">In the meantime you can
   <a href="{{ url_for('leagues.new') }}">start a league</a> or
   <a href="{{ url_for('leagues.join') }}">join one with a code</a>.</p>
+
 {% else %}
 {#- Season over. The front page's whole job is what to do next, and there is
     nothing to do — so it points backwards instead, at the season that just
     finished. The next calendar arrives on its own (§6), so there is nothing to
     ask the player to watch for. -#}
-<br>
-<p class="prose">The season is over.
+<p class="prose">The season is over — every deadline has passed.
   <a href="{{ url_for('meetings.weekend') }}">Look back over the weekends</a> or
   <a href="{{ url_for('leagues.index') }}">check where you finished</a>.</p>
 {% endif %}

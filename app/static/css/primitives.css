@@ -1890,3 +1890,20 @@
   }
 
 }
+
+/* ---------------------------------------------------------------------------
+   Prose rhythm
+   ---------------------------------------------------------------------------
+   `.prose > * + *` spaces children inside a block; nothing spaced two blocks
+   from each other, so consecutive `.prose` paragraphs sat flush and the first
+   place it showed reached for a `<br>`. Same value as the inside rule, in rem
+   rather than em because the gap between two blocks belongs to the page's
+   spacing scale rather than to either block's type size. */
+
+@layer components {
+
+  .prose + .prose {
+    margin-block-start: var(--space-5);
+  }
+
+}
