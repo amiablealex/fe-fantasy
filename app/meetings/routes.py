@@ -120,6 +120,9 @@ def _results_context(meeting, sequence: int) -> dict:
         "shown_round": shown,
         "stage": stage,
         "results": queries.round_results(shown),
+        # The FP column. `RoundScore` is user-independent, so this is one
+        # read of thirty rows regardless of who is looking at the page.
+        "scores": queries.round_scores(shown),
         "schedule": queries.round_schedule(shown),
         "profile_base": (
             f"{base}?m={sequence}&r={shown.round_number}"
@@ -231,7 +234,9 @@ def weekend_results():
     ctx = _results_context(meeting, sequence)
     if not ctx:
         return "", 204
-    return render_template("meetings/_results_body.html", palette=palette, **ctx)
+    return render_template(
+        "meetings/_results_body.html", palette=palette, bridge=display, **ctx
+    )
 
 
 @meetings_bp.route("/weekend/profile")

@@ -4,10 +4,15 @@
    driver has scored across the season, and splitting it by contest would give
    two grand totals instead of one.
 
-   TP sits immediately after the round, before the rules, so the first column a
+   FP sits immediately after the round, before the rules, so the first column a
    reader scans is the answer and everything to its right is the explanation.
-   Every row's rule cells sum to its TP; every column's foot sums to the grand
+   Every row's rule cells sum to its FP; every column's foot sums to the grand
    total.
+
+   FP, not TP. The heading used to read "total points", which is a phrase this
+   application has no use for: there is one kind of point here and it is the
+   fantasy kind. Formula E's own championship points are ingested for the
+   payload sanity check and are never shown.
 
    Zeros are suppressed to a faint mark. Nine columns of "0" is noise, and a
    blank is what makes the cells that fired legible at a glance — which is what
@@ -33,7 +38,7 @@
       </tr>
       <tr>
         <th class="ptable__rnd">R</th>
-        <th class="ptable__tp">TP</th>
+        <th class="ptable__tp">{{ bridge.POINTS_ABBREVIATION }}</th>
         {% for key, code, label in bridge.PROFILE_COLUMNS %}
         <th class="{{ 'ptable__split' if loop.index0 == 0 or loop.index0 == bridge.PROFILE_QUALIFYING_COLUMNS }}"
             title="{{ label }}">{{ code }}</th>
@@ -73,7 +78,7 @@
   {% for key, code, label in bridge.PROFILE_COLUMNS %}
   <dt class="label">{{ code }}</dt><dd>{{ label }}</dd>
   {% endfor %}
-  <dt class="label">TP</dt><dd>Total points for the round</dd>
+  <dt class="label">{{ bridge.POINTS_ABBREVIATION }}</dt><dd>{{ bridge.POINTS_NAME }} for the round</dd>
 </dl>
 {% endmacro %}
 
@@ -135,7 +140,7 @@ rather than rounded.</p>
   </div>
   <div class="sheet__body">
     <div class="split pprofile__head">
-      <span class="label">Season total</span>
+      <span class="label">Season {{ bridge.POINTS_ABBREVIATION }}</span>
       <span class="figure figure--total num">{{ bridge.fmt(profile.grand_total) }}</span>
     </div>
     {% if profile.kind == 'driver' %}

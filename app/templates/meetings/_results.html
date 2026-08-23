@@ -7,15 +7,14 @@
    alone is most of a 360px viewport, and the round level disappears entirely
    for a single-header, which is the common case.
 
-   **One change from the styleguide version: the points column is gone.** It
-   showed `Result.points`, which is Formula E's own championship points — 25 for
-   a win. This application has one unit and it is fantasy points; two scoring
-   systems side by side in a game about the second one is a category error the
-   reader has to resolve on every row. The figure is still ingested, because
+   **One unit, and it is fantasy points.** The styleguide's version ended with
+   `Result.points` — Formula E's own championship points, 25 for a win. Two
+   scoring systems side by side in a game about the second one is a category
+   error the reader has to resolve on every row, so the column now reads FP and
+   comes from `RoundScore`. The provider's figure is still ingested, because
    §6's payload sanity check compares against the published championship
    distribution and that check is what catches a truncated classification. It is
-   simply never rendered. An FP column, read from the round's stored scores,
-   arrives in stage 7.3. #}
+   simply never rendered anywhere in this application. #}
 
 {% macro round_switch(rounds, shown, stage, sequence, base) %}
 {% if rounds | length > 1 %}
@@ -54,7 +53,20 @@
 {% endmacro %}
 
 
-{% macro classification(ui, palette, rows, fastest_id=none, profile_base=none, profile_hx=none) %}
+{# The classification, with what each drive was worth.
+
+   **FP is this race's fantasy points, not the driver's round total.** Every
+   other cell in the row — grid slot, places gained, best lap, the fastest-lap
+   star — is a fact about this race, and a figure that quietly folded in
+   Saturday's qualifying would make the row internally inconsistent: a reader
+   checking P8's 2 against the points-finish rule would find it did not add up.
+   The weekend total lives in the breakdown, which is where the two contests are
+   summed and labelled as such.
+
+   A zero is printed rather than suppressed. §4.2 suppresses zeros across eleven
+   columns because nine noughts drown the two cells that fired; in a single
+   column a nought is the answer, and a blank would read as missing data. #}
+{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none) %}
 <table class="table">
   <thead>
     <tr>
@@ -63,11 +75,13 @@
       <th class="c-num">Gr</th>
       <th class="c-num">&Delta;</th>
       <th class="c-time">Best lap</th>
+      <th class="c-num">{{ bridge.POINTS_ABBREVIATION }}</th>
     </tr>
   </thead>
   <tbody>
     {% for r in rows %}
     {% set delta = (r.grid_position - r.position) if (r.has_grid_position and r.position) else none %}
+    {% set fp = scores.score_for(r.driver_id).race_total if scores else none %}
     <tr>
       <td class="c-pos num">{{ r.position or '—' }}</td>
       <td class="c-name">
@@ -76,7 +90,8 @@
            hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
            hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
         {% else %}{{ r.driver.short_label }}{% endif %}
-        {%- if fastest_id and r.id == fastest_id %} <span class="star">&#9733;</span>{% endif %}
+        {%- if fastest_ids and r.driver_id in fastest_ids %}
+        <span class="star" title="Quickest lap of the race">&#9733;</span>{% endif %}
         <br>{{ ui.stripes(palette, r.team) }} <span class="team-name">{{ r.team.name if r.team }}</span>
       </td>
       <td class="c-num">{{ r.grid_position if r.has_grid_position else '—' }}</td>
@@ -85,10 +100,19 @@
         {%- if r.is_retirement %}<span class="status">{{ r.status }}</span>
         {%- else %}{{ r.lap_time or '—' }}{% endif -%}
       </td>
+      <td class="c-num">
+        {%- if fp is none %}&#183;
+        {%- elif fp < 0 %}&#8722;{{ bridge.fmt(-fp) }}
+        {%- else %}{{ bridge.fmt(fp) }}{% endif -%}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+<p class="pkey__note">{{ bridge.POINTS_ABBREVIATION }} is what this race was
+worth in this game — {{ bridge.POINTS_NAME | lower }}, not Formula E&#8217;s own
+championship points. The star marks the quickest lap of the race, which scores
+here however far down the order it was set.</p>
 {% endmacro %}
 
 

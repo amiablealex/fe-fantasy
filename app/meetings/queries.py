@@ -21,9 +21,11 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.extensions import db
 from app.lineups.roster import roster_for_round, seat_entries
 from app.meetings import display
+from app.meetings.reads import round_scores as stored_round_scores
 from app.meetings.reads import season_scores as stored_season_scores
 from app.models.calendar import STAGE_RACE, Meeting, Round, Season, Session
 from app.models.grid import Driver, Team
+from app.scoring.engine import fastest_lap_driver_ids
 
 ZERO = Decimal(0)
 
@@ -163,6 +165,9 @@ class RoundResults:
     qualifying: list[StageResults]
     race: list
     has_results: bool
+    # Whoever set the quickest lap, by parsed time. A set, because an exact tie
+    # must not be resolved by list order.
+    fastest_driver_ids: frozenset = frozenset()
 
 
 # Bracket order, so a round reads groups then duels regardless of how the
@@ -195,11 +200,23 @@ def round_results(round_obj: Round) -> RoundResults:
             ))
 
     qualifying.sort(key=lambda s: (_STAGE_ORDER.get(s.stage, 9), s.stage_index or 0))
+
+    # Derived from the minimum lap time and never from `fastest_lap_rank`: that
+    # field marks the fastest lap among championship-eligible drivers, which
+    # silently reimposes Formula E's top-ten restriction. This game's point is
+    # unconditional, and rank disagrees on eight of seventeen Season 12 rounds
+    # (SPEC.md §3). The engine owns the derivation so the star in the
+    # classification cannot mark a different row from the one the score credits.
+    fastest = fastest_lap_driver_ids(
+        [{"driver_id": r.driver_id, "lap_time": r.lap_time} for r in race]
+    )
+
     return RoundResults(
         round=round_obj,
         qualifying=qualifying,
         race=race,
         has_results=bool(race or qualifying),
+        fastest_driver_ids=frozenset(fastest),
     )
 
 
@@ -254,6 +271,18 @@ class Profile:
     # Team profiles only: the two cars, and their per-round scores.
     cars: list = None
     car_rows: list = None
+
+
+def round_scores(round_obj: Round):
+    """One round's stored scores, in the engine's own shape.
+
+    What the FP column in a classification reads. `RoundScore` is
+    user-independent — thirty rows a round whether the league has three players
+    or three hundred — so this is the same query for everyone looking at the
+    page, and "what was this drive worth" is answered once rather than per
+    reader.
+    """
+    return stored_round_scores(round_obj)
 
 
 def season_scores(season: Season) -> dict:

@@ -22,7 +22,8 @@
     {% endif %}
   {% else %}
     {% if results.race %}
-      {{ res.classification(ui, palette, results.race, none, profile_base, profile_hx) }}
+      {{ res.classification(ui, bridge, palette, results.race, scores,
+                            results.fastest_driver_ids, profile_base, profile_hx) }}
     {% else %}
       <p class="prose u-mid">
         {%- if results.qualifying -%}
