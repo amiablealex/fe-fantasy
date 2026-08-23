@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "lineups/_lineup.html" as ui %}
 {% import "meetings/_nav.html" as nav_ui %}
+{% import "meetings/_profile.html" as prof %}
 {% block title %}Lineup{% endblock %}
 
 {% block content %}
@@ -47,43 +48,14 @@
 
 {% for message in problems %}{{ ui.problem(message) }}{% endfor %}
 
-{#- Promoted to sit with the broken rules, because it is the same kind of fact:
-    a state the lineup is in, stated once, above the component it describes.
-
-    It is not an error, so it does not share red — a lineup waiting to be saved
-    is not a lineup that is wrong, and sharing the colour would empty red of
-    meaning exactly as §4.1 argues about the "In" tag. It reads as caution
-    instead.
-
-    Suppressed when a rule is broken: two bars stacked would compete, and the
-    broken rule is the one to act on first. Suppressed when the draft is
-    incomplete, because "3 of 5 slots filled" already says that and there is
-    nothing to save yet. -#}
-{% if dirty and complete and not problems %}
-{{ ui.problem(
-     'Unsaved changes. ' ~ ('Save your lineup' if mode == 'empty' or free
-                            else 'Commit your transfers') ~ ' to keep them.',
-     level='caution') }}
-{% endif %}
-
 {#- No "In" tags while changes are free. The tag marks a slot that differs
     from the cost baseline — the last snapshot from an earlier weekend — which
     is what a transfer is charged against. In the grace period nothing is
     charged, so a player experimenting accumulates tags that record no cost and
     mean nothing; after a few swaps every slot carries one. -#}
-{#- Two references, because there are two questions.
-
-    Past grace the tag marks a slot that differs from the cost baseline — the
-    last snapshot from an earlier weekend — so it survives committing and keeps
-    saying "this is the transfer you made this weekend", which is a fact worth
-    keeping on screen.
-
-    In grace nothing is charged, so that reading records a cost that does not
-    exist. The tag instead marks a slot that differs from what is stored for
-    *this* weekend, and clears the moment it is saved. -#}
 {{ ui.lineup(palette, edit_drivers, edit_team, state=mode,
              base_url=draft_url(draft_drivers, draft_team),
-             changed_ids=(unsaved_ids if free else diff.changed_ids)) }}
+             changed_ids=([] if free else diff.changed_ids)) }}
 
 {% if free %}
 {#- Grace. Not a budget of zero and not a budget of two: a different sentence,
@@ -239,6 +211,21 @@
               {%- endif -%}
             </span>
           </a>
+          {#- Reachable from the picker, which the styleguide had and production
+              did not. It matters most in the weeks before the opener: the
+              season table is empty then, and what the sheet actually shows is
+              the history — what this driver was worth last season, which is the
+              only evidence there is when nobody has raced yet.
+
+              The plain href navigates to the same sheet on the weekend view, so
+              this works with JavaScript off; with it on, HTMX swaps the dialog
+              in and the draft in the URL is untouched. -#}
+          {%- set subject = ('t' if is_team_slot else 'd') ~ option.id -%}
+          {{ prof.info_link(
+               url_for('meetings.weekend') ~ '?profile=' ~ subject,
+               (option.team.name if is_team_slot else option.label)
+                 ~ ' season stats',
+               hx = url_for('meetings.weekend_profile') ~ '?subject=' ~ subject) }}
         </div>
       {% endfor %}
     </div>
@@ -247,5 +234,10 @@
 {% endif %}
 
 </div>{# /#editor #}
+
+{# Host for an HTMX-loaded driver or team profile. Deliberately outside the
+   editor region: `hx-boost` swaps `#editor` wholesale on every draft change,
+   and a host inside it would take an open sheet with it. #}
+<div id="profile-host"></div>
 {% endif %}
 {% endblock %}

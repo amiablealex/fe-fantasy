@@ -9,8 +9,10 @@ runtime check would fail for every module in the project and prove nothing. The
 walk below reads the source instead, which is what the claim actually is: this
 module's *dependencies* are clean, whatever else the process has loaded.
 
-The shim must re-export exactly what it says it does, because it is the only
-thing keeping a dozen unrewritten callers working until stage 7.5.
+The shim that kept unrewritten callers working through the phase is gone, and a
+test asserts it stays gone: `scoring_bridge` existed to be deleted, and a
+compatibility module nobody removes is how a refactor ends up with five modules
+where it wanted four.
 
 And a slot key must distinguish two drivers who share a surname, which the old
 label-based key did not.
@@ -19,6 +21,7 @@ label-based key did not.
 from __future__ import annotations
 
 import ast
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -27,7 +30,7 @@ import pytest
 from flask import Flask
 
 from app import localtime
-from app.meetings import bridge, display, queries, scoring_bridge, view
+from app.meetings import bridge, display, queries, view
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -111,28 +114,28 @@ def test_bridge_stays_small():
     assert set(functions) == {"ruleset_for", "result_row", "round_payload"}
 
 
-@pytest.mark.parametrize("name", scoring_bridge.__all__)
-def test_shim_reexports_the_real_object(name):
-    """Not merely importable: the same object the owning module defines.
+def test_the_compatibility_shim_is_gone():
+    """`app/meetings/scoring_bridge.py` was written to be deleted.
 
-    A shim that rebound a name to a copy would let the two drift, which is the
-    single failure a compatibility layer exists to prevent.
+    It carried the phase across a dozen call sites one at a time, which is the
+    only reason the split and the rewrite of its callers could be separate
+    commits. Left in place it would quietly become a fifth module — the one
+    anything new imports because it exports everything.
     """
-    exported = getattr(scoring_bridge, name)
-    owners = [bridge, display, queries, view]
-    assert any(getattr(owner, name, None) is exported for owner in owners), (
-        f"{name} is exported by the shim but is not the object any of "
-        "bridge/display/queries/view defines."
+    assert not (REPO / "app" / "meetings" / "scoring_bridge.py").exists()
+
+    # Imports, not mentions. Ten modules name it in their docstrings, which is
+    # how a reader of `view.py` in March learns what it used to be part of —
+    # deleting that prose to satisfy a grep would trade the history for the
+    # test. Only a live reference breaks anything, and a live reference is an
+    # import statement.
+    pattern = re.compile(r"^\s*(from|import)\s+.*scoring_bridge", re.MULTILINE)
+    offenders = sorted(
+        str(path.relative_to(REPO))
+        for path in (REPO / "app").rglob("*.py")
+        if pattern.search(path.read_text())
     )
-
-
-def test_shim_adds_nothing_of_its_own():
-    """Every public name on the shim is declared, so deleting it is safe."""
-    public = {
-        name for name in vars(scoring_bridge)
-        if not name.startswith("__") and name != "annotations"
-    }
-    assert public == set(scoring_bridge.__all__)
+    assert offenders == [], f"still importing the deleted shim: {offenders}"
 
 
 # -----------------------------------------------------------------------------

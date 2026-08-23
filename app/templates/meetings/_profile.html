@@ -175,12 +175,23 @@ rather than rounded.</p>
       <span class="label">Season {{ bridge.POINTS_ABBREVIATION }}</span>
       <span class="figure figure--total num">{{ bridge.fmt(profile.grand_total) }}</span>
     </div>
-    {% if profile.kind == 'driver' %}
+    {#- Before the season has scored anything the table would be eleven column
+        headings above nothing, which reads as a page that failed to load
+        rather than as a season that has not started. The history below is the
+        whole of what there is to say, and in the weeks before the opener it is
+        the reason the sheet is worth opening at all. -#}
+    {% if not profile.rows %}
+      <p class="prose u-mid">Nothing scored yet this season.</p>
+    {% elif profile.kind == 'driver' %}
       {{ driver_table(bridge, profile) }}
     {% else %}
       {{ team_table(bridge, profile) }}
     {% endif %}
     {{ history_table(bridge, profile) }}
+    {% if not profile.rows and not profile.history %}
+    <p class="prose u-mid">No earlier season either — this game starts counting
+      with Season 12.</p>
+    {% endif %}
   </div>
 </dialog>
 {% endmacro %}

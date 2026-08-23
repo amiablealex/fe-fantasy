@@ -367,13 +367,34 @@ def _cells_for(score) -> dict:
 
 
 def driver_profile(season: Season, driver_id: Any) -> Profile | None:
-    scored = season_scores(season)
-    if not scored:
-        return None
+    """A driver's season, and their history before it.
 
+    **Returns a profile even when the season has scored nothing.** For eleven
+    weeks between the Season 13 calendar landing and Jeddah, that is every
+    driver — and it is exactly the window in which "how did this one do last
+    year" is the only question worth asking, which the history block answers.
+    An earlier version returned None there, so the info mark in the picker
+    would have opened nothing at all during the one period it is most useful.
+
+    None still means the driver does not exist.
+    """
     driver = db.session.get(Driver, driver_id)
     if driver is None:
         return None
+
+    scored = season_scores(season)
+    if not scored:
+        seats = seat_entries(season)
+        team = None
+        for seat in seats:
+            if seat.driver_id == driver_id:
+                team = seat.team
+                break
+        return Profile(
+            subject=driver, team=team, kind="driver",
+            rows=[], totals={}, grand_total=ZERO,
+            history=subject_history("driver", driver_id, season),
+        )
 
     rows: list[ProfileRow] = []
     totals = {key: ZERO for key, _, _ in display.PROFILE_COLUMNS}
@@ -416,14 +437,22 @@ def team_profile(season: Season, team_id: Any) -> Profile | None:
     Showing the halves beside the sum makes the half-sum rule explain itself,
     which is the same trick the breakdown's "Half of Cassidy 9, Vergne 0" line
     does.
-    """
-    scored = season_scores(season)
-    if not scored:
-        return None
 
+    Like `driver_profile`, this answers before the season has scored anything —
+    with an empty table and whatever history there is.
+    """
     team = db.session.get(Team, team_id)
     if team is None:
         return None
+
+    scored = season_scores(season)
+    if not scored:
+        return Profile(
+            subject=team, team=team, kind="team",
+            rows=[], totals={}, grand_total=ZERO,
+            cars=[], car_rows=[],
+            history=subject_history("team", team_id, season),
+        )
 
     car_ids: list = []
     rows: list[ProfileRow] = []
