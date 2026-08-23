@@ -1669,11 +1669,33 @@
     border-block-start: var(--rule-mark) solid var(--rule-strong);
   }
 
+  /* The stage heading is also the column rubric, so it takes the row's grid.
+     Descendant selectors rather than bare classes: the cells reuse
+     `.bracket__pos` and friends to inherit their widths and alignment, and the
+     head has to win the typography back from them. */
   .bracket__head {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
     margin-block-end: var(--space-2);
   }
 
-  .bracket__title {
+  .bracket__head > * {
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+  .bracket__head .bracket__pos,
+  .bracket__head .bracket__time,
+  .bracket__head .bracket__fp {
+    color: var(--text-low);
+  }
+
+  .bracket__head .bracket__title {
     color: var(--text-mid);
   }
 
@@ -1730,17 +1752,6 @@
 
   a.bracket__name {
     color: inherit;
-  }
-
-  /* The one label in the bracket that is a claim rather than a heading, so it
-     is set in full ink against a recessed fill — the same treatment a broken
-     rule gets, without the error hue, because pole is not a fault. */
-  .bracket__pole {
-    margin-inline-start: var(--space-3);
-    padding: 0 var(--space-2);
-    background: var(--surface-recessed);
-    border: var(--rule-hair) solid var(--rule-strong);
-    color: var(--text);
   }
 
   .bracket__time {

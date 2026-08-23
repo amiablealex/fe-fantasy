@@ -25,7 +25,6 @@
     {% else %}
     <span class="bracket__name">{{ r.driver.short_label if r.driver else '—' }}</span>
     {% endif %}
-    {% if r.is_pole %}<span class="bracket__pole label">Pole</span>{% endif %}
     <br>{{ ui.stripes(palette, r.team) }}
     <span class="team-name">{{ r.team.name if r.team }}</span>
   </span>
@@ -44,8 +43,16 @@
 
 {% macro stage(ui, bridge, palette, s, profile_base, profile_hx) %}
 <div class="bracket__stage{{ ' bracket__stage--duel' if s.is_duel }}">
+  {#- The stage heading doubles as the column rubric: the same four-column grid
+      as the rows beneath, so the labels sit exactly over the columns they name.
+      A separate header row would be a third heading level above ten rows, and
+      putting the labels on the section title instead would leave Group B's
+      rows twelve lines below the only place that says what FP means. -#}
   <div class="bracket__head">
-    <span class="bracket__title label">{{ s.label }}</span>
+    <span class="bracket__pos">{% if not s.is_duel %}P{% endif %}</span>
+    <span class="bracket__title">{{ s.label }}</span>
+    <span class="bracket__time">Time</span>
+    <span class="bracket__fp">{{ bridge.POINTS_ABBREVIATION }}</span>
   </div>
   {% for r in s.rows %}
     {#- One line for ten rows. Captioning every driver with whether they went
