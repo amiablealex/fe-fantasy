@@ -462,6 +462,13 @@
     inline-size: 100%;
   }
 
+  /* ...and the float has to be cleared by whatever follows it. `.check`,
+     `.pairs` and `.actions` all establish formatting contexts, so they refuse
+     to overlap the float and shrink into the space beside it — which beside a
+     full-width float is none. That is how the global-league checkbox ended up
+     outside its own panel, wrapped into a column. */
+  .panel > legend.panel__title + * { clear: both; }
+
   /* Inside a `.stack` the gap already spaces the panels, so the margin would
      be added to it and every admin section would sit sixty pixels from the
      last. The stack owns the rhythm where there is one. */
@@ -2036,7 +2043,18 @@
 
     .disclosure::details-content {
       block-size: 0;
+      /* `clip` is what stops the content spilling mid-transition, and it clips
+         in both axes — which took the personal mark with it. Every "this is
+         yours" rule in the app is a pseudo-element outdented into a reserved
+         gutter, so the whole results section lost its marks the moment the
+         disclosure gained an animation. The clip margin hands back exactly the
+         gutter they live in.
+
+         Worth remembering as a class rather than as an incident: an outdented
+         mark and a clipped ancestor are silently incompatible, and the failure
+         is invisible rather than broken. */
       overflow: clip;
+      overflow-clip-margin: var(--page-pad);
       transition:
         block-size var(--dur) var(--ease),
         content-visibility var(--dur) allow-discrete;
