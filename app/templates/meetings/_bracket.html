@@ -33,7 +33,7 @@
    **No duel headings and no elimination rule.** Both were removed in Phase 8.3
    and the reasons are in `bracket.py`'s docstring. #}
 
-{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx, yours) %}
+{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx, yours, card_hx) %}
 <div class="bracket__row{{ ' bracket__row--out' if r.eliminated }}{{ ' is-yours' if r.driver_id in yours }}">
   {#- Always emitted, even in a duel where the order is already obvious from
       the styling: the cell holds the grid's first column open, so a duel row
@@ -41,8 +41,11 @@
   <span class="bracket__pos num">{% if show_position %}{{ r.position or '—' }}{% endif %}</span>
   <span class="bracket__who">
     {% if profile_base %}
+    {#- Opens this driver's card for the weekend. See the same link in
+        `_results.html`: the season is one tap further on, from the card. -#}
     <a class="bracket__name c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
-       hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+       hx-get="{{ (card_hx ~ '&subject=d' ~ r.driver_id) if card_hx
+                  else (profile_hx ~ '?subject=d' ~ r.driver_id) }}"
        hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label if r.driver else '—' }}</a>
     {% else %}
     <span class="bracket__name">{{ r.driver.short_label if r.driver else '—' }}</span>
@@ -64,17 +67,17 @@
 {% endmacro %}
 
 
-{% macro stage(ui, bridge, palette, s, profile_base, profile_hx, yours) %}
+{% macro stage(ui, bridge, palette, s, profile_base, profile_hx, yours, card_hx) %}
 <div class="bracket__stage{{ ' bracket__stage--duel' if s.is_duel }}">
   {% if s.show_label %}<span class="bracket__label">{{ s.label }}</span>{% endif %}
   {% for r in s.rows %}
-    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx, yours) }}
+    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx, yours, card_hx) }}
   {% endfor %}
 </div>
 {% endmacro %}
 
 
-{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none, yours=[]) %}
+{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none, yours=[], card_hx=none) %}
 {% if sections %}
 <div class="bracket">
   {% for section in sections %}
@@ -96,7 +99,7 @@
     </div>
 
     {% for s in section.stages %}
-      {{ stage(ui, bridge, palette, s, profile_base, profile_hx, yours) }}
+      {{ stage(ui, bridge, palette, s, profile_base, profile_hx, yours, card_hx) }}
     {% endfor %}
   </details>
   {% endfor %}

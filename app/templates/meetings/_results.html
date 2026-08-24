@@ -66,7 +66,7 @@
    A zero is printed rather than suppressed. §4.2 suppresses zeros across eleven
    columns because nine noughts drown the two cells that fired; in a single
    column a nought is the answer, and a blank would read as missing data. #}
-{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none, yours=[]) %}
+{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none, yours=[], card_hx=none) %}
 <table class="table">
   <thead>
     <tr>
@@ -86,8 +86,15 @@
       <td class="c-pos num">{{ r.position or '—' }}</td>
       <td class="c-name">
         {% if profile_base %}
+        {#- The name opens this driver's card for the weekend, not their season.
+            A reader who taps a row inside a classification is asking about the
+            weekend they are looking at; the season is one further tap, on the
+            card's own info mark. The plain href still goes to the season sheet,
+            which is where this link went before HTMX was involved and is a fair
+            answer with JavaScript off. -#}
         <a class="c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
-           hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+           hx-get="{{ (card_hx ~ '&subject=d' ~ r.driver_id) if card_hx
+                      else (profile_hx ~ '?subject=d' ~ r.driver_id) }}"
            hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
         {% else %}{{ r.driver.short_label }}{% endif %}
         {%- if fastest_ids and r.driver_id in fastest_ids %}

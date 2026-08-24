@@ -19,12 +19,12 @@
   {{ res.stage_switch(stage, shown_round, sequence, base) }}
   {% if stage == 'qualifying' %}
     {{ brk.bracket(ui, bridge, palette, bracket, bracket_rules,
-                   profile_base, profile_hx, yours) }}
+                   profile_base, profile_hx, yours, card_hx) }}
   {% else %}
     {% if results.race %}
       {{ res.classification(ui, bridge, palette, results.race, scores,
                             results.fastest_driver_ids, profile_base, profile_hx,
-                            yours) }}
+                            yours, card_hx) }}
     {% else %}
       <p class="prose u-mid">
         {%- if results.qualifying -%}

@@ -81,6 +81,55 @@ class RoundBreakdown:
     scored: bool = True
 
 
+# -----------------------------------------------------------------------------
+# One slot, for one round
+# -----------------------------------------------------------------------------
+#
+# Extracted in Phase 8.3c, when a driver tapped in a classification needed the
+# same card a lineup slot gives. Building a second copy of these two would have
+# been the "a read written twice is a read that will disagree" defect §11
+# already records: the two would have drifted on the first wording change, and
+# the same driver would then read differently depending on where you tapped
+# them, which is precisely the failure the card exists to prevent.
+
+
+def _driver_pick(roster, scores, qualifying, race_rows, driver_id) -> PickScore:
+    driver = roster.drivers.get(driver_id)
+    score = scores.score_for(driver_id)
+    return PickScore(
+        kind="driver",
+        label=driver.short_label if driver else str(driver_id),
+        subject=driver,
+        team=roster.team_for(driver_id),
+        total=score.total,
+        components=score.components,
+        # Read from the results rather than from the score: "started P13,
+        # finished P5" is what happened, which is a different question from what
+        # scored, and no stored score answers it.
+        quali_context=display.qualifying_context(qualifying, driver_id),
+        race_context=display.race_context(race_rows, driver_id),
+    )
+
+
+def _team_pick(roster, scores, team_id) -> PickScore:
+    team = roster.teams.get(team_id)
+    cars = roster.drivers_by_team.get(team_id, [])
+    car_detail = ", ".join(
+        f"{roster.drivers[c].short_label} {display.fmt(scores.total_for(c))}"
+        for c in sorted(cars, key=lambda c: -scores.total_for(c))
+        if c in roster.drivers
+    )
+    return PickScore(
+        kind="team",
+        label=(team.name if team else str(team_id)),
+        subject=team,
+        team=team,
+        total=scores.team_total(team_id),
+        components=(),
+        detail=car_detail,
+    )
+
+
 def score_meeting(
     season: Season, meeting: Meeting, lineup: lineups.Lineup
 ) -> list[RoundBreakdown]:
@@ -111,9 +160,6 @@ def score_meeting(
         qualifying, race_rows = round_payload(round_obj)
         roster = roster_for_round(season, round_obj.round_number, seats=seats)
 
-        def team_total(team_id: Any) -> Decimal:
-            return scores.team_total(team_id)
-
         # No star is decided here. This used to brute-force a per-round legal
         # dream team — 20,160 combinations on every page view — and every
         # production caller then threw the answer away by calling `mark_best`
@@ -121,37 +167,13 @@ def score_meeting(
         # that forgot to overwrite it rendered per-round stars against a
         # meeting-level total, so two of five slots starred and three did not.
         # A star is a fact about the meeting, so only `mark_best` sets one.
-        picks: list[PickScore] = []
-        for driver_id in sorted(lineup.drivers, key=lambda d: -scores.total_for(d)):
-            driver = roster.drivers.get(driver_id)
-            score = scores.score_for(driver_id)
-            picks.append(PickScore(
-                kind="driver",
-                label=driver.short_label if driver else str(driver_id),
-                subject=driver,
-                team=roster.team_for(driver_id),
-                total=score.total,
-                components=score.components,
-                quali_context=display.qualifying_context(qualifying, driver_id),
-                race_context=display.race_context(race_rows, driver_id),
-            ))
-
-        team = roster.teams.get(lineup.team_id)
-        cars = roster.drivers_by_team.get(lineup.team_id, [])
-        car_detail = ", ".join(
-            f"{roster.drivers[c].short_label} {display.fmt(scores.total_for(c))}"
-            for c in sorted(cars, key=lambda c: -scores.total_for(c))
-            if c in roster.drivers
-        )
-        picks.append(PickScore(
-            kind="team",
-            label=(team.name if team else str(lineup.team_id)),
-            subject=team,
-            team=team,
-            total=team_total(lineup.team_id),
-            components=(),
-            detail=car_detail,
-        ))
+        picks: list[PickScore] = [
+            _driver_pick(roster, scores, qualifying, race_rows, driver_id)
+            for driver_id in sorted(
+                lineup.drivers, key=lambda d: -scores.total_for(d)
+            )
+        ]
+        picks.append(_team_pick(roster, scores, lineup.team_id))
 
         breakdowns.append(RoundBreakdown(
             round=round_obj,
@@ -277,6 +299,63 @@ def aggregate_meeting(breakdowns: list[RoundBreakdown]) -> list[PickMeetingScore
 
     return [aggregated[key] for key in order if key in aggregated]
 
+
+def subject_meeting_score(
+    season: Season, meeting: Meeting, kind: str, subject_id: Any
+) -> PickMeetingScore | None:
+    """One driver or one team, scored across a meeting, in the pick shape.
+
+    The same object a lineup slot discloses, for a subject nobody necessarily
+    picked. It exists because a driver's name in a classification used to open
+    their whole season, which answers a question the reader did not ask: they
+    tapped a row inside a specific weekend.
+
+    **Meeting-scoped, not round-scoped**, even though the tap happened inside
+    one round's classification. A double-header would otherwise give the same
+    driver two different cards depending on which round's table you came from,
+    with nothing on either saying which — and the lineup slot above it would
+    show a third figure, the sum. One card per subject per weekend, and the
+    round you came from is a section inside it.
+
+    Built by handing `aggregate_meeting` a breakdown holding a single pick,
+    which is why there is no aggregation logic here: a card and a slot are the
+    same shape because they are the same function.
+    """
+    seats = seat_entries(season)
+    stored = meeting_scores(meeting)
+    breakdowns: list[RoundBreakdown] = []
+
+    for round_obj in sorted(meeting.rounds, key=lambda r: r.round_number):
+        scores = stored.get(round_obj.round_number)
+        if scores is None or scores.is_empty:
+            continue
+
+        roster = roster_for_round(season, round_obj.round_number, seats=seats)
+        if kind == "driver":
+            if subject_id not in roster.drivers:
+                continue
+            qualifying, race_rows = round_payload(round_obj)
+            pick = _driver_pick(
+                roster, scores, qualifying, race_rows, subject_id
+            )
+        elif kind == "team":
+            if subject_id not in roster.teams:
+                continue
+            pick = _team_pick(roster, scores, subject_id)
+        else:
+            return None
+
+        breakdowns.append(RoundBreakdown(
+            round=round_obj,
+            picks=[pick],
+            total=pick.total,
+            dream_total=ZERO,
+            dream_tied=0,
+            issues=scores.issues,
+        ))
+
+    picks = aggregate_meeting(breakdowns)
+    return picks[0] if picks else None
 
 # -----------------------------------------------------------------------------
 # The Perfect Five — the five best picks of a weekend

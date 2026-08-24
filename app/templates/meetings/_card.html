@@ -1,0 +1,17 @@
+{# One subject's weekend, for HTMX to swap into the profile host.
+
+   Rendered by `meetings.weekend_card` only. It is the breakdown macro and
+   nothing else: a driver tapped in a classification gets exactly the card a
+   lineup slot gives, because it is the same macro over the same object, and a
+   second implementation would have been a second thing to keep in step.
+
+   `data-modal` rather than an id, because nothing on the page opens this by
+   pointing at it — it arrives already meant, and `dialogs.js` shows any
+   `[data-modal]` it finds after a swap.
+
+   The info mark inside leads on to the season. Three depths, in the order a
+   reader asks for them: the round they are looking at, the weekend that
+   contains it, and the season that contains that. #}
+{% import "lineups/_lineup.html" as ui %}
+{{ ui.breakdown(bridge, palette, pick, 'card',
+                profile_url=profile_url, profile_hx=profile_hx, modal=true) }}
