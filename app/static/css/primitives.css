@@ -4,9 +4,17 @@
  * raw size in this file, it is a bug — the value belongs in tokens.css with a
  * name.
  *
- * The set is deliberately small. Six layout primitives and seven components
- * cover every screen in SPEC.md §4. Anything that needs a fourteenth is
- * probably a screen-specific arrangement rather than a primitive. */
+ * Reorganised in Phase 8.1. Phases 4 to 7 each appended a fresh
+ * `@layer components { ... }` block to the foot of the file with a paragraph
+ * explaining what it corrected, which was honest and readable and left the
+ * same component's rules in three places. Every one of those blocks has been
+ * merged back into its home section and the reasoning kept. The file is in
+ * reading order now: foundations, shell, forms, marks, data, the lineup, the
+ * editor, navigation, the bracket, motion.
+ *
+ * The set is still deliberately small. If something wants a new primitive, it
+ * is usually a screen-specific arrangement of existing ones — which is what
+ * the bracket turned out to be. */
 
 @layer reset {
   *, *::before, *::after { box-sizing: border-box; }
@@ -21,6 +29,7 @@
   button, input, select { font: inherit; color: inherit; }
   img, svg { display: block; max-width: 100%; }
 }
+
 
 @layer base {
   html {
@@ -37,7 +46,18 @@
     font-variant-numeric: lining-nums;
   }
 
-  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+  /* The browser's h1 is 2em with margins, which fights every scale decision in
+     tokens.css. Sized by the components below instead. */
+  h1, h2, h3 { font-size: inherit; font-weight: var(--weight-semi); }
+
+  fieldset { border: 0; min-inline-size: 0; }
+  legend { padding: 0; }
+
+  a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
 
   :focus-visible {
     outline: 2px solid var(--focus);
@@ -54,20 +74,24 @@
   ::selection { background: var(--ink-900); color: var(--ink-000); }
 }
 
+
 @layer layout {
   /* Constrained centred column. Desktop is a wide tablet, never a dashboard. */
   .measure {
     width: 100%;
     max-width: var(--measure);
     margin-inline: auto;
-    padding-inline: var(--space-6);
+    padding-inline: var(--page-pad);
   }
 
   /* Vertical rhythm without margin collapse guesswork. The gap is settable
      per instance via --stack-gap. */
   .stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-5)); }
   .stack--tight { --stack-gap: var(--space-3); }
-  .stack--loose { --stack-gap: var(--space-7); }
+  /* --gap-block rather than a fourth distance, so a run of panels inside a
+     stack sits at exactly the spacing `.panel + .panel` gives them outside
+     one. */
+  .stack--loose { --stack-gap: var(--gap-block); }
 
   /* Two things on one baseline, pushed apart. The single most reused
      arrangement in the app: label left, figure right. */
@@ -106,7 +130,20 @@
     max-width: var(--measure-prose);
   }
   .prose > * + * { margin-block-start: 0.6em; }
+
+  /* `.prose > * + *` spaces children inside a block; nothing spaced two blocks
+     from each other, so consecutive `.prose` paragraphs sat flush and the first
+     place it showed reached for a `<br>`. In rem rather than em because the gap
+     between two blocks belongs to the page's spacing scale rather than to
+     either block's type size. */
+  .prose + .prose { margin-block-start: var(--space-5); }
 }
+
+
+/* ===========================================================================
+   FOUNDATIONS
+   The vocabulary every other component is written in.
+   =========================================================================== */
 
 @layer components {
   /* ---- Micro-label -------------------------------------------------------
@@ -120,6 +157,26 @@
     text-transform: uppercase;
     color: var(--text-low);
     font-feature-settings: "case" 1;
+  }
+
+  /* ---- Section heading ---------------------------------------------------
+     One treatment, used by every region that names itself: a panel, a bracket
+     section, the season history block. Before Phase 8 there were four
+     different ones — `.label` on the account page, condensed bold caps in the
+     bracket and in the history, and the display face in a disclosure — each
+     compensating for the absence of a heading by wearing a heavy rule.
+
+     Text face rather than display: the display face is for figures, and a
+     section title is a word. What separates it from the rows below is the
+     ground it sits on, not its size. */
+  .heading {
+    display: block;
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+    color: var(--text);
   }
 
   /* ---- Team name ---------------------------------------------------------
@@ -241,7 +298,366 @@
   /* In a table the mark hangs off the first cell, whose own box is only as
      wide as the position number, so the row needs the marker to clear it. */
   tr.is-yours > :first-child::before { inset-block: 0; }
+}
 
+
+/* ===========================================================================
+   SHELL
+   =========================================================================== */
+
+@layer components {
+  /* The one heavy rule in the application. It marks the boundary between the
+     app's chrome and its content, which is the only boundary in the project
+     that genuinely separates two different kinds of thing. Everything inside
+     the content uses mark or hair. See the rule weight policy in tokens.css.
+
+     Rebuilt in Phase 8.2 — the nav becomes three destinations with the figures
+     that belong to them, and the account and sign-out controls move. This is
+     the Phase 7 shell, unchanged apart from the rules around it. */
+  .appbar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-5);
+    border-block-end: var(--rule-heavy) solid var(--text);
+    padding-block: var(--space-5) var(--space-3);
+  }
+
+  .appbar__mark {
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .appbar__nav {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-5);
+    font-size: var(--step-2);
+    font-stretch: var(--width-narrow);
+    color: var(--text-mid);
+  }
+
+  .appbar__nav a { text-decoration: none; }
+  .appbar__nav a:hover { text-decoration: underline; }
+  .appbar__nav form { display: inline-flex; }
+
+  /* Sign out is a POST, so it has to be a button. It should not look like one:
+     it sits among links and reads as one. */
+  .appbar__signout {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-stretch: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .appbar__signout:hover { text-decoration: underline; }
+
+  .appfoot {
+    margin-block-start: var(--gap-region);
+    border-block-start: var(--rule-hair) solid var(--rule);
+    padding-block: var(--space-4) var(--space-6);
+    font-size: var(--step-1);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+  }
+
+  /* Auth and account pages. A sign-in form at the full 46rem desktop measure
+     reads as a broken layout; the constrained column is the point, and here it
+     constrains further. */
+  .gate { max-inline-size: 26rem; }
+
+  .page-title {
+    font-family: var(--face-display);
+    font-size: var(--step-5);
+    font-weight: var(--display-weight);
+    font-stretch: var(--display-width);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
+    margin-block: var(--space-7) var(--gap-block);
+  }
+
+  /* ---- Notices ----------------------------------------------------------
+     A flashed message. Same idiom as a marked row: a heavy rule in the
+     reserved gutter, not a tinted card with a rounded corner. */
+  .notices { margin-block-start: var(--gap-block); }
+
+  .notice {
+    border-inline-start: var(--mark-width) solid var(--mark);
+    padding-inline-start: var(--mark-gutter);
+    padding-block: var(--space-2);
+  }
+  .notice + .notice { margin-block-start: var(--space-4); }
+  .notice--error { border-inline-start-color: var(--error); color: var(--error); }
+}
+
+
+/* ===========================================================================
+   THE PANEL — the grouping primitive
+   =========================================================================== */
+
+@layer components {
+  /* A recessed band carrying a heading and the rows that belong under it.
+     This is the piece the system was missing.
+
+     Before Phase 8 the app had exactly one word for a boundary and it was a
+     line. A rule says two things are adjacent and different; it never says six
+     things are one thing, and at the density this app now carries the reader
+     was being asked to infer a group from its edges — on a 360px screen with
+     ten rows in view, which does not work.
+
+     `.slot` found this alone in Phase 4 and its comment says so: a recessed
+     ground against the page's paper, so the lineup reads as an object sitting
+     on the page rather than as text ruled off from other text, and that
+     missing middle layer was most of the newspaper problem rather than a
+     shortage of decoration. It was never generalised past the one component.
+     This is the generalisation, and it obeys the four constraints written into
+     tokens.css.
+
+     The band bleeds through the measure's own inline padding, so on a phone it
+     runs the full width of the screen. That is deliberate and it is what keeps
+     this out of card territory: a band with no left or right edge cannot be
+     read as a tile on a grid, and SPEC.md §1 rules out the look that would
+     produce. On desktop the measure is centred, so the band runs the width of
+     the column instead — the same object, relaxed.
+
+     A fill replaces a rule and never joins one. `.panel` used to carry a 2px
+     rule across its top and no ground; the rule is gone rather than kept. */
+  .panel {
+    background: var(--surface-recessed);
+    margin-inline: calc(-1 * var(--page-pad));
+    padding: var(--space-5) var(--page-pad) var(--space-6);
+    margin-block-start: var(--gap-region);
+  }
+
+  /* Two bands in a row need paper between them or they read as one band with
+     an odd gap in the middle. This is the only place --gap-block appears as a
+     margin between two surfaces. */
+  .panel + .panel { margin-block-start: var(--gap-block); }
+
+  .panel__title {
+    display: block;
+    margin-block-end: var(--space-4);
+    font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+    color: var(--text);
+  }
+
+  /* A `<legend>` is laid out specially — it sits in the fieldset's border box
+     rather than in normal flow — which is invisible while a panel is a rule
+     and wrong the moment it becomes a ground. Floating it opts out of that
+     rendering per the HTML spec; the full width means nothing can come up
+     beside it. Four of the five panels in the app are fieldsets, so this is
+     not an edge case. */
+  legend.panel__title {
+    float: left;
+    inline-size: 100%;
+  }
+
+  /* Inside a `.stack` the gap already spaces the panels, so the margin would
+     be added to it and every admin section would sit sixty pixels from the
+     last. The stack owns the rhythm where there is one. */
+  .stack > .panel { margin-block-start: 0; }
+
+  /* The one place a panel takes a rule: the danger variant, where the mark is
+     doing a different job from the ground. It sits at the screen edge on a
+     phone, which reads as a tab on the band rather than as a border. */
+  .panel--danger {
+    border-inline-start: var(--rule-mark) solid var(--error);
+  }
+  .panel--danger .panel__title { color: var(--error); }
+
+  /* A hairline inside a band, for a panel that holds a list rather than a
+     form. The band already separates the panel from the page, so rows inside
+     it only need the lightest separation there is. */
+  .panel .ruled > * { border-block-end-color: var(--rule-strong); }
+  .panel .ruled > :first-child { border-block-start-color: var(--rule-strong); }
+}
+
+
+/* ===========================================================================
+   FORMS
+   =========================================================================== */
+
+@layer components {
+  /* A ruled line rather than a boxed control: the input is the underline plus
+     the recess, which is closer to a form on paper than to a component
+     library. `appearance: none` is load-bearing on iOS, which otherwise
+     applies its own inset shadow and corner radius and quietly reintroduces
+     the pill this project retired. */
+
+  .field { margin-block-end: var(--gap-block); }
+  .field__label { display: block; margin-block-end: var(--space-2); }
+
+  .field :is(input[type="text"], input[type="email"], input[type="password"]),
+  .field select,
+  .field textarea {
+    appearance: none;
+    inline-size: 100%;
+    background: var(--surface-recessed);
+    border: 0;
+    border-block-end: var(--rule-mark) solid var(--text);
+    border-radius: 0;
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  /* The one place two recessed grounds genuinely meet — a control inside a
+     panel — and the second constraint in tokens.css says they must not stack.
+     The control inverts to paper instead. A field on a band then reads as a
+     sheet of paper laid on it, which is the right way round: the thing you
+     write in should be the lighter of the two. */
+  .panel .field :is(input[type="text"], input[type="email"], input[type="password"]),
+  .panel .field select,
+  .panel .field textarea,
+  .panel input[type="text"][readonly] {
+    background: var(--surface);
+  }
+
+  .field--invalid :is(input[type="text"], input[type="email"], input[type="password"]) {
+    border-block-end-color: var(--error);
+  }
+
+  .field__errors {
+    margin-block-start: var(--space-2);
+    font-size: var(--step-2);
+    color: var(--error);
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-block-end: var(--gap-block);
+  }
+  .check input { inline-size: 1rem; block-size: 1rem; }
+
+  .aftermatter {
+    margin-block-start: var(--space-7);
+    font-size: var(--step-2);
+    color: var(--text-mid);
+  }
+  .aftermatter > * + * { margin-block-start: var(--space-3); }
+
+  /* Inside a band the aftermatter is the band's own footnote and does not need
+     to clear a region's worth of space to say so. */
+  .panel .aftermatter { margin-block-start: var(--space-5); }
+}
+
+
+/* ===========================================================================
+   MARKS
+   A glyph from the display face inside a geometric container. No icon asset
+   enters this project.
+
+   The family gains a rule in Phase 8.2: a CIRCLE is an action — press it and
+   something opens — and a SQUARE is a state, which is telling you a fact and
+   cannot be pressed. That explains both marks exactly as they already stand,
+   and it is the test any new one has to pass. The star is the single exemption
+   and its reason is written where it lives.
+   =========================================================================== */
+
+@layer components {
+  /* ---- Problem -----------------------------------------------------------
+     A state the lineup is in, stated once, above the component it describes.
+     Always as what to do, in the interface's voice, never as an apology.
+
+     Two levels, and they are different facts:
+
+       error     a rule is broken; this cannot be saved as it stands
+       caution   nothing is wrong; something is waiting to be saved
+
+     Layout lives here and colour lives on the modifier. It used to be the
+     other way round — the whole grid, gap and padding sat on `.problem--error`
+     three hundred lines away, and `.problem__mark` hardcoded `--error` with no
+     modifier of its own — so a second level could not be added without either
+     duplicating the layout or inheriting the wrong hue. */
+  .problem {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    margin-block-start: var(--space-3);
+    font-size: var(--step-2);
+    line-height: var(--leading-prose);
+    border-inline-start: var(--rule-mark) solid var(--text);
+  }
+
+  .problem--error {
+    color: var(--error);
+    border-inline-start-color: var(--error);
+    background: var(--error-recessed);
+  }
+
+  /* Not an error. A lineup waiting to be saved is not a lineup that is wrong,
+     and sharing red would empty red of meaning — the same argument §4.1 makes
+     about never marking a transferred-in pick in the error colour. */
+  .problem--caution {
+    color: var(--caution);
+    border-inline-start-color: var(--caution);
+    background: var(--caution-recessed);
+  }
+
+  /* A square: this is a state, and it cannot be pressed. */
+  .problem__mark {
+    display: grid;
+    place-items: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    /* currentColor, so the square follows its bar rather than needing one
+       modifier per level. */
+    border: var(--rule-mark) solid currentColor;
+    font-size: var(--step-3);
+    line-height: 1;
+  }
+
+  /* ---- Information control -----------------------------------------------
+     A circle: press it and a profile opens. */
+  .infomark {
+    display: grid;
+    place-items: center;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    flex: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    border-radius: 50%;
+    font-size: var(--step-2);
+    line-height: 1;
+    color: var(--text-mid);
+    text-decoration: none;
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
+  }
+
+  .infomark:hover, .infomark:focus-visible { color: var(--text); border-color: var(--text); }
+
+  /* ---- Star --------------------------------------------------------------
+     Marks a pick that made the Perfect Five. The one mark in the family with
+     no container, and deliberately so: every other mark occupies a slot of its
+     own, where this one sits inside a line of running text beside a driver's
+     name. A container around a word would be heavier than the word. It sits on
+     the text baseline, scales with the type, and needs no asset. */
+  .star {
+    font-size: var(--step-2);
+    color: var(--text);
+    vertical-align: 0.05em;
+  }
+}
+
+
+/* ===========================================================================
+   DATA
+   =========================================================================== */
+
+@layer components {
   /* ---- Data table --------------------------------------------------------
      Hairlines, no zebra striping, no vertical rules. Alignment does the
      separating; anything more is noise at this density. */
@@ -293,6 +709,15 @@
 
   .table .c-name { font-weight: var(--weight-medium); white-space: nowrap; }
 
+  /* A driver's name in a classification opens their season. */
+  .c-driver {
+    color: inherit;
+    text-decoration: none;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    transition: border-color var(--dur-quick) var(--ease);
+  }
+  .c-driver:hover, .c-driver:focus-visible { border-block-end-color: var(--text); }
+
   /* ---- Status ------------------------------------------------------------
      DNF and similar. Condensed, tracked, low ink — present but never
      competing with a position. */
@@ -304,1006 +729,16 @@
     color: var(--text-low);
   }
 
-
-  /* ---- Round head --------------------------------------------------------
-     Separates the two races of a double-header. The format label does the
-     naming, never "Race 1 / Race 2": from Season 13 the two are genuinely
-     different events and the label is the only thing that says so. */
-  .round-head {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: baseline;
-    column-gap: var(--space-4);
-    border-block-end: var(--rule-hair) solid var(--text);
-    padding-block-end: var(--space-3);
-    margin-block-start: var(--space-7);
-    margin-block-end: var(--space-4);
-  }
-
-  .round-head__number { font-size: var(--step-5); }
-
-  /* ---- Slab --------------------------------------------------------------
-     A total with its context. One per screen at most: it is loud, and two
-     would compete. */
-  .slab {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: end;
-    column-gap: var(--space-5);
-    border-block: var(--rule-mark) solid var(--text);
-    padding-block: var(--space-5);
-    margin-block-start: var(--space-6);
-  }
-
-  /* ---- Star --------------------------------------------------------------
-     Marks a pick that made the dream team. A glyph rather than an icon: it
-     sits on the text baseline, scales with the type, and needs no asset. */
-  .star {
-    font-size: var(--step-2);
-    color: var(--text);
-    vertical-align: 0.05em;
-  }
-
-  /* ---- Option ------------------------------------------------------------
-     A selectable row in the picker. A button, so it is keyboard reachable and
-     announces its pressed state without any ARIA beyond aria-pressed.
-
-     Selected uses the same structural treatment as `.is-yours`: full ink, a
-     heavier weight, a rule in the gutter. The app has one visual language for
-     "this one is yours" and it is not colour. */
-  .option {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    inline-size: 100%;
-    text-align: start;
-    background: none;
-    border: 0;
-    padding-block: var(--space-3);
-    color: var(--text-mid);
-    cursor: pointer;
-    position: relative;
-  }
-
-  .option__name { font-weight: var(--weight-medium); }
-
-  .option[aria-pressed="true"] { color: var(--text); }
-  .option[aria-pressed="true"] .option__name { font-weight: var(--weight-semi); }
-
-  .option[aria-pressed="true"]::before {
-    content: "";
-    position: absolute;
-    inset-block: var(--space-1);
-    inset-inline-start: calc(-1 * var(--mark-gutter));
-    inline-size: var(--mark-width);
-    background: var(--mark);
-  }
-
-  /* An option whose consequence is worth knowing before you take it. Never
-     disabled: nothing in the picker is forbidden, because a forced relocation
-     has no legal intermediate and blocking one order of a two-slot change
-     while allowing the other is arbitrary. The interface explains rather than
-     prevents. */
-  .option__meta {
-    display: flex;
-    flex-direction: column;
-    align-items: end;
-    gap: var(--space-1);
-    text-align: end;
-    flex: none;
-    max-inline-size: 42%;
-  }
-
-  .option__note {
-    font-size: var(--step-2);
-    color: var(--text-mid);
-    font-stretch: var(--width-narrow);
-    line-height: 1.2;
-  }
-
-  .option--noted .option__name { color: var(--text-mid); }
-
-  /* ---- Slots -------------------------------------------------------------
-     The running state of a draft. Sticky, because the running transfer cost is
-     the number that decides whether an edit is even legal, and scrolling a
-     twenty-row picker must not hide it. */
-  .slots {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--surface);
-    border-block: var(--rule-hair) solid var(--text);
-    padding-block: var(--space-4);
-    margin-block-start: var(--space-5);
-  }
-
-  .slots__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-block: var(--space-1);
-  }
-
-  .slots__row--cost { border-block-start: var(--rule-hair) solid var(--rule); padding-block-start: var(--space-3); margin-block-start: var(--space-3); }
-
-  .slots__fill { font-weight: var(--weight-semi); }
-  .slots__fill.is-over { text-decoration: underline; text-decoration-thickness: 2px; }
-
-  /* ---- Problem -----------------------------------------------------------
-     A state the lineup is in, stated once, above the component it describes.
-     Always as what to do, in the interface's voice, never as an apology.
-
-     Two levels, and they are different facts:
-
-       error     a rule is broken; this cannot be saved as it stands
-       caution   nothing is wrong; something is waiting to be saved
-
-     Layout lives here and colour lives on the modifier. It used to be the
-     other way round — the whole grid, gap and padding sat on `.problem--error`
-     three hundred lines away, and `.problem__mark` hardcoded `--error` with no
-     modifier of its own — so a second level could not be added without either
-     duplicating the layout or inheriting the wrong hue.
-
-     The mark is a glyph from the display face inside a ruled square: a
-     character we already ship, not an icon asset. */
-  .problem {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    margin-block-start: var(--space-3);
-    font-size: var(--step-2);
-    line-height: var(--leading-prose);
-    border-inline-start: var(--rule-mark) solid var(--text);
-  }
-
-  .problem--error {
-    color: var(--error);
-    border-inline-start-color: var(--error);
-    background: var(--error-recessed);
-  }
-
-  /* Not an error. A lineup waiting to be saved is not a lineup that is wrong,
-     and sharing red would empty red of meaning — the same argument §4.1 makes
-     about never marking a transferred-in pick in the error colour. */
-  .problem--caution {
-    color: var(--caution);
-    border-inline-start-color: var(--caution);
-    background: var(--caution-recessed);
-  }
-
-  .problem__mark {
-    display: grid;
-    place-items: center;
-    inline-size: 1.5rem;
-    block-size: 1.5rem;
-    /* currentColor, so the square follows its bar rather than needing one
-       modifier per level. */
-    border: var(--rule-mark) solid currentColor;
-    font-size: var(--step-3);
-    line-height: 1;
-  }
-
-
-  /* ---- Lineup ------------------------------------------------------------
-     The app's signature layout, and the one shape a player learns. Four driver
-     slots in a 2x2 grid, the team slot as a wider band beneath. Identical
-     geometry in all three states — empty, editing, scored — so the arrangement
-     itself carries meaning before any number is read.
-
-     Slot order never re-sorts by score. A layout that reshuffles by
-     performance cannot be read at a glance, which is the only thing this
-     component is for. */
-  .lineup { margin-block-start: var(--space-5); }
-
-  .lineup__grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-  }
-
-  /* ---- Verdict -----------------------------------------------------------
-     The conclusion of the scored screen, and the only dark element in the app.
-     The page ground stays paper; this is one block sitting on it, which is
-     what makes it read as the answer rather than as another row.
-
-     Built as a stack so later lines — this week's average, the highest score
-     in the league — drop in beneath without a redesign. */
-  .verdict {
-    background: var(--ink-900);
-    color: var(--ink-000);
-    margin-block-start: var(--space-6);
-    padding: var(--space-5) var(--space-6);
-  }
-
-  .verdict__main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-5);
-  }
-
-  .verdict__label { color: var(--ink-200); }
-
-  .verdict__figure {
-    font-size: 3.4rem;
-    line-height: 0.82;
-    font-weight: var(--weight-display);
-  }
-
-  /* Later: a row per comparison figure, quieter than the headline. */
-  .verdict__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    border-block-start: var(--rule-hair) solid var(--ink-600);
-    margin-block-start: var(--space-4);
-    padding-block-start: var(--space-3);
-    color: var(--ink-200);
-  }
-
-  /* ---- Slot --------------------------------------------------------------
-     A driver slot is a filled block with the team's band down its inner edge:
-     a recessed ground against the page's paper, so the lineup reads as an
-     object sitting on the page rather than as text ruled off from other text.
-     That missing middle layer was most of the "newspaper" problem — not a lack
-     of decoration.
-
-     The team slot inverts the relationship instead of adding one: paper ground
-     between two heavy rules, where the drivers are recessed blocks. A
-     different class of pick is a different kind of surface, with no label and
-     no icon saying so. */
-  .slot {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: start;
-    column-gap: var(--space-4);
-    inline-size: 100%;
-    text-align: start;
-    color: inherit;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    border: 0;
-    background: var(--surface-recessed);
-    padding: var(--space-4) var(--space-4) var(--space-4) 0;
-    min-block-size: 6rem;
-  }
-
-  .slot--team {
-    background: var(--surface-recessed);
-    /* A hair rule, not a heavy one. Heavy separates regions — the masthead
-       from the lineup, the lineup from its verdict — and using it here made
-       the team slot look like a region boundary rather than a fifth pick. */
-    border-block: var(--rule-hair) solid var(--rule-strong);
-    margin-block-start: var(--space-4);
-    min-block-size: 0;
-    align-items: center;
-    padding-block: var(--space-4);
-  }
-
-  /* ---- Band --------------------------------------------------------------
-     Full height of the slot's inner edge. Same colour language as the table
-     stripes, at the scale this component works at. */
-  .band {
-    display: flex;
-    align-self: stretch;
-    inline-size: var(--band-width);
-    min-block-size: 2.5rem;
-  }
-
-  .band__primary { flex: 1; background: var(--team-neutral); }
-  .band__accent { inline-size: var(--band-accent-width); background: var(--team-neutral); }
-
-  /* A team pick is both cars, so its band is two equal stripes rather than a
-     band with an accent. The geometry states what the pick is. */
-  .band--split .band__accent { inline-size: auto; flex: 1; }
-
-  .band__primary.team-mark--dark, .band__accent.team-mark--dark {
-    background: var(--team-achromatic-dark);
-  }
-  .band__primary.team-mark--light, .band__accent.team-mark--light {
-    background: var(--team-achromatic-light);
-  }
-
-  @supports (color: oklch(from #123456 l c h)) {
-    .band > [style*="--team-seed"] {
-      background: oklch(from var(--team-seed) var(--team-l) var(--team-c) h);
-    }
-    .band > .team-mark--bright[style*="--team-seed"] {
-      background: oklch(from var(--team-seed) var(--team-l-bright) var(--team-c-bright) h);
-    }
-    .band > .team-mark--tint[style*="--team-seed"] {
-      background: oklch(from var(--team-seed) var(--team-l-tint) var(--team-c-tint) h);
-    }
-  }
-
-  /* ---- Ghost numeral -----------------------------------------------------
-     The car number, set large and barely inked behind the name. Formula E cars
-     carry their numbers; borrowing that as a typographic ground gives the slot
-     depth with no graphic, no icon and no gradient — typography doing the work
-     decoration would otherwise do. Clipped by the slot, and never the thing
-     you read first. */
-  .slot__ghost {
-    position: absolute;
-    inset-block-end: -0.28em;
-    inset-inline-end: -0.06em;
-    font-size: 4.2rem;
-    line-height: 0.8;
-    color: var(--ink-100);
-    pointer-events: none;
-    user-select: none;
-  }
-
-  .slot--team .slot__ghost { display: none; }
-
-  .slot__body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-inline-size: 0;
-    position: relative;
-  }
-
-  .slot__name {
-    font-weight: var(--weight-semi);
-    font-size: var(--step-4);
-    line-height: 1.1;
-    overflow-wrap: anywhere;
-  }
-
-  .slot__name--team {
-    font-size: var(--step-3);
-    font-stretch: var(--width-narrow);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-caps);
-  }
-
-  .slot__team { white-space: normal; }
-
-  /* The score is the loudest thing in the slot, by a wide margin. Scale
-     contrast is the cheapest hierarchy there is and this page was not using
-     it. */
-  /* Top-right, not bottom-right: the ghost numeral sits low and the two were
-     overlapping. Aligning the score to the top also puts it on the same
-     optical line as the driver's name, which reads better across four slots. */
-  /* Star and score share one column, stacked. Both were absolutely positioned
-     against the slot before, which is why they collided on the team slot: two
-     things placed by coordinates rather than by layout will eventually meet.
-     Stacked, they cannot overlap in any slot, at any score length. */
-  .slot__figure {
-    grid-column: 3;
-    display: flex;
-    flex-direction: column;
-    align-items: end;
-    gap: var(--space-1);
-    align-self: start;
-  }
-
-  .slot--team .slot__figure { align-self: center; }
-
-  .slot__score {
-    font-size: var(--step-7);
-    line-height: 0.85;
-  }
-
-  .slot--team .slot__score { font-size: var(--step-6); }
-
-  .slot__star { line-height: 1; }
-
-  .slot.is-empty {
-    background: none;
-    border: var(--rule-hair) dashed var(--rule-strong);
-    color: var(--text-low);
-    grid-template-columns: 1fr;
-    align-items: center;
-    justify-items: center;
-    padding: var(--space-4);
-  }
-
-  .slot__empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .slot__plus { font-size: var(--step-6); line-height: 1; }
-
-  .slot.is-invalid {
-    box-shadow: inset 0 0 0 var(--rule-mark) var(--error);
-    background: var(--error-recessed);
-  }
-
-  .slot[aria-expanded="true"] {
-    box-shadow: inset 0 0 0 var(--rule-mark) var(--text);
-  }
-
-  /* ---- Breakdown ---------------------------------------------------------
-     Disclosed below the grid so it gets the full measure.
-
-     A double-header produces two rounds of two sections each, which as one
-     flat list is unreadable — the two races blur together. So a round is a
-     block with its own heading and its own edge, and within it each stage
-     leads with a heading, then a rule, then the rows that scored. */
-  /* Now rendered inside a modal, so it carries no border or ground of its
-     own — the sheet provides both. The internal layout is untouched. */
-  .breakdown { padding-block-end: var(--space-5); }
-
-  .breakdown__head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-block-end: var(--space-3);
-    border-block-end: var(--rule-mark) solid var(--text);
-  }
-
-  .round-block { margin-block-start: var(--space-5); }
-
-  .round-block__head {
-    display: grid;
-    /* Two children now that the round number lives inside the label, so the
-       total keeps the right edge instead of butting against the text. */
-    grid-template-columns: 1fr auto;
-    align-items: baseline;
-    column-gap: var(--space-4);
-    background: var(--surface-recessed);
-    padding: var(--space-3) var(--space-4);
-  }
-
-  .round-block__number { font-size: var(--step-5); }
-
-  .round-block__body {
-    border-inline-start: var(--rule-mark) solid var(--rule-strong);
-    padding-inline-start: var(--space-5);
-    margin-inline-start: var(--space-3);
-    margin-block-start: var(--space-3);
-  }
-
-  /* ---- Stage -------------------------------------------------------------
-     The context line belongs inside the heading, not above the rows. Set like
-     a row it reads as a rule that failed to score, which is exactly backwards:
-     it is the reason the rows below say what they say. */
-  .stage + .stage { margin-block-start: var(--space-5); }
-
-  .stage__head {
-    border-block-end: var(--rule-hair) solid var(--rule);
-    padding-block-end: var(--space-2);
-  }
-
-  .stage__context {
-    font-size: var(--step-2);
-    color: var(--text-mid);
-    font-stretch: var(--width-narrow);
-    margin-block-start: var(--space-1);
-  }
-
-  .stage__rules { margin-block-start: var(--space-3); }
-
-
-  /* ---- Dialog ------------------------------------------------------------
-     The picker is a task with a start, an end and a result, so it is a modal —
-     the native element, which brings focus trapping, escape-to-close and the
-     backdrop with no library. Reading is not a task and never gets one. */
-  /* Centred, sized to its content, with a ceiling. Short content floats with
-     backdrop visible on all four edges; long content grows to the ceiling and
-     scrolls, and the sheet reaching the bottom of the screen is then itself
-     the signal that there is more below. */
-  .sheet {
-    border: 0;
-    padding: 0;
-    inline-size: min(100% - 2rem, 34rem);
-    max-block-size: min(84dvh, 44rem);
-    margin: auto;
-    background: var(--surface);
-    color: var(--text);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .sheet::backdrop { background: oklch(0.2 0.01 265 / 0.4); }
-
-  .sheet__head {
-    position: sticky;
-    top: 0;
-    /* `.option` is positioned, and positioned siblings without a z-index paint
-       in DOM order — so the rows were painting over the header rather than
-       scrolling under it. */
-    z-index: 2;
-    background: var(--surface);
-    border-block-end: var(--rule-hair) solid var(--text);
-    padding: var(--space-5) var(--space-6);
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-
-  .sheet__body { padding: 0 var(--space-6) var(--space-6); }
-
-  .sheet__close {
-    background: none;
-    border: var(--rule-hair) solid var(--rule-strong);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--step-1);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  /* ---- Action bar --------------------------------------------------------
-     Transfer state: cost and bank, and the commit that stays disabled while a
-     draft is invalid. */
-  .actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    border-block-start: var(--rule-hair) solid var(--text);
-    margin-block-start: var(--space-5);
-    padding-block-start: var(--space-4);
-  }
-
-  .button,
-  input[type="submit"],
-  .actions__commit {
-    background: var(--text);
-    color: var(--surface);
-    border: var(--rule-mark) solid var(--text);
-    padding: var(--space-3) var(--space-5);
-    font-size: var(--step-1);
-    font-weight: var(--weight-semi);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .button[disabled],
-  .button.is-disabled,
-  input[type="submit"][disabled],
-  .actions__commit[disabled] {
-    background: none;
-    color: var(--text-low);
-    border-color: var(--rule-strong);
-    cursor: not-allowed;
-  }
-
-  /* ---- Masthead ----------------------------------------------------------
-     The round number set large against the venue. The one place the display
-     face is allowed to be loud. */
-  .masthead {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: var(--space-5);
-    align-items: end;
-    border-block-end: var(--rule-heavy) solid var(--text);
-    padding-block-end: var(--space-3);
-  }
-
-  .masthead__venue {
-    font-family: var(--face-display);
-    font-size: var(--step-5);
-    font-weight: var(--display-weight);
-    font-stretch: var(--display-width);
-    line-height: 1;
-    letter-spacing: var(--tracking-caps);
-  }
-
-  .masthead__meta { grid-column: 2; margin-block-start: var(--space-2); }
-}
-
-@layer utilities {
-  .u-mid { color: var(--text-mid); }
-  .u-low { color: var(--text-low); }
-  .u-nowrap { white-space: nowrap; }
-  .u-caps { text-transform: uppercase; letter-spacing: var(--tracking-caps); font-feature-settings: "case" 1; }
-  .u-condensed { font-stretch: var(--width-condensed); }
-  .u-narrow { font-stretch: var(--width-narrow); }
-  .u-semi { font-weight: var(--weight-semi); }
-
-  .visually-hidden {
-    position: absolute;
-    inline-size: 1px; block-size: 1px;
-    overflow: hidden; clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  /* The Perfect Five link and its like: an onward move rather than a caption
+     on the thing above it, which is the same reason `.actions__commit` sits
+     right. */
+  .status--right { text-align: right; }
 }
 
 
-@layer components {
-  /* ---- Changed slot ------------------------------------------------------
-     A pending transfer, marked structurally: heavy ink and a label. Never the
-     error colour — a transferred-in pick is the thing you wanted, and sharing
-     red with broken rules would empty red of meaning. */
-  .slot.is-changed {
-    box-shadow: inset 0 0 0 var(--rule-mark) var(--mark);
-  }
-
-  .slot__tag {
-    position: absolute;
-    inset-block-start: 0;
-    inset-inline-start: var(--band-width);
-    background: var(--mark);
-    color: var(--surface);
-    padding: var(--space-1) var(--space-2);
-    line-height: 1;
-  }
-
-  .slot--team .slot__tag { inset-block-start: 0; }
-
-  /* ---- Budget ------------------------------------------------------------
-     What an edit costs and what is left. This decides whether a change is
-     legal at all, so it is stated at figure scale rather than as a caption. */
-  .budget {
-    display: flex;
-    align-items: end;
-    gap: var(--space-7);
-    border-block-start: var(--rule-heavy) solid var(--text);
-    margin-block-start: var(--space-6);
-    padding-block-start: var(--space-4);
-  }
-
-  .budget__figure {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
-  }
-
-  .budget__figure--quiet { color: var(--text-mid); margin-inline-start: auto; }
-
-  .budget.is-over { color: var(--error); border-block-start-color: var(--error); }
-  .budget.is-over .budget__figure--quiet { color: var(--error); }
-
-  /* ---- Actions -----------------------------------------------------------
-     Commit is unmistakably available or unmistakably not. A disabled state
-     that merely looks quiet gets tapped. */
-  .button--quiet,
-  .actions__reset {
-    background: none;
-    border: var(--rule-hair) solid var(--rule-strong);
-    color: var(--text-mid);
-    padding: var(--space-3) var(--space-5);
-    font-size: var(--step-1);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .actions__commit {
-    display: inline-block;
-    text-decoration: none;
-    text-align: center;
-  }
-
-  .actions__commit.is-disabled {
-    background: none;
-    color: var(--text-low);
-    border-color: var(--rule-strong);
-    cursor: not-allowed;
-  }
-
-  /* ---- Transfer summary --------------------------------------------------- */
-  .summary__side { padding-block: var(--space-4); }
-  .summary__side + .summary__side {
-    border-block-start: var(--rule-hair) solid var(--rule);
-  }
-
-  .summary__row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin-block-start: var(--space-3);
-  }
-
-  .summary__row .band { block-size: 1.6rem; min-block-size: 0; }
-
-  .summary__cost {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    border-block-start: var(--rule-mark) solid var(--text);
-    margin-block-start: var(--space-4);
-    padding-block-start: var(--space-4);
-  }
-
-  .sheet--narrow { inline-size: min(100%, 26rem); }
-
-  /* ---- Noted option ------------------------------------------------------
-     Dimmed, but never disabled: taking it is legal, it just has a consequence
-     worth seeing first. */
-  .option--noted .option__body { opacity: 0.45; }
-  .option--noted .option__note { color: var(--text); font-weight: var(--weight-medium); }
-}
-
-
-@layer components {
-  /* ---- Aside link --------------------------------------------------------
-     A quiet route to a second view. Not a button: it goes somewhere, it does
-     not do something. */
-  .aside {
-    display: flex;
-    justify-content: end;
-    margin-block-start: var(--space-4);
-  }
-
-  .aside__link {
-    font-size: var(--step-2);
-    color: var(--text-mid);
-    text-decoration: none;
-    border-block-end: var(--rule-hair) solid var(--rule-strong);
-    padding-block-end: var(--space-1);
-  }
-
-  .aside__link:hover, .aside__link:focus-visible { color: var(--text); }
-
-  .breakdown__link {
-    display: block;
-    margin-block-start: var(--space-5);
-    padding-block-start: var(--space-4);
-    border-block-start: var(--rule-hair) solid var(--rule);
-    font-size: var(--step-2);
-    color: var(--text-mid);
-    text-decoration: none;
-  }
-
-  /* ---- Restore -----------------------------------------------------------
-     Putting back a pick this draft swapped out, offered above the roster
-     because it is the likelier intent once a slot already carries an In tag. */
-  .restore {
-    border-block-end: var(--rule-mark) solid var(--text);
-    padding-block-end: var(--space-4);
-    margin-block-end: var(--space-5);
-  }
-
-  .restore .option__meta .label { color: var(--text); }
-
-  /* The sheet is a real modal now, so it needs the geometry of one. */
-  .sheet::backdrop {
-    background: oklch(0.2 0.01 265 / 0.55);
-  }
-}
-
-
-@layer components {
-  /* ---- Link decoration ---------------------------------------------------
-     A slot, a picker row and a button are links only because they navigate;
-     they are not prose, and underlining every driver and team name was most of
-     what made the transfer screens look busy next to the scored one. Genuine
-     inline links in prose keep their underline. */
-  .slot,
-  .option,
-  .actions__commit,
-  .actions__reset,
-  .sheet__close {
-    text-decoration: none;
-  }
-
-  /* ---- Breakdown identity ------------------------------------------------
-     The modal header carries the pick's team band, so a breakdown opened over
-     a dimmed page still says whose it is. */
-  .sheet__head--pick {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-  }
-
-  .sheet__head--pick .band { block-size: 1.9rem; min-block-size: 0; }
-
-  .sheet__title {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-inline-size: 0;
-    margin-inline-end: auto;
-  }
-}
-
-@layer components {
-  /* ---- Meeting nav -------------------------------------------------------
-     Previous, name, next. A player moves by one almost every time, so arrows
-     are the primary action and the jump case lives behind the name — which
-     keeps the bar to three elements instead of four.
-
-     An arrow at either end is flat, not absent. A control that disappears
-     shifts the layout and teaches nothing. */
-  .mnav {
-    display: grid;
-    grid-template-columns: 2.5rem 1fr 2.5rem;
-    align-items: center;
-    gap: var(--space-3);
-    border-block-end: var(--rule-heavy) solid var(--text);
-    padding-block: var(--space-3);
-  }
-
-  /* Which rounds this weekend contains, and whether it is a double-header.
-     The arrow nav removed the numbered strip and took this context with it;
-     the name alone does not say that London is rounds 16 and 17. */
-  .mnav__context {
-    grid-column: 2;
-    grid-row: 2;
-    text-align: center;
-    margin-block-start: var(--space-1);
-  }
-
-  .mnav__arrow {
-    display: grid;
-    place-items: center;
-    block-size: 2.5rem;
-    font-family: var(--face-display);
-    font-size: var(--step-6);
-    line-height: 1;
-    color: var(--text);
-    text-decoration: none;
-    border: var(--rule-hair) solid var(--rule-strong);
-  }
-
-  .mnav__arrow.is-flat { color: var(--ink-100); border-color: var(--ink-100); }
-
-  .mnav__name {
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: var(--space-3);
-    text-decoration: none;
-    color: inherit;
-    min-inline-size: 0;
-  }
-
-  .mnav__label {
-    font-family: var(--face-display);
-    font-size: var(--step-6);
-    font-weight: var(--weight-bold);
-    font-stretch: var(--display-width);
-    letter-spacing: var(--tracking-caps);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .option--current .option__name { font-weight: var(--weight-semi); }
-
-  /* ---- View switch -------------------------------------------------------
-     Two peers inside one meeting. One thin row, so it costs almost nothing to
-     keep both views one tap apart. */
-  .vswitch {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    border-block-end: var(--rule-hair) solid var(--rule-strong);
-  }
-
-  /* ---- Disclosure --------------------------------------------------------
-     Results, collapsed until asked for. A native <details>, so it needs no
-     JavaScript, is keyboard and screen-reader correct by default, and costs
-     nothing on a screen the reader opened to see their own score. */
-  .disclosure {
-    border-block-start: var(--rule-heavy) solid var(--text);
-    margin-block-start: var(--space-7);
-  }
-
-  .disclosure > summary {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-block: var(--space-5);
-    cursor: pointer;
-    list-style: none;
-  }
-
-  .disclosure > summary::-webkit-details-marker { display: none; }
-
-  .disclosure__title {
-    font-family: var(--face-display);
-    font-size: var(--step-5);
-    font-weight: var(--weight-semi);
-    font-stretch: var(--display-width);
-    letter-spacing: var(--tracking-caps);
-  }
-
-  .disclosure__hint { color: var(--text-low); }
-
-  .disclosure[open] .disclosure__hint::after { content: "Hide"; }
-  .disclosure:not([open]) .disclosure__hint::after { content: "Show"; }
-
-  .disclosure__body { padding-block-end: var(--space-8); }
-
-  .vswitch__tab {
-    text-align: center;
-    padding-block: var(--space-4);
-    font-size: var(--step-1);
-    font-weight: var(--weight-medium);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--text-low);
-    text-decoration: none;
-    border-block-end: var(--rule-mark) solid transparent;
-    margin-block-end: calc(-1 * var(--rule-hair));
-  }
-
-  .vswitch__tab[aria-current="true"] {
-    color: var(--text);
-    border-block-end-color: var(--text);
-  }
-
-  /* ---- Round and stage switches -----------------------------------------
-     Two thin levels rather than one flat four-way: "Round 16 Qualifying" alone
-     is most of a 360px viewport. The round level is absent entirely for a
-     single-header, which is the common case. */
-  /* Underline tabs, not filled boxes. A filled tab beside an unfilled one puts
-     a large black rectangle in the middle of a results page, which reads as
-     more important than the results. An underline marks the current tab and
-     stops there. */
-  .rswitch {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    border-block-end: var(--rule-hair) solid var(--rule-strong);
-    margin-block-start: var(--space-5);
-  }
-
-  /* The switch is chrome; what follows is the content. Butted together they
-     read as one crowded block. */
-  .rswitch--stage { margin-block-end: var(--space-7); }
-
-  .rswitch__tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
-    padding-block: var(--space-3);
-    color: var(--text-low);
-    text-decoration: none;
-    font-size: var(--step-1);
-    font-weight: var(--weight-medium);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    border-block-end: var(--rule-mark) solid transparent;
-    margin-block-end: calc(-1 * var(--rule-hair));
-  }
-
-  .rswitch__tab[aria-current="true"] {
-    color: var(--text);
-    border-block-end-color: var(--text);
-  }
-
-  .rswitch__format {
-    font-size: var(--step-1);
-    font-stretch: var(--width-condensed);
-    letter-spacing: var(--tracking-caps);
-  }
-
-  /* ---- Qualifying stage --------------------------------------------------
-     Placeholder shape. The bracket replaces this. */
-  .qstage { margin-block-start: var(--space-6); }
-
-  .qstage__head {
-    border-block-end: var(--rule-mark) solid var(--text);
-    padding-block-end: var(--space-2);
-    margin-block-end: var(--space-2);
-  }
-
-  .schedule__when {
-    font-size: var(--step-2);
-    font-stretch: var(--width-narrow);
-    text-align: end;
-    white-space: nowrap;
-  }
-}
+/* ===========================================================================
+   PROFILE TABLES
+   =========================================================================== */
 
 @layer components {
   /* ---- Profile table -----------------------------------------------------
@@ -1313,7 +748,7 @@
 
      What makes it readable is not the width but the suppressed zeros. Nine
      columns of "0" is noise; a faint mark for nothing lets the cells that
-     fired carry the page. Every row's rule cells sum to its TP, and every
+     fired carry the page. Every row's rule cells sum to its FP, and every
      column's foot sums to the grand total. */
   .ptable__scroll { overflow-x: auto; margin-block-start: var(--space-5); }
 
@@ -1407,7 +842,7 @@
     display: grid;
     grid-template-columns: 2.6rem 1fr;
     gap: var(--space-1) var(--space-4);
-    margin-block-start: var(--space-6);
+    margin-block-start: var(--gap-block);
     padding-block-start: var(--space-4);
     border-block-start: var(--rule-hair) solid var(--rule);
     font-size: var(--step-2);
@@ -1422,34 +857,469 @@
     margin-block-start: var(--space-5);
   }
 
-  /* ---- Information control -----------------------------------------------
-     Functional rather than decorative: a glyph from the display face in a
-     ruled circle, matching the error mark. No icon asset enters the project. */
-  .infomark {
-    display: grid;
-    place-items: center;
-    inline-size: 1.75rem;
-    block-size: 1.75rem;
-    flex: none;
-    border: var(--rule-hair) solid var(--rule-strong);
-    border-radius: 50%;
+  /* ---- Season history ----------------------------------------------------
+     Same unit as the table above it, different scope — and a reader scanning
+     down must not take the last row of one table for the first row of the
+     other.
+
+     It used to say that with a 3px full-ink rule, which at 360px is the
+     loudest mark on the page for a block of two rows. It is a band now: the
+     ground states the change of scope, the heading names it, and one more
+     black line comes off the screen. */
+  .phistory {
+    background: var(--surface-recessed);
+    margin-inline: calc(-1 * var(--page-pad));
+    padding: var(--space-5) var(--page-pad) var(--space-6);
+    margin-block-start: var(--gap-region);
+  }
+
+  .phistory__title {
+    display: block;
+    margin: 0 0 var(--space-4);
     font-size: var(--step-2);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+  }
+
+  .phistory .ruled > * { border-block-end-color: var(--rule-strong); }
+  .phistory .ruled > :first-child { border-block-start-color: var(--rule-strong); }
+}
+
+
+/* ===========================================================================
+   THE LINEUP COMPONENT
+   =========================================================================== */
+
+@layer components {
+  /* The app's signature layout, and the one shape a player learns. Four driver
+     slots in a 2x2 grid, the team slot as a wider band beneath. Identical
+     geometry in all three states — empty, editing, scored — so the arrangement
+     itself carries meaning before any number is read.
+
+     Slot order never re-sorts by score. A layout that reshuffles by
+     performance cannot be read at a glance, which is the only thing this
+     component is for. */
+  .lineup { margin-block-start: var(--space-5); }
+
+  .lineup__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  /* ---- Verdict -----------------------------------------------------------
+     The conclusion of the scored screen, and the only dark element in the app.
+     The page ground stays paper; this is one block sitting on it, which is
+     what makes it read as the answer rather than as another row. One per
+     screen — the third surface tier in tokens.css is capped at one instance.
+
+     Built as a stack so later lines — this week's average, the highest score
+     in the league — drop in beneath without a redesign. */
+  .verdict {
+    background: var(--ink-900);
+    color: var(--ink-000);
+    margin-block-start: var(--gap-block);
+    padding: var(--space-5) var(--space-6);
+  }
+
+  .verdict__main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+
+  .verdict__label { color: var(--ink-200); }
+
+  .verdict__figure {
+    font-size: 3.4rem;
+    line-height: 0.82;
+    font-weight: var(--weight-display);
+  }
+
+  /* ---- Slot --------------------------------------------------------------
+     A driver slot is a filled block with the team's band down its inner edge:
+     a recessed ground against the page's paper, so the lineup reads as an
+     object sitting on the page rather than as text ruled off from other text.
+     That missing middle layer was most of the "newspaper" problem — not a lack
+     of decoration. Phase 8 generalised this observation into `.panel`.
+
+     The team slot inverts the relationship instead of adding one: paper ground
+     between two rules, where the drivers are recessed blocks. A different
+     class of pick is a different kind of surface, with no label and no icon
+     saying so. */
+  .slot {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    column-gap: var(--space-4);
+    inline-size: 100%;
+    text-align: start;
+    color: inherit;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    border: 0;
+    background: var(--surface-recessed);
+    padding: var(--space-4) var(--space-4) var(--space-4) 0;
+    min-block-size: 6rem;
+  }
+
+  .slot--team {
+    background: var(--surface-recessed);
+    /* A hair rule, not a heavy one. Heavy separates the chrome from the
+       content and nothing else; using it here made the team slot look like a
+       region boundary rather than a fifth pick. */
+    border-block: var(--rule-hair) solid var(--rule-strong);
+    margin-block-start: var(--space-4);
+    min-block-size: 0;
+    align-items: center;
+    padding-block: var(--space-4);
+  }
+
+  /* ---- Band --------------------------------------------------------------
+     Full height of the slot's inner edge. Same colour language as the table
+     stripes, at the scale this component works at. */
+  .band {
+    display: flex;
+    align-self: stretch;
+    inline-size: var(--band-width);
+    min-block-size: 2.5rem;
+  }
+
+  .band__primary { flex: 1; background: var(--team-neutral); }
+  .band__accent { inline-size: var(--band-accent-width); background: var(--team-neutral); }
+
+  /* A team pick is both cars, so its band is two equal stripes rather than a
+     band with an accent. The geometry states what the pick is. */
+  .band--split .band__accent { inline-size: auto; flex: 1; }
+
+  .band__primary.team-mark--dark, .band__accent.team-mark--dark {
+    background: var(--team-achromatic-dark);
+  }
+  .band__primary.team-mark--light, .band__accent.team-mark--light {
+    background: var(--team-achromatic-light);
+  }
+
+  @supports (color: oklch(from #123456 l c h)) {
+    .band > [style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l) var(--team-c) h);
+    }
+    .band > .team-mark--bright[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-bright) var(--team-c-bright) h);
+    }
+    .band > .team-mark--tint[style*="--team-seed"] {
+      background: oklch(from var(--team-seed) var(--team-l-tint) var(--team-c-tint) h);
+    }
+  }
+
+  /* ---- Ghost numeral -----------------------------------------------------
+     The car number, set large and barely inked behind the name. Formula E cars
+     carry their numbers; borrowing that as a typographic ground gives the slot
+     depth with no graphic, no icon and no gradient — typography doing the work
+     decoration would otherwise do. Clipped by the slot, and never the thing
+     you read first. */
+  .slot__ghost {
+    position: absolute;
+    inset-block-end: -0.28em;
+    inset-inline-end: -0.06em;
+    font-size: 4.2rem;
+    line-height: 0.8;
+    color: var(--ink-100);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .slot--team .slot__ghost { display: none; }
+
+  .slot__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-inline-size: 0;
+    position: relative;
+  }
+
+  .slot__name {
+    font-weight: var(--weight-semi);
+    font-size: var(--step-4);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  .slot__name--team {
+    font-size: var(--step-3);
+    font-stretch: var(--width-narrow);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .slot__team { white-space: normal; }
+
+  /* The score is the loudest thing in the slot, by a wide margin. Scale
+     contrast is the cheapest hierarchy there is.
+
+     Star and score share one column, stacked. Both were absolutely positioned
+     against the slot before, which is why they collided on the team slot: two
+     things placed by coordinates rather than by layout will eventually meet.
+     Stacked, they cannot overlap in any slot, at any score length. */
+  .slot__figure {
+    grid-column: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: end;
+    gap: var(--space-1);
+    align-self: start;
+  }
+
+  .slot--team .slot__figure { align-self: center; }
+
+  .slot__score {
+    font-size: var(--step-7);
+    line-height: 0.85;
+  }
+
+  .slot--team .slot__score { font-size: var(--step-6); }
+
+  .slot__star { line-height: 1; }
+
+  .slot.is-empty {
+    background: none;
+    border: var(--rule-hair) dashed var(--rule-strong);
+    color: var(--text-low);
+    grid-template-columns: 1fr;
+    align-items: center;
+    justify-items: center;
+    padding: var(--space-4);
+  }
+
+  .slot__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .slot__plus { font-size: var(--step-6); line-height: 1; }
+
+  .slot.is-invalid {
+    box-shadow: inset 0 0 0 var(--rule-mark) var(--error);
+    background: var(--error-recessed);
+  }
+
+  .slot[aria-expanded="true"] {
+    box-shadow: inset 0 0 0 var(--rule-mark) var(--text);
+  }
+
+  /* ---- Changed slot ------------------------------------------------------
+     A pending transfer, marked structurally: heavy ink and a label. Never the
+     error colour — a transferred-in pick is the thing you wanted, and sharing
+     red with broken rules would empty red of meaning. */
+  .slot.is-changed {
+    box-shadow: inset 0 0 0 var(--rule-mark) var(--mark);
+  }
+
+  .slot__tag {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: var(--band-width);
+    background: var(--mark);
+    color: var(--surface);
+    padding: var(--space-1) var(--space-2);
     line-height: 1;
+  }
+
+  .slot--team .slot__tag { inset-block-start: 0; }
+}
+
+
+/* ===========================================================================
+   BREAKDOWN
+   =========================================================================== */
+
+@layer components {
+  /* Disclosed below the grid so it gets the full measure.
+
+     A double-header produces two rounds of two sections each, which as one
+     flat list is unreadable — the two races blur together. So a round is a
+     block with its own heading and its own edge, and within it each stage
+     leads with a heading, then a rule, then the rows that scored.
+
+     Rendered inside a modal, so it carries no border or ground of its own —
+     the sheet provides both. */
+  .breakdown { padding-block-end: var(--space-5); }
+
+  .breakdown__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block-end: var(--space-3);
+    border-block-end: var(--rule-mark) solid var(--text);
+  }
+
+  .round-block { margin-block-start: var(--space-5); }
+
+  .round-block__head {
+    display: grid;
+    /* Two children now that the round number lives inside the label, so the
+       total keeps the right edge instead of butting against the text. */
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
+    background: var(--surface-recessed);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .round-block__number { font-size: var(--step-5); }
+
+  .round-block__body {
+    border-inline-start: var(--rule-mark) solid var(--rule-strong);
+    padding-inline-start: var(--space-5);
+    margin-inline-start: var(--space-3);
+    margin-block-start: var(--space-3);
+  }
+
+  /* ---- Stage -------------------------------------------------------------
+     The context line belongs inside the heading, not above the rows. Set like
+     a row it reads as a rule that failed to score, which is exactly backwards:
+     it is the reason the rows below say what they say. */
+  .stage + .stage { margin-block-start: var(--space-5); }
+
+  .stage__head {
+    border-block-end: var(--rule-hair) solid var(--rule);
+    padding-block-end: var(--space-2);
+  }
+
+  .stage__context {
+    font-size: var(--step-2);
+    color: var(--text-mid);
+    font-stretch: var(--width-narrow);
+    margin-block-start: var(--space-1);
+  }
+
+  .stage__rules { margin-block-start: var(--space-3); }
+
+  .breakdown__link {
+    display: block;
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-4);
+    border-block-start: var(--rule-hair) solid var(--rule);
+    font-size: var(--step-2);
     color: var(--text-mid);
     text-decoration: none;
   }
+}
 
-  .infomark:hover, .infomark:focus-visible { color: var(--text); border-color: var(--text); }
 
-  /* ---- Picker row --------------------------------------------------------
+/* ===========================================================================
+   SHEETS
+   =========================================================================== */
+
+@layer components {
+  /* The picker is a task with a start, an end and a result, so it is a modal —
+     the native element, which brings focus trapping, escape-to-close and the
+     backdrop with no library. Reading is not a task and never gets one.
+
+     Centred, sized to its content, with a ceiling. Short content floats with
+     backdrop visible on all four edges; long content grows to the ceiling and
+     scrolls, and the sheet reaching the bottom of the screen is then itself
+     the signal that there is more below. */
+  .sheet {
+    border: 0;
+    padding: 0;
+    inline-size: min(100% - 2rem, 34rem);
+    max-block-size: min(84dvh, 44rem);
+    margin: auto;
+    background: var(--surface);
+    color: var(--text);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .sheet--narrow { inline-size: min(100%, 26rem); }
+
+  .sheet::backdrop { background: oklch(0.2 0.01 265 / 0.55); }
+
+  .sheet__head {
+    position: sticky;
+    top: 0;
+    /* `.option` is positioned, and positioned siblings without a z-index paint
+       in DOM order — so the rows were painting over the header rather than
+       scrolling under it. */
+    z-index: 2;
+    background: var(--surface);
+    border-block-end: var(--rule-hair) solid var(--text);
+    padding: var(--space-5) var(--space-6);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .sheet__body { padding: 0 var(--space-6) var(--space-6); }
+
+  .sheet__close {
+    background: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--step-1);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  /* The modal header carries the pick's team band, so a breakdown opened over
+     a dimmed page still says whose it is. */
+  .sheet__head--pick {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .sheet__head--pick .band { block-size: 1.9rem; min-block-size: 0; }
+
+  .sheet__title {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-inline-size: 0;
+    margin-inline-end: auto;
+  }
+}
+
+
+/* ===========================================================================
+   THE EDITOR
+   =========================================================================== */
+
+@layer components {
+  /* ---- Option ------------------------------------------------------------
+     A selectable row in the picker.
+
+     Selected uses the same structural treatment as `.is-yours`: full ink, a
+     heavier weight, a rule in the gutter. The app has one visual language for
+     "this one is yours" and it is not colour.
+
      The pick target and the information control are siblings, not nested: a
      link inside a link is invalid and breaks keyboard navigation. */
   .option {
     display: flex;
     align-items: center;
     gap: var(--space-4);
+    inline-size: 100%;
+    text-align: start;
+    background: none;
+    border: 0;
+    padding-block: var(--space-3);
+    color: var(--text-mid);
+    cursor: pointer;
     position: relative;
   }
+
+  .option__name { font-weight: var(--weight-medium); }
 
   .option__pick {
     display: flex;
@@ -1463,9 +1333,13 @@
     text-decoration: none;
   }
 
+  .option[aria-pressed="true"],
   .option__pick[aria-pressed="true"] { color: var(--text); }
+
+  .option[aria-pressed="true"] .option__name,
   .option__pick[aria-pressed="true"] .option__name { font-weight: var(--weight-semi); }
 
+  .option[aria-pressed="true"]::before,
   .option__pick[aria-pressed="true"]::before {
     content: "";
     position: absolute;
@@ -1475,201 +1349,449 @@
     background: var(--mark);
   }
 
-  .option--noted .option__pick .option__body { opacity: 0.45; }
-
-  /* A driver's name in a classification opens their season. */
-  .c-driver { color: inherit; text-decoration: none; border-block-end: var(--rule-hair) solid var(--rule-strong); }
-  .c-driver:hover, .c-driver:focus-visible { border-block-end-color: var(--text); }
-}
-
-/* ---------------------------------------------------------------------------
-   Application shell and forms.
-   ---------------------------------------------------------------------------
-   Added in Phase 4. Everything before this point was built against the
-   styleguide's own shell; these are what the real pages need — a header, a
-   flashed message, and a form. They live here rather than in a separate
-   app.css because a header and a text input are primitives by any reading, and
-   a second stylesheet would immediately raise the question of which file a
-   new component belongs in. */
-
-@layer base {
-  /* The browser's h1 is 2em with margins, which fights every scale decision in
-     tokens.css. Sized by the components below instead. */
-  h1, h2, h3 { font-size: inherit; font-weight: var(--weight-semi); }
-
-  fieldset { border: 0; min-inline-size: 0; }
-  legend { padding: 0; }
-}
-
-@layer components {
-
-  /* ---- Shell ------------------------------------------------------------ */
-
-  .appbar {
+  /* An option whose consequence is worth knowing before you take it. Never
+     disabled: nothing in the picker is forbidden, because a forced relocation
+     has no legal intermediate and blocking one order of a two-slot change
+     while allowing the other is arbitrary. The interface explains rather than
+     prevents. */
+  .option__meta {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-5);
-    border-block-end: var(--rule-heavy) solid var(--text);
-    padding-block: var(--space-5) var(--space-3);
+    flex-direction: column;
+    align-items: end;
+    gap: var(--space-1);
+    text-align: end;
+    flex: none;
+    max-inline-size: 42%;
   }
 
-  .appbar__mark {
+  .option__note {
+    font-size: var(--step-2);
+    color: var(--text-mid);
+    font-stretch: var(--width-narrow);
+    line-height: 1.2;
+  }
+
+  /* Dimmed, but never disabled: taking it is legal, it just has a consequence
+     worth seeing first. */
+  .option--noted .option__name { color: var(--text-mid); }
+  .option--noted .option__body,
+  .option--noted .option__pick .option__body { opacity: 0.45; }
+  .option--noted .option__note { color: var(--text); font-weight: var(--weight-medium); }
+
+  .option--current .option__name { font-weight: var(--weight-semi); }
+
+  /* ---- Restore -----------------------------------------------------------
+     Putting back a pick this draft swapped out, offered above the roster
+     because it is the likelier intent once a slot already carries an In tag. */
+  .restore {
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-4);
+    margin-block-end: var(--space-5);
+  }
+
+  .restore .option__meta .label { color: var(--text); }
+
+  /* ---- Budget ------------------------------------------------------------
+     What an edit costs and what is left. This decides whether a change is
+     legal at all, so it is stated at figure scale rather than as a caption.
+     A mark rule rather than a heavy one: this is a section of the editor, not
+     the boundary between chrome and content. */
+  .budget {
+    display: flex;
+    align-items: end;
+    gap: var(--space-7);
+    border-block-start: var(--rule-mark) solid var(--text);
+    margin-block-start: var(--gap-block);
+    padding-block-start: var(--space-4);
+  }
+
+  .budget__figure {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+
+  .budget__figure--quiet { color: var(--text-mid); margin-inline-start: auto; }
+
+  .budget.is-over { color: var(--error); border-block-start-color: var(--error); }
+  .budget.is-over .budget__figure--quiet { color: var(--error); }
+
+  /* ---- Action bar --------------------------------------------------------
+     Commit is unmistakably available or unmistakably not. A disabled state
+     that merely looks quiet gets tapped. */
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border-block-start: var(--rule-hair) solid var(--text);
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-4);
+  }
+
+  .button,
+  input[type="submit"],
+  .actions__commit {
+    background: var(--text);
+    color: var(--surface);
+    border: var(--rule-mark) solid var(--text);
+    padding: var(--space-3) var(--space-5);
     font-size: var(--step-1);
     font-weight: var(--weight-semi);
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    text-decoration: none;
-  }
-
-  .appbar__nav {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-5);
-    font-size: var(--step-2);
-    font-stretch: var(--width-narrow);
-    color: var(--text-mid);
-  }
-
-  .appbar__nav a { text-decoration: none; }
-  .appbar__nav a:hover { text-decoration: underline; }
-  .appbar__nav form { display: inline-flex; }
-
-  /* Sign out is a POST, so it has to be a button. It should not look like one:
-     it sits among links and reads as one. */
-  .appbar__signout {
-    background: none;
-    border: 0;
-    padding: 0;
-    font: inherit;
-    font-stretch: inherit;
-    color: inherit;
     cursor: pointer;
   }
-  .appbar__signout:hover { text-decoration: underline; }
 
-  .appfoot {
-    margin-block-start: var(--space-9);
-    border-block-start: var(--rule-hair) solid var(--rule);
-    padding-block: var(--space-4) var(--space-6);
+  .actions__commit {
+    display: inline-block;
+    text-decoration: none;
+    text-align: center;
+  }
+
+  .button[disabled],
+  .button.is-disabled,
+  input[type="submit"][disabled],
+  .actions__commit[disabled],
+  .actions__commit.is-disabled {
+    background: none;
+    color: var(--text-low);
+    border-color: var(--rule-strong);
+    cursor: not-allowed;
+  }
+
+  .button--quiet,
+  .actions__reset {
+    background: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    color: var(--text-mid);
+    padding: var(--space-3) var(--space-5);
     font-size: var(--step-1);
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--text-low);
+    text-decoration: none;
+    cursor: pointer;
   }
 
-  /* Auth and account pages. A sign-in form at the full 46rem desktop measure
-     reads as a broken layout; the constrained column is the point, and here it
-     constrains further. */
-  .gate { max-inline-size: 26rem; }
+  /* ---- Transfer summary -------------------------------------------------- */
+  .summary__side { padding-block: var(--space-4); }
+  .summary__side + .summary__side {
+    border-block-start: var(--rule-hair) solid var(--rule);
+  }
 
-  .page-title {
+  .summary__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-block-start: var(--space-3);
+  }
+
+  .summary__row .band { block-size: 1.6rem; min-block-size: 0; }
+
+  .summary__cost {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border-block-start: var(--rule-mark) solid var(--text);
+    margin-block-start: var(--space-4);
+    padding-block-start: var(--space-4);
+  }
+
+  /* ---- Link decoration ---------------------------------------------------
+     A slot, a picker row and a button are links only because they navigate;
+     they are not prose, and underlining every driver and team name was most of
+     what made the transfer screens look busy next to the scored one. Genuine
+     inline links in prose keep their underline. */
+  .slot,
+  .option,
+  .option__pick,
+  .actions__commit,
+  .actions__reset,
+  .sheet__close {
+    text-decoration: none;
+  }
+}
+
+
+/* ===========================================================================
+   NAVIGATION
+   =========================================================================== */
+
+@layer components {
+  /* ---- Masthead ----------------------------------------------------------
+     The round number set large against the venue. The one place the display
+     face is allowed to be loud. */
+  .masthead {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--space-5);
+    align-items: end;
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-3);
+  }
+
+  .masthead__venue {
     font-family: var(--face-display);
     font-size: var(--step-5);
     font-weight: var(--display-weight);
     font-stretch: var(--display-width);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-display);
-    margin-block: var(--space-7) var(--space-6);
+    line-height: 1;
+    letter-spacing: var(--tracking-caps);
   }
 
-  /* ---- Notices ----------------------------------------------------------
-     A flashed message. Same idiom as a marked row: a heavy rule in the
-     reserved gutter, not a tinted card with a rounded corner. */
+  .masthead__meta { grid-column: 2; margin-block-start: var(--space-2); }
 
-  .notices { margin-block-start: var(--space-6); }
+  /* ---- Meeting nav -------------------------------------------------------
+     Previous, name, next. A player moves by one almost every time, so arrows
+     are the primary action and the jump case lives behind the name — which
+     keeps the bar to three elements instead of four.
 
-  .notice {
-    border-inline-start: var(--mark-width) solid var(--mark);
-    padding-inline-start: var(--mark-gutter);
-    padding-block: var(--space-2);
-  }
-  .notice + .notice { margin-block-start: var(--space-4); }
-  .notice--error { border-inline-start-color: var(--error); color: var(--error); }
+     An arrow at either end is flat, not absent. A control that disappears
+     shifts the layout and teaches nothing.
 
-  /* ---- Forms ------------------------------------------------------------
-     A ruled line rather than a boxed control: the input is the underline plus
-     the recess, which is closer to a form on paper than to a component
-     library. `appearance: none` is load-bearing on iOS, which otherwise
-     applies its own inset shadow and corner radius and quietly reintroduces
-     the pill this project retired. */
-
-  .field { margin-block-end: var(--space-6); }
-  .field__label { display: block; margin-block-end: var(--space-2); }
-
-  .field :is(input[type="text"], input[type="email"], input[type="password"]),
-  .field select,
-  .field textarea {
-    appearance: none;
-    inline-size: 100%;
-    background: var(--surface-recessed);
-    border: 0;
-    border-block-end: var(--rule-mark) solid var(--text);
-    border-radius: 0;
-    padding: var(--space-4) var(--space-4) var(--space-3);
-  }
-
-  .field--invalid :is(input[type="text"], input[type="email"], input[type="password"]) {
-    border-block-end-color: var(--error);
-  }
-
-  .field__errors {
-    margin-block-start: var(--space-2);
-    font-size: var(--step-2);
-    color: var(--error);
-  }
-
-  .check {
-    display: flex;
+     A mark rule beneath rather than a heavy one. This is a screen's own nav
+     and it already sits below the appbar's heavy rule; two black bars sixty
+     pixels apart was most of what made a weekend page feel like a broadsheet. */
+  .mnav {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 2.5rem;
     align-items: center;
-    gap: var(--space-4);
-    margin-block-end: var(--space-6);
+    gap: var(--space-3);
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block: var(--space-3);
   }
-  .check input { inline-size: 1rem; block-size: 1rem; }
 
-  /* A grouped section of a longer page — the four forms on the account
-     screen. Sectioned by rule weight, per the hierarchy in tokens.css. */
-  .panel { border-block-start: var(--rule-mark) solid var(--text); padding-block-start: var(--space-4); }
-  .panel + .panel { margin-block-start: var(--space-8); }
-  .panel__title { display: block; margin-block-end: var(--space-5); }
-  .panel--danger { border-block-start-color: var(--error); }
-  .panel--danger .panel__title { color: var(--error); }
+  /* Which rounds this weekend contains, and whether it is a double-header.
+     The arrow nav removed the numbered strip and took this context with it;
+     the name alone does not say that London is rounds 16 and 17. */
+  .mnav__context {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: center;
+    margin-block-start: var(--space-1);
+  }
 
-  .aftermatter {
-    margin-block-start: var(--space-7);
+  .mnav__arrow {
+    display: grid;
+    place-items: center;
+    block-size: 2.5rem;
+    font-family: var(--face-display);
+    font-size: var(--step-6);
+    line-height: 1;
+    color: var(--text);
+    text-decoration: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    transition: border-color var(--dur-quick) var(--ease);
+  }
+
+  .mnav__arrow:hover, .mnav__arrow:focus-visible { border-color: var(--text); }
+
+  .mnav__arrow.is-flat { color: var(--ink-100); border-color: var(--ink-100); }
+
+  .mnav__name {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-3);
+    text-decoration: none;
+    color: inherit;
+    min-inline-size: 0;
+  }
+
+  .mnav__label {
+    font-family: var(--face-display);
+    font-size: var(--step-6);
+    font-weight: var(--weight-bold);
+    font-stretch: var(--display-width);
+    letter-spacing: var(--tracking-caps);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---- View switch -------------------------------------------------------
+     Two peers inside one meeting. One thin row, so it costs almost nothing to
+     keep both views one tap apart. */
+  .vswitch {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+  }
+
+  .vswitch__tab {
+    text-align: center;
+    padding-block: var(--space-4);
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-low);
+    text-decoration: none;
+    border-block-end: var(--rule-mark) solid transparent;
+    margin-block-end: calc(-1 * var(--rule-hair));
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
+  }
+
+  .vswitch__tab[aria-current="true"] {
+    color: var(--text);
+    border-block-end-color: var(--text);
+  }
+
+  /* ---- Round and stage switches -----------------------------------------
+     Two thin levels rather than one flat four-way: "Round 16 Qualifying" alone
+     is most of a 360px viewport. The round level is absent entirely for a
+     single-header, which is the common case.
+
+     Underline tabs, not filled boxes. A filled tab beside an unfilled one puts
+     a large black rectangle in the middle of a results page, which reads as
+     more important than the results. An underline marks the current tab and
+     stops there. */
+  .rswitch {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    margin-block-start: var(--space-5);
+  }
+
+  /* The switch is chrome; what follows is the content. Butted together they
+     read as one crowded block. */
+  .rswitch--stage { margin-block-end: var(--space-7); }
+
+  .rswitch__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding-block: var(--space-3);
+    color: var(--text-low);
+    text-decoration: none;
+    font-size: var(--step-1);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    border-block-end: var(--rule-mark) solid transparent;
+    margin-block-end: calc(-1 * var(--rule-hair));
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
+  }
+
+  .rswitch__tab[aria-current="true"] {
+    color: var(--text);
+    border-block-end-color: var(--text);
+  }
+
+  .rswitch__format {
+    font-size: var(--step-1);
+    font-stretch: var(--width-condensed);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .schedule__when {
+    font-size: var(--step-2);
+    font-stretch: var(--width-narrow);
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  /* ---- Disclosure --------------------------------------------------------
+     Results, collapsed until asked for. A native <details>, so it needs no
+     JavaScript, is keyboard and screen-reader correct by default, and costs
+     nothing on a screen the reader opened to see their own score.
+
+     A mark rule and a region's worth of space above it, rather than the 3px
+     full-ink rule it used to carry. Distance separates better than weight at
+     this size, and it costs no ink. */
+  .disclosure {
+    border-block-start: var(--rule-mark) solid var(--text);
+    margin-block-start: var(--gap-region);
+  }
+
+  .disclosure > summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-5);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .disclosure > summary::-webkit-details-marker { display: none; }
+
+  .disclosure__title {
+    font-family: var(--face-display);
+    font-size: var(--step-5);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--display-width);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .disclosure__hint { color: var(--text-low); }
+
+  .disclosure[open] .disclosure__hint::after { content: "Hide"; }
+  .disclosure:not([open]) .disclosure__hint::after { content: "Show"; }
+
+  .disclosure__body { padding-block-end: var(--space-8); }
+
+  /* ---- Aside link --------------------------------------------------------
+     A quiet route to a second view. Not a button: it goes somewhere, it does
+     not do something. */
+  .aside {
+    display: flex;
+    justify-content: end;
+    margin-block-start: var(--space-4);
+  }
+
+  .aside__link {
     font-size: var(--step-2);
     color: var(--text-mid);
+    text-decoration: none;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    padding-block-end: var(--space-1);
+    transition: color var(--dur-quick) var(--ease);
   }
-  .aftermatter > * + * { margin-block-start: var(--space-3); }
-}
-/* ---------------------------------------------------------------------------
-   The qualifying bracket
-   ---------------------------------------------------------------------------
-   Appended in stage 7.4. A layer can be reopened, so this merges into the
-   `components` layer declared in tokens.css and wins over earlier rules in it
-   by source order — which is what a later addition should do. Adding it
-   unlayered would beat every layer in the project, and tokens.css keeps that
-   escape hatch empty on purpose.
 
+  .aside__link:hover, .aside__link:focus-visible { color: var(--text); }
+}
+
+
+/* ===========================================================================
+   THE QUALIFYING BRACKET
+   ===========================================================================
    Phase 3 recorded an open risk: that the intended bracket was buildable from
    `.ruled`, the team band and the three rule weights, and that this was an
    argument rather than a demonstration. It needed no new token and no new
-   primitive — only this arrangement of the ones that were already there. The
-   risk is closed. */
+   primitive — only an arrangement of the ones that were already there. The
+   risk is closed.
+
+   Phase 8 changed one thing about it. A section used to announce itself with a
+   3px full-ink rule under a condensed caps title, and with four sections on a
+   round that put four of the loudest marks in the system on one scrolling
+   page — which is exactly the complaint that opened the phase. A section is a
+   band now. The stages inside it keep their rules, because those separate
+   subdivisions of one region and that is what a rule is for. */
 
 @layer components {
-
   .bracket {
     display: flex;
     flex-direction: column;
-    gap: var(--space-7);
+    gap: var(--gap-block);
   }
 
-  /* Heavy rule: a section is one of a screen's major regions. */
+  /* The band. Same object as `.panel`, and if a third caller appears these
+     three declarations become one class. Two is not yet a pattern. */
+  .bracket__section {
+    background: var(--surface-recessed);
+    margin-inline: calc(-1 * var(--page-pad));
+    padding: var(--space-5) var(--page-pad) var(--space-6);
+  }
+
   .bracket__section-title {
-    margin: 0 0 var(--space-4);
-    padding-block-end: var(--space-2);
-    border-block-end: var(--rule-heavy) solid var(--text);
+    margin: 0 0 var(--space-5);
     font-family: var(--face-text);
     font-size: var(--step-2);
     font-weight: var(--weight-bold);
@@ -1679,7 +1801,7 @@
   }
 
   .bracket__stage + .bracket__stage {
-    margin-block-start: var(--space-6);
+    margin-block-start: var(--gap-block);
   }
 
   /* Mark rule: a duel is a unit, and the gap alone does not say so at four
@@ -1729,7 +1851,7 @@
     align-items: baseline;
     column-gap: var(--space-4);
     padding-block: var(--space-3);
-    border-block-start: var(--rule-hair) solid var(--rule);
+    border-block-start: var(--rule-hair) solid var(--rule-strong);
     font-size: var(--step-3);
     line-height: var(--leading-data);
   }
@@ -1810,53 +1932,19 @@
     border-block-start: var(--rule-mark) solid var(--rule-strong);
   }
 
-}
-/* ---------------------------------------------------------------------------
-   Season history, inside a driver or team profile
-   ---------------------------------------------------------------------------
-   Appended in stage 7.5. Same unit as the table above it, different scope — so
-   a heavy rule separates them. Without it a reader scanning down takes the
-   first history row for another round of the season table, which is the one
-   misreading this block can cause. */
+  /* ---- The personal mark, on a bracket row -------------------------------
+     `.is-yours` hangs its rule off `> :first-child`, which is right for a
+     `<tr>` — a table cell is as tall as its row — and wrong for a grid. In the
+     bracket the first child is `.bracket__pos`, a baseline-aligned grid item:
+     in a group row that is one line of text tall, so the rule covered the
+     driver's name and stopped short of the team beneath it, and in a duel row
+     the cell is empty, so it had no height and the rule vanished entirely. The
+     marks were being applied correctly the whole way through the bracket; they
+     had nothing to be tall against.
 
-@layer components {
-
-  .phistory {
-    margin-block-start: var(--space-7);
-    padding-block-start: var(--space-5);
-    border-block-start: var(--rule-heavy) solid var(--text);
-  }
-
-  .phistory__title {
-    margin: 0 0 var(--space-3);
-    font-family: var(--face-text);
-    font-size: var(--step-2);
-    font-weight: var(--weight-bold);
-    font-stretch: var(--width-condensed);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-label);
-  }
-
-}
-/* ---------------------------------------------------------------------------
-   The personal mark, on a bracket row
-   ---------------------------------------------------------------------------
-   Appended in stage 7.5b. `.is-yours` hangs its rule off `> :first-child`,
-   which is right for a `<tr>` — a table cell is as tall as its row — and wrong
-   for a grid. In the bracket the first child is `.bracket__pos`, a
-   baseline-aligned grid item: in a group row that is one line of text tall, so
-   the rule covered the driver's name and stopped short of the team beneath it,
-   and in a duel row the cell is empty, so it had no height and the rule
-   vanished entirely. The marks were being applied correctly the whole way
-   through the bracket; they had nothing to be tall against.
-
-   So the rule hangs off the row, which is what `tr.is-yours` already does by
-   another route. The inherited pseudo-element is cancelled rather than
-   overridden, because two absolutely positioned rules a pixel apart is worse
-   than either alone. */
-
-@layer components {
-
+     So the rule hangs off the row. The inherited pseudo-element is cancelled
+     rather than overridden, because two absolutely positioned rules a pixel
+     apart is worse than either alone. */
   .bracket__row.is-yours > :first-child::before {
     content: none;
   }
@@ -1869,41 +1957,221 @@
     content: "";
     position: absolute;
     inset-block: 0;
+    /* The band bleeds through the page's padding, so the gutter the mark lives
+       in has to be measured from the band's own inner edge rather than from
+       the page's. */
     inset-inline-start: calc(-1 * var(--mark-gutter));
     inline-size: var(--mark-width);
     background: var(--mark);
   }
-
 }
-/* ---------------------------------------------------------------------------
-   A trailing link under a component
-   ---------------------------------------------------------------------------
-   Appended in stage 7.5d. The Perfect Five link sits below the lineup and above
-   the Results disclosure on both the weekend view and a friend's profile.
-   Right-aligned because it reads as an onward move rather than as a caption on
-   the thing above it — the same reason `.actions__commit` sits right. */
+
+
+/* ===========================================================================
+   MOTION
+   ===========================================================================
+   One rule: motion confirms a change the reader caused. Never on load, never
+   looping, never announcing. Four applications, and there is not a fifth.
+
+   Colour and border transitions live with the components they belong to —
+   `.infomark`, `.c-driver`, the tabs, `.mnav__arrow`. What is here is the
+   arriving and departing, which needs the newer CSS and wants keeping in one
+   place so it can be found and removed.
+
+   Every one of these degrades to instant in a browser that lacks the feature,
+   and all of them are cancelled by the prefers-reduced-motion block at the
+   foot of this file.
+   =========================================================================== */
 
 @layer components {
+  /* A sheet arrives. It fades and rises four pixels, which is enough to say
+     "this is new" and not enough to be a performance.
 
-  .status--right {
-    text-align: right;
+     Exit is instant, deliberately: a dismissal should feel finished the moment
+     it is asked for, and an animated close makes a picker feel reluctant. */
+  @supports (transition-behavior: allow-discrete) {
+    .sheet {
+      opacity: 0;
+      translate: 0 var(--space-4);
+      transition:
+        opacity var(--dur) var(--ease),
+        translate var(--dur) var(--ease),
+        overlay var(--dur) allow-discrete,
+        display var(--dur) allow-discrete;
+    }
+
+    .sheet[open] {
+      opacity: 1;
+      translate: 0 0;
+    }
+
+    @starting-style {
+      .sheet[open] {
+        opacity: 0;
+        translate: 0 var(--space-4);
+      }
+    }
+
+    .sheet::backdrop {
+      opacity: 0;
+      transition:
+        opacity var(--dur) var(--ease),
+        overlay var(--dur) allow-discrete,
+        display var(--dur) allow-discrete;
+    }
+
+    .sheet[open]::backdrop { opacity: 1; }
+
+    @starting-style {
+      .sheet[open]::backdrop { opacity: 0; }
+    }
   }
 
+  /* A disclosure opens. Height rather than opacity, because the thing the
+     reader wants confirmed is that the page grew — `interpolate-size` is what
+     makes `height: auto` animatable at all. Where it is unsupported the
+     disclosure simply snaps, which is what it did before. */
+  @supports (interpolate-size: allow-keywords) and (selector(::details-content)) {
+    :root { interpolate-size: allow-keywords; }
+
+    .disclosure::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size var(--dur) var(--ease),
+        content-visibility var(--dur) allow-discrete;
+    }
+
+    .disclosure[open]::details-content { block-size: auto; }
+  }
+
+  /* A results fragment arrives. HTMX puts `htmx-settling` on swapped-in
+     content for the settle phase, so the new markup fades up from nothing
+     rather than replacing the old in one frame — which at a round switch reads
+     as a flicker rather than as a change.
+
+     Scoped to the results body on purpose. The editor swaps its whole region
+     on every tap and a fade there would make each pick feel slower than it is,
+     which is the opposite of confirming something. */
+  #results-body {
+    transition: opacity var(--dur-quick) var(--ease);
+  }
+
+  #results-body.htmx-settling {
+    opacity: 0;
+  }
 }
 
-/* ---------------------------------------------------------------------------
-   Prose rhythm
-   ---------------------------------------------------------------------------
-   `.prose > * + *` spaces children inside a block; nothing spaced two blocks
-   from each other, so consecutive `.prose` paragraphs sat flush and the first
-   place it showed reached for a `<br>`. Same value as the inside rule, in rem
-   rather than em because the gap between two blocks belongs to the page's
-   spacing scale rather than to either block's type size. */
+
+/* ===========================================================================
+   QUARANTINE — candidates for deletion at 8.6
+   ===========================================================================
+   No caller was found for any of these while reorganising the file in 8.1.
+   They are kept rather than deleted because "I could not find one" and "there
+   is not one" are different statements, and a grep on the templates settles it
+   in one command:
+
+     grep -rnE 'qstage|slots__|\bslots\b|aside__|round-head|verdict__row' app/templates/
+
+   Anything that shows up moves back into its section above with the comment it
+   deserves; anything that does not is deleted at 8.6 with the rest of the
+   sweep.
+   =========================================================================== */
 
 @layer components {
+  /* Placeholder shape from Phase 3, superseded by the bracket. */
+  .qstage { margin-block-start: var(--gap-block); }
 
-  .prose + .prose {
+  .qstage__head {
+    border-block-end: var(--rule-mark) solid var(--text);
+    padding-block-end: var(--space-2);
+    margin-block-end: var(--space-2);
+  }
+
+  /* The running state of a draft, sticky above a scrolling picker. Superseded
+     by `.budget` and the problem bars. */
+  .slots {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--surface);
+    border-block: var(--rule-hair) solid var(--text);
+    padding-block: var(--space-4);
     margin-block-start: var(--space-5);
   }
 
+  .slots__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-1);
+  }
+
+  .slots__row--cost {
+    border-block-start: var(--rule-hair) solid var(--rule);
+    padding-block-start: var(--space-3);
+    margin-block-start: var(--space-3);
+  }
+
+  .slots__fill { font-weight: var(--weight-semi); }
+  .slots__fill.is-over { text-decoration: underline; text-decoration-thickness: 2px; }
+
+  /* Separated the two races of a double-header before the round block did. */
+  .round-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    column-gap: var(--space-4);
+    border-block-end: var(--rule-hair) solid var(--text);
+    padding-block-end: var(--space-3);
+    margin-block-start: var(--space-7);
+    margin-block-end: var(--space-4);
+  }
+
+  .round-head__number { font-size: var(--step-5); }
+
+  /* Written for a comparison figure under the verdict that has never been
+     built. Worth keeping if the verdict is ever going to grow a second line;
+     worth deleting if it is not. */
+  .verdict__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border-block-start: var(--rule-hair) solid var(--ink-600);
+    margin-block-start: var(--space-4);
+    padding-block-start: var(--space-3);
+    color: var(--ink-200);
+  }
+}
+
+
+@layer utilities {
+  .u-mid { color: var(--text-mid); }
+  .u-low { color: var(--text-low); }
+  .u-nowrap { white-space: nowrap; }
+  .u-caps { text-transform: uppercase; letter-spacing: var(--tracking-caps); font-feature-settings: "case" 1; }
+  .u-condensed { font-stretch: var(--width-condensed); }
+  .u-narrow { font-stretch: var(--width-narrow); }
+  .u-semi { font-weight: var(--weight-semi); }
+
+  .visually-hidden {
+    position: absolute;
+    inline-size: 1px; block-size: 1px;
+    overflow: hidden; clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+
+/* The one deliberately unlayered rule in the project. tokens.css says the
+   escape hatch stays empty and this is the exception it names: a reader who
+   has asked their system for less motion has to win over every layer, and a
+   layered rule could be beaten by a later component. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

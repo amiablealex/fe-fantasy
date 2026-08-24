@@ -1,4 +1,4 @@
-/* Design tokens. The only place colour, type and spacing are defined.
+/* Design tokens. The only place colour, type, spacing and timing are defined.
  *
  * SPEC.md §1: tokens live in CSS, never in Python. A colour change is an edit
  * to this file and a hard refresh — no Python edit, no redeploy, and the
@@ -14,9 +14,17 @@
  * component needs a value that has no semantic name, the value is missing a
  * name, not the rule is wrong.
  *
+ * The one standing exception is spacing *inside* a component, which reaches
+ * for --space-N directly: the distance between a label and the figure under it
+ * is a property of that component and naming it semantically would produce a
+ * token per component. Spacing *between* regions is semantic, because that is
+ * where the page's rhythm lives and it has to be consistent across screens.
+ *
  * Layer order is declared here because this file loads first. Anything not in
  * a layer beats everything in one, so unlayered CSS is the escape hatch and
- * should stay empty. */
+ * should stay empty — with exactly one deliberate exception, the
+ * prefers-reduced-motion block at the foot of primitives.css, which has to win
+ * over every layer to do its job. */
 
 @layer reset, tokens, base, layout, components, utilities;
 
@@ -101,12 +109,12 @@
        ----------------------------------------------------------------------
        In rem, not px. A person who has raised their phone's text size gets a
        larger app rather than an app that ignores them. The one exception is
-       form inputs, which are pinned at 16px in base.css — below that, iOS
-       Safari zooms the viewport on focus and every layout decision here stops
-       being true. */
+       form inputs, which are pinned at 16px in the base layer — below that,
+       iOS Safari zooms the viewport on focus and every layout decision here
+       stops being true. */
 
     --step-1: 0.6875rem;   /* 11px — uppercase micro-labels only */
-    --step-2: 0.750rem;    /* 12px — secondary data, team names */
+    --step-2: 0.750rem;    /* 12px — secondary data, team names, headings */
     --step-3: 0.8125rem;   /* 13px — the data size. The app's default. */
     --step-4: 0.9375rem;   /* 15px — prose, and only prose */
     --step-5: 1.25rem;     /* 20px — display floor */
@@ -165,6 +173,9 @@
        relaxes, the layout does not reflow into panels. */
     --measure: 100%;
     --measure-prose: 34em;
+    /* The page's own inline padding, named because the grouping band has to
+       cancel it exactly. See --surface-recessed below. */
+    --page-pad: var(--space-6);
 
     /* Three rule weights, used as a hierarchy rather than interchangeably:
        hair separates rows, mark separates sections, heavy separates a screen's
@@ -181,11 +192,63 @@
     --stripe-gap: 0;
 
     /* ----------------------------------------------------------------------
-       Semantics
-       ---------------------------------------------------------------------- */
+       Primitives — timing
+       ----------------------------------------------------------------------
+       Added in Phase 8. One rule governs every use: **motion confirms a change
+       the reader caused.** Never on load, never looping, never announcing.
+       There are four applications in the whole application and there is not a
+       fifth — a sheet opening, a disclosure opening, a results fragment
+       arriving, and a tab becoming current.
+
+       Two durations, because a thing that appears and a thing that merely
+       changes colour do not want the same one. The easing decelerates hard: an
+       element that arrives should look like it has stopped rather than like it
+       is settling. */
+
+    --dur-quick: 120ms;   /* a colour, a border, a tab */
+    --dur: 180ms;         /* something arriving or leaving */
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+
+    /* ----------------------------------------------------------------------
+       Semantics — surface
+       ----------------------------------------------------------------------
+       Three grounds, and the phase that introduced the middle one added no
+       fourth on purpose.
+
+         --surface            the page. Everything sits here unless it has
+                              earned otherwise.
+         --surface-recessed   a region read as a unit and then left: a panel,
+                              a bracket section, a lineup slot, a form control.
+         --ink-900            the verdict block. One per screen, and it carries
+                              the single figure the screen exists to give.
+
+       Four constraints, which matter more than the value:
+
+         1. A fill REPLACES a rule; it never joins one. Every heavy rule that
+            became a panel in Phase 8 is a line removed, which is why the
+            page got quieter rather than busier.
+         2. No recessed surface nests inside another. Where the case genuinely
+            arises — a form control inside a panel — the inner one inverts to
+            paper rather than stacking a second grey.
+         3. A surface holds a heading and a list. Never a single statement,
+            never a lone figure: fill something small enough and you have
+            rebuilt the pill this project retired.
+         4. A surface is full-measure and square. It never sits on a grid
+            beside a sibling and it never takes a corner radius. There is no
+            --radius token in this file and that is deliberate.
+
+       `.slot` reached this conclusion alone in Phase 4 — "a recessed ground
+       against the page's paper, so the lineup reads as an object sitting on
+       the page rather than as text ruled off from other text; that missing
+       middle layer was most of the newspaper problem" — and it was never
+       generalised beyond the one component. Phase 8 generalises it. */
 
     --surface: var(--ink-000);
     --surface-recessed: var(--ink-050);
+
+    /* ----------------------------------------------------------------------
+       Semantics — ink and rules
+       ---------------------------------------------------------------------- */
 
     --text: var(--ink-900);
     --text-mid: var(--ink-600);
@@ -193,6 +256,20 @@
 
     --rule: var(--ink-100);
     --rule-strong: var(--ink-200);
+
+    /* Rule weight policy, settled in Phase 8.
+       hair   between rows of one list
+       mark   between sections of one region, and under a screen's own nav
+       heavy  ONCE per screen, at the boundary between the app's chrome and
+              its content — that is, the appbar and nowhere else.
+
+       Before this the heavy weight appeared seven times, five of them in full
+       --text, so a weekend page carried four to six 3px black rules at 360px.
+       That was the newspaper feel, and it was not a shortage of decoration. */
+
+    /* ----------------------------------------------------------------------
+       Semantics — marking and state
+       ---------------------------------------------------------------------- */
 
     /* "This is yours" is structural, not chromatic. There is no accent colour
        in v1, deliberately: ten team hues already occupy the colour space, and
@@ -221,7 +298,7 @@
     /* The second non-team chroma, and the last. A broken rule and an unsaved
        change are different states — one blocks, one only waits — and colour
        says so faster than wording does.
-       
+
        Under the same constraint --error is: outside the team clamp, so it can
        never be mistaken for an identity. Yellows are the reason
        --team-l-bright exists at all, since a yellow seed cannot hold chroma at
@@ -233,6 +310,21 @@
 
     --focus: var(--ink-900);
     --focus-offset: 2px;
+
+    /* ----------------------------------------------------------------------
+       Semantics — rhythm
+       ----------------------------------------------------------------------
+       Space is a stronger grouping signal than stroke width and this app was
+       not using it as one: the difference between "next row" and "next major
+       region" was 12px and a line weight the eye cannot reliably measure at
+       360px. --space-9 existed and appeared twice in the entire stylesheet.
+
+       Three distances, and every gap between two blocks is one of them. If a
+       gap wants a fourth value, one of these three is wrong. */
+
+    --gap-row: var(--space-4);      /*  8px — rows of one list */
+    --gap-block: var(--space-6);    /* 16px — blocks inside one region */
+    --gap-region: var(--space-9);   /* 48px — one region to the next */
   }
 
   @media (min-width: 48rem) {
