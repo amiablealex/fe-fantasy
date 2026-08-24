@@ -7,36 +7,81 @@
   <link rel="preload" href="{{ url_for('static', filename='fonts/Archivo.woff2') }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/primitives.css') }}">
+  {#- The tile a friend puts on a home screen in December. Paper rather than
+      the dark ground every other motorsport app uses, which is the same
+      argument §1 makes about the app itself. -#}
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <meta name="theme-color" content="#fbfbfc">
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/dialogs.js') }}" defer></script>
 </head>
 <body>
 <div class="measure">
 
-{#- Five destinations, in the order a player wants them: what to do next, what
-    happened, who is winning, and then the account. "Weekends" rather than
-    "Results" because the page is your score first and the classification
-    second — SPEC.md §5 names the unit Weekend in the interface and Meeting in
-    the model. -#}
+{#- ---- The shell -----------------------------------------------------------
+
+    Two rows, and the split between them is what makes the navigation stop
+    growing. Row one is identity and the account; row two is the three places a
+    player moves between. Everything else — how the game works, about, privacy,
+    terms, admin — is in the footer, because those are visited rarely and
+    deliberately and a footer is where a reader already looks for them.
+
+    No hamburger, and no bottom tab bar either: one reads as a menu of things
+    the app could not find room for, the other reads as a native application and
+    wants icons this project does not have.
+
+    An earlier draft carried a live figure under each label — transfers left,
+    last weekend's score, league position — on the argument that §7 leaves all
+    engagement pressure to the interface. It is dropped. Two of the three were
+    clutter above pages already full of numbers, and the third could not be
+    written at all: a player in four leagues has four positions and a header has
+    no room to say which one it means.
+
+    Sign out is not here. It is a once-a-season action that was holding
+    permanent primary navigation, and it was a <form> dressed as a link. It
+    lives on the account page, which is what the circle opens.
+-#}
 <header class="appbar">
-  <a class="appbar__mark" href="{{ url_for('lineups.home') }}">{{ config.APP_NAME }}</a>
-  <nav class="appbar__nav">
-    {% if current_user.is_authenticated %}
-      <a href="{{ url_for('lineups.edit') }}">Lineup</a>
-      <a href="{{ url_for('meetings.weekend') }}">Weekends</a>
-      <a href="{{ url_for('leagues.index') }}">Leagues</a>
-      <a href="{{ url_for('auth.account') }}">Account</a>
-      {% if current_user.is_admin %}<a href="{{ url_for('admin.index') }}">Admin</a>{% endif %}
-      <form method="post" action="{{ url_for('auth.logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="appbar__signout">Sign out</button>
-      </form>
-    {% else %}
-      <a href="{{ url_for('auth.login') }}">Sign in</a>
-      <a href="{{ url_for('auth.register') }}">Create account</a>
-    {% endif %}
-  </nav>
+  <a class="wordmark" href="{{ url_for('lineups.home') }}">
+    <span class="wordmark__stripes" aria-hidden="true"><i></i><i></i></span>
+    <span class="wordmark__fe">FE</span>
+    <span class="wordmark__rest">Fantasy</span>
+  </a>
+
+  {% if current_user.is_authenticated %}
+  {#- A circle: press it and something opens. The initial is set in the display
+      face, so the account control and a round number are recognisably the same
+      alphabet. -#}
+  <a class="accountmark" href="{{ url_for('auth.account') }}"
+     aria-label="Account" title="Account">{{ current_user.username[:1] | upper }}</a>
+  {% else %}
+  <a class="button--quiet appbar__signin" href="{{ url_for('auth.login') }}">Sign in</a>
+  {% endif %}
 </header>
+
+{#- The current tab is matched on blueprint rather than on endpoint: `/` and
+    `/lineup` are two views of the same thing, and a front page with no tab lit
+    would be the most-visited screen in the app claiming to be nowhere. -#}
+{% set here = request.blueprint %}
+<nav class="appnav" aria-label="Main">
+  {% if current_user.is_authenticated %}
+    <a class="appnav__tab" href="{{ url_for('lineups.edit') }}"
+       {% if here == 'lineups' %}aria-current="page"{% endif %}>Lineup</a>
+    <a class="appnav__tab" href="{{ url_for('meetings.weekend') }}"
+       {% if here == 'meetings' %}aria-current="page"{% endif %}>Weekends</a>
+    <a class="appnav__tab" href="{{ url_for('leagues.index') }}"
+       {% if here in ('leagues', 'players') %}aria-current="page"{% endif %}>Leagues</a>
+  {% else %}
+    {#- A stranger following an invite link cannot use any of the three above,
+        so the tabs become the two things they can: what the game is, and who
+        runs it. -#}
+    <a class="appnav__tab" href="{{ url_for('pages.how_to_play') }}"
+       {% if request.endpoint == 'pages.how_to_play' %}aria-current="page"{% endif %}>How to play</a>
+    <a class="appnav__tab" href="{{ url_for('pages.about') }}"
+       {% if request.endpoint == 'pages.about' %}aria-current="page"{% endif %}>About</a>
+  {% endif %}
+</nav>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -52,7 +97,18 @@
 {% block content %}{% endblock %}
 </main>
 
-<footer class="appfoot">{{ config.APP_NAME }} v{{ config.APP_VERSION }}</footer>
+{#- Where the header's growth goes. The version stays because it is the fastest
+    way to know which build a phone is looking at on a race weekend. -#}
+<footer class="appfoot">
+  <a href="{{ url_for('pages.how_to_play') }}">How to play</a>
+  <a href="{{ url_for('pages.about') }}">About</a>
+  <a href="{{ url_for('pages.privacy') }}">Privacy</a>
+  <a href="{{ url_for('pages.terms') }}">Terms</a>
+  {% if current_user.is_authenticated and current_user.is_admin %}
+  <a href="{{ url_for('admin.index') }}">Admin</a>
+  {% endif %}
+  <span class="appfoot__version num">v{{ config.APP_VERSION }}</span>
+</footer>
 
 </div>
 {% block scripts %}{% endblock %}

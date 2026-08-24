@@ -314,58 +314,164 @@
      Rebuilt in Phase 8.2 — the nav becomes three destinations with the figures
      that belong to them, and the account and sign-out controls move. This is
      the Phase 7 shell, unchanged apart from the rules around it. */
-  .appbar {
-    display: flex;
+  /* ---- Wordmark ----------------------------------------------------------
+     The type system in miniature: the display face for the part that behaves
+     like a figure, condensed caps for the part that behaves like a label —
+     which is the relationship every screen in this app already uses. No
+     drawing, no asset, and at a small size it degrades to the words.
+
+     The two stripes are the app's own mark rather than a decoration. They are
+     in ink, never a team hue: this grid has ten hues on it and an eleventh at
+     the top of every page would be read as an identity. They bleed the full
+     height of the wordmark, which is the move `.panel` makes on a phone. */
+  .wordmark {
+    display: inline-flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-5);
-    border-block-end: var(--rule-heavy) solid var(--text);
-    padding-block: var(--space-5) var(--space-3);
+    gap: 0.28em;
+    text-decoration: none;
+    color: var(--text);
+    line-height: 1;
   }
 
-  .appbar__mark {
+  .wordmark__fe {
+    font-family: var(--face-display);
+    font-weight: var(--display-weight);
+    font-stretch: var(--display-width);
+    font-size: var(--step-5);
+    letter-spacing: var(--tracking-display);
+  }
+
+  .wordmark__rest {
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--width-condensed);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-mid);
+  }
+
+  .wordmark__stripes {
+    display: inline-flex;
+    gap: var(--stripe-gap);
+    align-self: stretch;
+    margin-inline-end: 0.15em;
+  }
+
+  .wordmark__stripes i {
+    display: block;
+    inline-size: var(--stripe-width);
+    background: var(--text);
+  }
+
+  .wordmark__stripes i + i { background: var(--text-low); }
+
+  /* ---- Shell -------------------------------------------------------------
+     Row one is identity and the account; row two is the three destinations.
+     The boundary rule moved from this row to the tabs beneath, so there is
+     still exactly one heavy rule per screen and it still sits where the app's
+     chrome stops and its content starts. */
+  .appbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    padding-block: var(--space-5) var(--space-4);
+  }
+
+  .appbar__signin { padding: var(--space-2) var(--space-4); }
+
+  /* A circle: press it and something opens. The account control had no home
+     once sign-out left the header, and the mark family's rule gave it one. */
+  .accountmark {
+    display: grid;
+    place-items: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    flex: none;
+    border: var(--rule-hair) solid var(--rule-strong);
+    border-radius: 50%;
+    font-family: var(--face-display);
+    font-weight: var(--display-weight);
+    font-size: var(--step-2);
+    line-height: 1;
+    color: var(--text-mid);
+    text-decoration: none;
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
+  }
+
+  .accountmark:hover, .accountmark:focus-visible {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  /* Evenly divided, however many there are — three signed in, two signed out.
+     The underline marking the current one is the same device `.rswitch__tab`
+     already uses, so the app has one idea about what "you are here" looks like
+     rather than three.
+
+     Labels only. A live figure per tab was drafted and dropped: two were
+     clutter above pages already full of numbers, and the third could not be
+     written, because a player in four leagues has four positions. */
+  /* Evenly divided, however many there are — three signed in, two signed out.
+
+     The rule beneath is a track, and the current tab is the segment lit on it.
+     An earlier version put a black rule under the whole nav and a black rule
+     under the current tab, one on top of the other, which is a marker that
+     cannot be seen for the same reason a white flag cannot be seen in snow.
+
+     So every tab carries the same 3px rule and only its colour changes. That
+     needs no negative margin, cannot leave a one-pixel jog between a marked
+     tab and its neighbour, and keeps the heavy weight doing what tokens.css
+     says it does — one black rule per screen, at the boundary between the
+     app's chrome and its content. */
+  .appnav {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
+
+  .appnav__tab {
+    text-align: center;
+    padding-block: var(--space-3) var(--space-4);
+    text-decoration: none;
+    color: var(--text-low);
     font-size: var(--step-1);
     font-weight: var(--weight-semi);
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    text-decoration: none;
+    border-block-end: var(--rule-heavy) solid var(--rule-strong);
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
   }
 
-  .appbar__nav {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-5);
-    font-size: var(--step-2);
-    font-stretch: var(--width-narrow);
-    color: var(--text-mid);
+  .appnav__tab[aria-current] {
+    color: var(--text);
+    border-block-end-color: var(--text);
   }
 
-  .appbar__nav a { text-decoration: none; }
-  .appbar__nav a:hover { text-decoration: underline; }
-  .appbar__nav form { display: inline-flex; }
+  .appnav__tab:hover { color: var(--text-mid); }
 
-  /* Sign out is a POST, so it has to be a button. It should not look like one:
-     it sits among links and reads as one. */
-  .appbar__signout {
-    background: none;
-    border: 0;
-    padding: 0;
-    font: inherit;
-    font-stretch: inherit;
-    color: inherit;
-    cursor: pointer;
-  }
-  .appbar__signout:hover { text-decoration: underline; }
-
+  /* ---- Footer ------------------------------------------------------------
+     Where the header's growth goes, and the reason the header never has to
+     grow again. */
   .appfoot {
     margin-block-start: var(--gap-region);
     border-block-start: var(--rule-hair) solid var(--rule);
-    padding-block: var(--space-4) var(--space-6);
+    padding-block: var(--space-5) var(--space-6);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-5);
     font-size: var(--step-1);
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     color: var(--text-low);
   }
+
+  .appfoot a { text-decoration: none; color: var(--text-mid); }
+  .appfoot a:hover { text-decoration: underline; }
+  .appfoot__version { margin-inline-start: auto; }
 
   /* Auth and account pages. A sign-in form at the full 46rem desktop measure
      reads as a broken layout; the constrained column is the point, and here it
@@ -1195,7 +1301,27 @@
      it is the reason the rows below say what they say. */
   .stage + .stage { margin-block-start: var(--space-5); }
 
+  /* The context line belongs inside the heading, not above the rows. Set like
+     a row it reads as a rule that failed to score, which is exactly backwards:
+     it is the reason the rows below say what they say.
+
+     Phase 8 put it on the heading's own line rather than under it. A
+     double-header breakdown is two rounds of two stages, so the stacked
+     version spent four lines saying what four half-lines say — on the one
+     screen in the app that is already long enough to scroll. It fits: the
+     longest context this can hold is "Won the Final — pole position", which
+     clears 360px beside a ten-character label with room to spare.
+
+     Brackets, and they are drawn by the stylesheet rather than written into
+     `display.py`, because they are punctuation belonging to this arrangement
+     and not to the sentence. The same span is used unbracketed elsewhere in a
+     breakdown — the team's half-sum line, and "did not take part" — and those
+     are statements rather than asides. */
   .stage__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-3);
     border-block-end: var(--rule-hair) solid var(--rule);
     padding-block-end: var(--space-2);
   }
@@ -1206,6 +1332,10 @@
     font-stretch: var(--width-narrow);
     margin-block-start: var(--space-1);
   }
+
+  .stage__head .stage__context { margin-block-start: 0; }
+  .stage__head .stage__context::before { content: "("; }
+  .stage__head .stage__context::after { content: ")"; }
 
   .stage__rules { margin-block-start: var(--space-3); }
 

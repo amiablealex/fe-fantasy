@@ -69,6 +69,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.leagues.routes import invite_bp, leagues_bp, players_bp
     from app.lineups.routes import lineups_bp
     from app.meetings.routes import meetings_bp
+    from app.pages.routes import pages_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
@@ -77,6 +78,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(leagues_bp)
     app.register_blueprint(invite_bp)
     app.register_blueprint(players_bp)
+    app.register_blueprint(pages_bp)
 
     if app.debug:
         from app.styleguide import bp as styleguide_bp
