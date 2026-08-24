@@ -593,6 +593,36 @@
      it only need the lightest separation there is. */
   .panel .ruled > * { border-block-end-color: var(--rule-strong); }
   .panel .ruled > :first-child { border-block-start-color: var(--rule-strong); }
+
+  /* ---- A panel that opens ------------------------------------------------
+     `<details class="panel">`. A band holds a heading and reveals its rows,
+     which is what turns the bracket from twenty-four rows into a four-line
+     index of itself — the shape of a qualifying session legible before a
+     single name is read.
+
+     Not `.disclosure`: that one is a page region, carries a rule above it and
+     a region's worth of space, and there is one per screen. This is a group
+     that happens to be closed, and there are four of them in a column. */
+  details.panel > summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  details.panel > summary::-webkit-details-marker { display: none; }
+
+  /* The title supplies the band's own top spacing when the panel is a plain
+     block; inside a summary the summary owns it, or the two add up. */
+  details.panel > summary .panel__title { margin-block-end: 0; }
+  details.panel[open] > summary { margin-block-end: var(--space-5); }
+  details.panel:not([open]) { padding-block-end: var(--space-5); }
+
+  .panel__hint { color: var(--text-low); }
+  details.panel:not([open]) .panel__hint::after { content: "Show"; }
+  details.panel[open] .panel__hint::after { content: "Hide"; }
 }
 
 
@@ -1874,6 +1904,31 @@
 
   .disclosure__body { padding-block-end: var(--space-8); }
 
+  /* ---- Results -----------------------------------------------------------
+     What was once the outer disclosure. Qualifying now discloses per section
+     and the race is a single table, so a control wrapping both of those was
+     one tap standing between a reader and something they had already asked
+     for twice.
+
+     The heading and the rule survive it, because the boundary was doing real
+     work: the page above is your weekend and the page below is everybody's. */
+  .results {
+    margin-block-start: var(--gap-region);
+    border-block-start: var(--rule-mark) solid var(--text);
+  }
+
+  .results__title {
+    display: block;
+    padding-block: var(--space-5);
+    font-family: var(--face-display);
+    font-size: var(--step-5);
+    font-weight: var(--weight-semi);
+    font-stretch: var(--display-width);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  .results__body { padding-block-end: var(--space-8); }
+
   /* ---- Aside link --------------------------------------------------------
      A quiet route to a second view. Not a button: it goes somewhere, it does
      not do something. */
@@ -1902,15 +1957,29 @@
    Phase 3 recorded an open risk: that the intended bracket was buildable from
    `.ruled`, the team band and the three rule weights, and that this was an
    argument rather than a demonstration. It needed no new token and no new
-   primitive — only an arrangement of the ones that were already there. The
-   risk is closed.
+   primitive. The risk is closed.
 
-   Phase 8 changed one thing about it. A section used to announce itself with a
-   3px full-ink rule under a condensed caps title, and with four sections on a
-   round that put four of the loudest marks in the system on one scrolling
-   page — which is exactly the complaint that opened the phase. A section is a
-   band now. The stages inside it keep their rules, because those separate
-   subdivisions of one region and that is what a rule is for. */
+   Phase 8 changed four things about it, and three of them removed something.
+
+   The section's band is `.panel` now rather than three declarations copied
+   here, and the panel opens, so a round is four summaries until asked.
+
+   The elimination rule is gone. Rows five to ten of a group are already at
+   `--text-low` across their whole width with nothing in their FP cell, and a
+   rule captioned "Eliminated" was a third signal for a fact two were already
+   carrying.
+
+   The duel headings are gone. Four headings above eight rows was the worst
+   ratio on the page, and "Quarter-Final 3" names internal ordering, which this
+   application does not put in headlines.
+
+   What replaced them is the fourth change, and it is the one that had to be
+   made twice. Pairing was first attempted with space alone — pairs flush, gaps
+   between them — and it did not read: a row here is two lines tall, so the gap
+   between two duels never looked bigger than the gap inside one. A stage is
+   now a band of paper on the section's grey, which is the inversion
+   `tokens.css` already describes for a control inside a panel, applied at a
+   different scale. Shading does the grouping; nothing draws a line. */
 
 @layer components {
   .bracket {
@@ -1919,63 +1988,54 @@
     gap: var(--gap-block);
   }
 
-  /* The band. Same object as `.panel`, and if a third caller appears these
-     three declarations become one class. Two is not yet a pattern. */
-  .bracket__section {
-    background: var(--surface-recessed);
-    margin-inline: calc(-1 * var(--page-pad));
-    padding: var(--space-5) var(--page-pad) var(--space-6);
-  }
+  /* The gap owns the rhythm here, exactly as `.stack` does. Without this each
+     section would add a region's margin to a gap that has already spaced it. */
+  .bracket > .panel { margin-block-start: 0; }
 
-  .bracket__section-title {
-    margin: 0 0 var(--space-5);
-    font-family: var(--face-text);
-    font-size: var(--step-2);
-    font-weight: var(--weight-bold);
-    font-stretch: var(--width-condensed);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-label);
-  }
-
-  .bracket__stage + .bracket__stage {
-    margin-block-start: var(--gap-block);
-  }
-
-  /* Mark rule: a duel is a unit, and the gap alone does not say so at four
-     pairs in a column. */
-  .bracket__stage--duel + .bracket__stage--duel {
-    margin-block-start: var(--space-5);
-    padding-block-start: var(--space-5);
-    border-block-start: var(--rule-mark) solid var(--rule-strong);
-  }
-
-  /* The stage heading is also the column rubric, so it takes the row's grid.
-     Descendant selectors rather than bare classes: the cells reuse
-     `.bracket__pos` and friends to inherit their widths and alignment, and the
-     head has to win the typography back from them. */
-  .bracket__head {
+  /* The rubric sits on the band, above the stages it names, on the same grid
+     the rows use. It was inside the first stage until 8.3b, which made that
+     stage a different height from its siblings — and uniform siblings is the
+     whole mechanism the pairing now relies on. */
+  .bracket__rubric {
     display: grid;
     grid-template-columns: auto 1fr auto auto;
     align-items: baseline;
     column-gap: var(--space-4);
-    margin-block-end: var(--space-2);
-  }
-
-  .bracket__head > * {
+    padding-block-end: var(--space-3);
     font-size: var(--step-1);
-    font-weight: var(--weight-semi);
+    font-weight: var(--weight-medium);
     font-stretch: var(--width-condensed);
     text-transform: uppercase;
     letter-spacing: var(--tracking-label);
-  }
-
-  .bracket__head .bracket__pos,
-  .bracket__head .bracket__time,
-  .bracket__head .bracket__fp {
     color: var(--text-low);
   }
 
-  .bracket__head .bracket__title {
+  /* ---- A stage, as a band of paper on the section's grey ------------------
+     One group, or one duel.
+
+     The geometry is exact rather than approximate. The band pulls eight pixels
+     into the panel's padding and pushes its own content back by the same
+     eight, so a row's content aligns with the rubric above it and with the
+     panel's content edge. The personal mark, outdented twelve pixels from the
+     row, then lands four pixels clear of the band in the grey gutter — which
+     is the only place in this component it is legible, since ink on paper
+     inside the band would sit against the row it belongs to. */
+  .bracket__stage {
+    background: var(--surface);
+    margin-inline: calc(-1 * var(--space-4));
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .bracket__stage + .bracket__stage { margin-block-start: var(--space-4); }
+
+  /* Groups only. A duel is unlabelled — see `bracket.py`. */
+  .bracket__label {
+    display: block;
+    padding-block-end: var(--space-2);
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
     color: var(--text-mid);
   }
 
@@ -1988,25 +2048,29 @@
     align-items: baseline;
     column-gap: var(--space-4);
     padding-block: var(--space-3);
-    border-block-start: var(--rule-hair) solid var(--rule-strong);
     font-size: var(--step-3);
     line-height: var(--leading-data);
   }
 
-  /* `:first-of-type` matches on element type rather than class, and the first
-     div in a stage is the heading — so the obvious spelling never matched and
-     every stage opened with a stray hairline under its own title. These are
-     adjacency rules instead: no hairline directly under a heading, and none
-     directly under the cut, which carries its own heavier rule. */
-  .bracket__head + .bracket__row,
-  .bracket__cut + .bracket__row {
-    border-block-start: 0;
+  /* Hairlines between the ten rows of a group, and none at the top — an
+     adjacency rule rather than `:first-of-type`, which matches on element type
+     and so never matched here at all. Inside a duel there are no rules of any
+     kind: the band is the pairing, and a line through the middle of it would
+     divide the thing the band exists to join. */
+  .bracket__row + .bracket__row {
+    border-block-start: var(--rule-hair) solid var(--rule);
   }
+
+  .bracket__stage--duel .bracket__row + .bracket__row { border-block-start: 0; }
 
   /* Elimination is ink, not opacity. Opacity would dull the team stripe, and
      the stripe is the recognition aid — it has to stay at full strength
      whether or not the driver went out. No strikethrough either: it reads as
-     deleted, and these drivers did compete. */
+     deleted, and these drivers did compete.
+
+     Since the cut rule was removed this is the only thing marking who went
+     through, which is why it takes the position and the time as well as the
+     name — the whole row changes weight, not one word in it. */
   .bracket__row--out .bracket__name,
   .bracket__row--out .bracket__pos,
   .bracket__row--out .bracket__time {
@@ -2021,17 +2085,18 @@
     text-align: right;
   }
 
-  .bracket__who {
-    min-width: 0;
-  }
+  .bracket__who { min-width: 0; }
 
   .bracket__name {
     font-weight: var(--weight-semi);
     font-stretch: var(--width-narrow);
   }
 
-  a.bracket__name {
-    color: inherit;
+  a.bracket__name { color: inherit; }
+
+  .bracket__pole {
+    margin-inline-start: var(--space-3);
+    color: var(--text);
   }
 
   .bracket__time {
@@ -2048,55 +2113,26 @@
     text-align: right;
   }
 
-  .bracket__nil {
-    color: var(--text-low);
-  }
-
-  /* One line for ten rows. Captioning each driver with whether they went
-     through would say the same thing ten times; a rule with a word on it says
-     it once, in the place it happens. */
-  .bracket__cut {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin-block: var(--space-3) var(--space-1);
-    color: var(--text-low);
-  }
-
-  .bracket__cut::after {
-    content: "";
-    flex: 1;
-    border-block-start: var(--rule-mark) solid var(--rule-strong);
-  }
+  .bracket__nil { color: var(--text-low); }
 
   /* ---- The personal mark, on a bracket row -------------------------------
      `.is-yours` hangs its rule off `> :first-child`, which is right for a
-     `<tr>` — a table cell is as tall as its row — and wrong for a grid. In the
-     bracket the first child is `.bracket__pos`, a baseline-aligned grid item:
-     in a group row that is one line of text tall, so the rule covered the
-     driver's name and stopped short of the team beneath it, and in a duel row
-     the cell is empty, so it had no height and the rule vanished entirely. The
-     marks were being applied correctly the whole way through the bracket; they
-     had nothing to be tall against.
+     `<tr>` — a table cell is as tall as its row — and wrong for a grid. Here
+     the first child is `.bracket__pos`: one line tall in a group row, and
+     empty in a duel row, so the mark covered half a name in one case and
+     vanished entirely in the other. The marks were being applied correctly all
+     along; they had nothing to be tall against.
 
-     So the rule hangs off the row. The inherited pseudo-element is cancelled
-     rather than overridden, because two absolutely positioned rules a pixel
-     apart is worse than either alone. */
-  .bracket__row.is-yours > :first-child::before {
-    content: none;
-  }
+     So the rule hangs off the row, and lands in the grey gutter the band's
+     negative margin opens up. */
+  .bracket__row.is-yours > :first-child::before { content: none; }
 
-  .bracket__row.is-yours {
-    position: relative;
-  }
+  .bracket__row.is-yours { position: relative; }
 
   .bracket__row.is-yours::before {
     content: "";
     position: absolute;
     inset-block: 0;
-    /* The band bleeds through the page's padding, so the gutter the mark lives
-       in has to be measured from the band's own inner edge rather than from
-       the page's. */
     inset-inline-start: calc(-1 * var(--mark-gutter));
     inline-size: var(--mark-width);
     background: var(--mark);
@@ -2171,7 +2207,7 @@
   @supports (interpolate-size: allow-keywords) and (selector(::details-content)) {
     :root { interpolate-size: allow-keywords; }
 
-    .disclosure::details-content {
+    :is(.disclosure, details.panel)::details-content {
       block-size: 0;
       /* `clip` is what stops the content spilling mid-transition, and it clips
          in both axes — which took the personal mark with it. Every "this is
@@ -2190,7 +2226,7 @@
         content-visibility var(--dur) allow-discrete;
     }
 
-    .disclosure[open]::details-content { block-size: auto; }
+    :is(.disclosure, details.panel)[open]::details-content { block-size: auto; }
   }
 
   /* A results fragment arrives. HTMX puts `htmx-settling` on swapped-in

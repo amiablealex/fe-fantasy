@@ -57,15 +57,12 @@
     mark always belongs to the lineup rendered directly above it, so on this
     page it traces the best picks through the results instead. -#}
 {% if results %}
-<details class="disclosure" id="results" {% if results_open %}open{% endif %}>
-  <summary>
-    <span class="disclosure__title">Results</span>
-    <span class="disclosure__hint label"></span>
-  </summary>
-  <div class="disclosure__body" id="results-body">
+<section class="results" id="results">
+  <h2 class="results__title">Results</h2>
+  <div class="results__body" id="results-body">
     {% include "meetings/_results_body.html" %}
   </div>
-</details>
+</section>
 {% endif %}
 
 <p class="status">

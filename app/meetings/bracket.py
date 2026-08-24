@@ -16,8 +16,6 @@ That is close to the linear stage list Phase 3 shipped as an interim, which is
 the point. The interim turned out to be the right representation; what it was
 missing was not a diagram, it was **what each stage was worth**.
 
-Three things this module adds to the raw classification:
-
 **Points per stage, not per driver.** A driver's qualifying total accumulates
 across the bracket, so a running figure on each row would invite the reader to
 add rows that are already summed and get the wrong answer. Each row instead
@@ -30,9 +28,6 @@ equal the round.
 wants from a duel; the absolute is noise once the leader's time is on the row
 above.
 
-**An explicit cut in the group stage.** Ten rows where four progress needs one
-line saying so, not ten rows each captioned.
-
 The points here are derived from position plus the round's own recorded
 `ScoringRuleset` rather than read back from the stored components, because
 `ScoreComponent` records which *rule* fired and not which session — attributing
@@ -40,11 +35,35 @@ a duel win to QF3 rather than SF1 would mean parsing a detail string written for
 humans. Magnitudes therefore cannot drift, because both this and the engine read
 the same ruleset object. Structure is pinned by a test asserting these figures
 sum, per driver, to `engine.score_qualifying`'s own total.
+
+---
+
+**Two things this module used to do and no longer does (Phase 8.3).**
+
+*The group cut is no longer marked.* It carried an explicit `cut_after` and the
+template drew a rule with the word "Eliminated" on it. Three signals were saying
+one thing: rows five to ten are already at `--text-low` across their whole
+width, and their FP cell already reads as nothing. A rule restating what the ink
+has said is the kind of redundancy that makes a dense page feel busy rather than
+full. `progressed` still exists and is still what dims the row — only the
+divider is gone.
+
+*A duel no longer announces itself.* Every duel carried a heading — "Quarter-
+Final 3" — which put four headings above eight rows, the worst ratio on the
+page, and named a thing no reader cares about: which of four simultaneous duels
+this was is internal ordering, in the same way `Meeting.sequence` is (§5), and
+this application does not put internal ordering in headlines.
+
+What replaced the headings is not another label. It is **proximity**: the two
+rows of a duel sit flush with no rule between them and pairs are separated by
+space, so four pairs read as four objects without a line being drawn anywhere.
+`label` is still computed, because a test and a screen reader both want it; the
+view model now says whether to print it.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
@@ -91,6 +110,10 @@ class BracketRow:
         Ink rather than opacity: opacity would dull the team stripe, and the
         stripe is the recognition aid — it has to stay at full strength whether
         or not the driver went out.
+
+        Since Phase 8.3 this is the *only* thing marking the group cut, which
+        is why it earns the whole width of the row rather than a colour on the
+        name alone.
         """
         return not self.progressed
 
@@ -100,9 +123,13 @@ class BracketStage:
     stage: str
     label: str
     rows: list[BracketRow]
-    # Groups only: how many of the rows progressed, so the cut can be drawn
-    # once as a rule rather than captioned on every row.
-    cut_after: int | None = None
+
+    # Whether this stage names itself above its rows. True for a group, because
+    # "Group A" and "Group B" are genuinely different classifications and a
+    # reader has to know which is which. False for every duel — see the module
+    # docstring. The label is still computed and still available to a test and
+    # to a screen reader.
+    show_label: bool = True
 
     @property
     def is_duel(self) -> bool:
@@ -113,6 +140,11 @@ class BracketStage:
 class BracketSection:
     title: str
     stages: list[BracketStage] = field(default_factory=list)
+
+    # Drives the section's column rubric, which is stated once on the band
+    # above the stages rather than inside the first of them. A duel has no
+    # position column worth naming: the winner is the row that is not dimmed.
+    is_duel: bool = False
 
 
 def _time_of(row) -> str | None:
@@ -173,7 +205,6 @@ def _group_stage(session, rules) -> BracketStage:
         stage=session.stage,
         label=_stage_label(session.stage, session.stage_index),
         rows=rows,
-        cut_after=sum(1 for r in rows if r.progressed) or None,
     )
 
 
@@ -238,11 +269,19 @@ def build(stage_results, ruleset) -> list[BracketSection]:
             continue
         by_stage.setdefault(session.stage, []).append(built)
 
-    return [
-        BracketSection(title=title, stages=by_stage[stage])
-        for stage, title in SECTIONS
-        if stage in by_stage
-    ]
+    sections: list[BracketSection] = []
+    for stage, title in SECTIONS:
+        if stage not in by_stage:
+            continue
+        stages = by_stage[stage]
+        is_duel = stage in DUEL_STAGES
+        if is_duel:
+            stages = [replace(s, show_label=False) for s in stages]
+        sections.append(
+            BracketSection(title=title, stages=stages, is_duel=is_duel)
+        )
+
+    return sections
 
 
 def points_by_driver(sections: list[BracketSection]) -> dict[Any, Decimal]:
