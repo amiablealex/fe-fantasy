@@ -40,7 +40,7 @@ from app.leagues.profile import player_profile, weekend_detail
 from app.meetings import display as bridge
 from app.meetings import queries as meeting_queries
 from app.meetings.routes import results_context
-from app.leagues.standings import standings
+from app.leagues.standings import standings, standings_for_user
 from app.lineups.service import current_season
 from app import palette
 from app.models.league import League
@@ -122,6 +122,28 @@ def _window() -> int | None:
 @leagues_bp.route("/")
 @login_required
 def index():
+    """Every league you are in, and where you are in each of them.
+
+    Off-season the only fact a league has is how many people are in it. Once a
+    weekend has scored, that is no longer the interesting one — a member count
+    is a property of the league, and this page is a list of the reader's own
+    leagues, so it should answer the question they came with: how am I doing in
+    each. The count stays, one line down, because "of 50" is also how you know
+    whether there is room for another friend.
+
+    `standings_for_user` is the same aggregate the front page's standing block
+    reads, so the two cannot disagree about a position — the front page already
+    made this exact query and this is its second caller rather than a second
+    implementation.
+    """
+    season = current_season()
+    placings = {}
+    if season is not None:
+        placings = {
+            standing.league.id: standing
+            for standing in standings_for_user(current_user, season, now=now())
+        }
+
     rows = []
     for league, membership in service.user_leagues(current_user):
         rows.append(
@@ -129,6 +151,7 @@ def index():
                 "league": league,
                 "membership": membership,
                 "members": service.member_count(league),
+                "standing": placings.get(league.id),
             }
         )
     return render_template(
@@ -155,7 +178,7 @@ def new():
             flash(refusal.message, "error")
             return redirect(url_for("leagues.new"))
         flash(f"{league.name} created. Share the code to invite people.", "success")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     return render_template("leagues/new.html", form=form, title="New league")
 
 
@@ -186,7 +209,7 @@ def _attempt_join(league):
         flash(refusal.message, "error")
         return redirect(url_for("leagues.index"))
     flash(f"You have joined {league.name}.", "success")
-    return redirect(url_for("leagues.detail", league_id=league.id))
+    return redirect(url_for("leagues.settings", league_id=league.id))
 
 
 @invite_bp.route("/join/<code>")
@@ -212,7 +235,7 @@ def landing(code: str):
     if current_user.is_authenticated:
         invite.forget()
         if service.membership_of(current_user, league) is not None:
-            return redirect(url_for("leagues.detail", league_id=league.id))
+            return redirect(url_for("leagues.settings", league_id=league.id))
         return _attempt_join(league)
 
     invite.remember(league.invite_code)
@@ -232,6 +255,19 @@ def landing(code: str):
 @leagues_bp.route("/<int:league_id>")
 @login_required
 def detail(league_id: int):
+    """The table, and nothing else.
+
+    This page used to carry seven regions: the table, the membership list, the
+    invite code, the share link, a rename form and two destructive controls.
+    They are two different visits wearing one URL — reading the standings, and
+    administering the league — and only one of them is why anybody opens a
+    league on a Sunday night.
+
+    The membership list was also a near-duplicate of the table: the same people,
+    in a different order, one screen apart. Everything unique to it — join
+    dates, who is hidden, the remove control — is administration. So moving it
+    removed a duplication rather than merely hiding one.
+    """
     league, membership = _member_league(league_id)
     season = current_season()
     window = _window()
@@ -246,11 +282,37 @@ def detail(league_id: int):
         "leagues/detail.html",
         league=league,
         membership=membership,
-        members=service.members_of(league),
+        # The count, not the list. A template holding the members is a template
+        # that will end up rendering them again.
+        member_count=len(service.members_of(league)),
         cap=service.cap(),
         season=season,
         standings=table,
         window=window,
+        title=league.name,
+    )
+
+
+@leagues_bp.route("/<int:league_id>/settings")
+@login_required
+def settings(league_id: int):
+    """Everything you do *to* a league, as opposed to read from it.
+
+    Membership, the invite, the name, and leaving. Visible to every member
+    rather than to admins only: a member still needs the code to invite a
+    friend, still wants to see who is in, and must always be able to leave.
+    Which controls appear is the template's business and it asks `membership`.
+
+    No season, no standings, no window. Nothing on this page changes between
+    weekends, which is the clearest sign it did not belong on one that does.
+    """
+    league, membership = _member_league(league_id)
+    return render_template(
+        "leagues/settings.html",
+        league=league,
+        membership=membership,
+        members=service.members_of(league),
+        cap=service.cap(),
         share_url=None if league.is_global else _share_url(league),
         rename_form=RenameLeagueForm(name=league.name),
         title=league.name,
@@ -264,14 +326,14 @@ def rename(league_id: int):
     form = RenameLeagueForm()
     if not form.validate_on_submit():
         flash("A league name is between 2 and 80 characters.", "error")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     try:
         service.rename_league(current_user, league, form.name.data)
     except service.LeagueError as refusal:
         flash(refusal.message, "error")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     flash("League renamed.", "success")
-    return redirect(url_for("leagues.detail", league_id=league.id))
+    return redirect(url_for("leagues.settings", league_id=league.id))
 
 
 @leagues_bp.route("/<int:league_id>/rotate", methods=["POST"])
@@ -282,9 +344,9 @@ def rotate(league_id: int):
         service.rotate_invite_code(current_user, league)
     except service.LeagueError as refusal:
         flash(refusal.message, "error")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     flash("New invite code issued. Links using the old one no longer work.", "success")
-    return redirect(url_for("leagues.detail", league_id=league.id))
+    return redirect(url_for("leagues.settings", league_id=league.id))
 
 
 @leagues_bp.route("/<int:league_id>/leave", methods=["POST"])
@@ -296,7 +358,7 @@ def leave(league_id: int):
         service.leave_league(current_user, league)
     except service.LeagueError as refusal:
         flash(refusal.message, "error")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     flash(f"You have left {name}.", "info")
     return redirect(url_for("leagues.index"))
 
@@ -312,9 +374,9 @@ def remove(league_id: int, user_id: int):
         service.remove_member(current_user, league, target)
     except service.LeagueError as refusal:
         flash(refusal.message, "error")
-        return redirect(url_for("leagues.detail", league_id=league.id))
+        return redirect(url_for("leagues.settings", league_id=league.id))
     flash(f"{target.username} removed.", "info")
-    return redirect(url_for("leagues.detail", league_id=league.id))
+    return redirect(url_for("leagues.settings", league_id=league.id))
 
 
 # -----------------------------------------------------------------------------

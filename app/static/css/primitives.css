@@ -102,6 +102,14 @@
     gap: var(--space-4);
   }
 
+  /* A row that is entirely a link needs no underline. Underlining all three
+     parts — the name, the meta line beneath it and the figure on the right —
+     draws a box around something that is not a box, and at three lines per row
+     it is the loudest thing in the list. The row is the target; the name takes
+     the underline on hover, which is where the pointer already is. */
+  a.split { text-decoration: none; color: inherit; }
+
+
   /* Label/value pairs in two columns, values right-aligned and tabular. This
      is what a rule stack is made of. */
   .pairs {
@@ -488,6 +496,38 @@
     margin-block: var(--space-7) var(--gap-block);
   }
 
+  /* ---- Title bar ---------------------------------------------------------
+     A page title with one control on its line. The control is a destination
+     rather than an action, so it is set as a tracked label rather than as a
+     button: at button weight it would compete with the table for the first
+     thing the eye lands on, on the one page a reader came to read. */
+  .titlebar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+
+  .titlebar__link {
+    flex: none;
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-mid);
+    text-decoration: none;
+    border-block-end: var(--rule-hair) solid var(--rule-strong);
+    padding-block-end: var(--space-1);
+    transition: color var(--dur-quick) var(--ease),
+                border-color var(--dur-quick) var(--ease);
+  }
+
+  .titlebar__link:hover,
+  .titlebar__link:focus-visible {
+    color: var(--text);
+    border-block-end-color: var(--text);
+  }
+
   /* ---- Notices ----------------------------------------------------------
      A flashed message. Same idiom as a marked row: a heavy rule in the
      reserved gutter, not a tinted card with a rounded corner. */
@@ -804,6 +844,13 @@
   /* ---- Data table --------------------------------------------------------
      Hairlines, no zebra striping, no vertical rules. Alignment does the
      separating; anything more is noise at this density. */
+
+  /* A table is a region, and whatever follows it — a note about how many
+     weekends are in it, a column key — is a separate statement rather than its
+     last row. Margins collapse with the following block, so a note that
+     already carries its own spacing keeps the larger of the two. */
+  .table { margin-block-end: var(--gap-block); }
+
   .table th {
     font-size: var(--step-1);
     font-weight: var(--weight-medium);
@@ -853,13 +900,30 @@
   .table .c-name { font-weight: var(--weight-medium); white-space: nowrap; }
 
   /* A driver's name in a classification opens their season. */
-  .c-driver {
+  /* A name inside a row that goes somewhere. A hairline under the text rather
+     than a text-decoration underline: it sits further from the baseline, so it
+     reads as a quiet affordance instead of as emphasis, and it darkens on
+     hover rather than appearing from nothing.
+
+     `.c-driver` is the older name and already outgrew it — the standings table
+     uses it for usernames and the league list now uses it for league names. It
+     is kept as an alias here and renamed out in the 8.6 sweep, which is a
+     three-template edit and not worth doing mid-stage. */
+  .c-driver,
+  .namelink {
     color: inherit;
     text-decoration: none;
     border-block-end: var(--rule-hair) solid var(--rule-strong);
     transition: border-color var(--dur-quick) var(--ease);
   }
-  .c-driver:hover, .c-driver:focus-visible { border-block-end-color: var(--text); }
+
+  .c-driver:hover, .c-driver:focus-visible,
+  .namelink:hover, .namelink:focus-visible { border-block-end-color: var(--text); }
+
+  /* The hover target is the whole row, not the name inside it, so the name has
+     to respond to the row's state rather than to its own. */
+  a.split:hover .namelink,
+  a.split:focus-visible .namelink { border-block-end-color: var(--text); }
 
   /* ---- Status ------------------------------------------------------------
      DNF and similar. Condensed, tracked, low ink — present but never
@@ -1780,12 +1844,18 @@
   /* ---- View switch -------------------------------------------------------
      Two peers inside one meeting. One thin row, so it costs almost nothing to
      keep both views one tap apart. */
+  /* A region boundary above, and one block's worth below. The switch is chrome
+     and the table is content; butted together they read as one crowded block,
+     which is exactly what this page did before the tabs had any box at all. */
   .vswitch {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     border-block-end: var(--rule-hair) solid var(--rule-strong);
+    margin-block-start: var(--gap-region);
   }
+
+  .vswitch + * { margin-block-start: var(--gap-block); }
 
   .vswitch__tab {
     text-align: center;

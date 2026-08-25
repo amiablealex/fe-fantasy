@@ -21,11 +21,16 @@
 {#- Three ranges rather than a weekend picker. "Since we started" is the same
     question as "who is in form", and one control answering both beats a
     stored per-league setting that would need a table of its own. -#}
+{#- `.vswitch__tab`, not a bare `.label`. The children of this switch carried
+    `.label u-caps` and a `u-semi` on the current one, so none of the switch's
+    own styling ever applied: no padding, no underline on the current tab, and
+    three words butted straight against the table headers beneath. The class
+    the component defines is the class the markup has to use. -#}
 <nav class="vswitch">
   {% for label, value in [('Season', none), ('Last 3', 3), ('Last 5', 5)] %}
-  <a class="label u-caps{{ ' u-semi' if current == value }}"
+  <a class="vswitch__tab"
      href="{{ url_for('leagues.detail', league_id=league.id, last=value) }}"
-     {% if current == value %}aria-current="page"{% endif %}>{{ label }}</a>
+     {% if current == value %}aria-current="true"{% endif %}>{{ label }}</a>
   {% endfor %}
 </nav>
 {% endmacro %}
@@ -59,8 +64,15 @@
         <a class="c-driver" href="{{ url_for('players.profile', user_id=row.user_id) }}">{{ row.username }}</a>
         {{ movement(row.movement) }}
       </td>
-      <td class="c-num">{{ row.last if row.last is not none else '' }}</td>
-      <td class="c-num u-semi">{{ row.total }}</td>
+      {#- Ink, not weight. Weight in this table means one thing and it is
+          `.is-yours` — the viewer's own row. Points used to carry `u-semi` on
+          every row to say "this is the column that decides the order", which
+          put two meanings on one signal: your row was bold because it was
+          yours and everyone's points were bold because they were points, and
+          neither could be read. Points keeps full ink and the last weekend
+          drops to mid, which is the hierarchy the rest of the app uses. -#}
+      <td class="c-num u-mid">{{ row.last | fmt if row.last is not none else '' }}</td>
+      <td class="c-num">{{ row.total | fmt }}</td>
     </tr>
     {% endfor %}
   </tbody>

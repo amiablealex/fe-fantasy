@@ -1,24 +1,41 @@
+
 {% extends "base.html" %}
 
 {% block content %}
 <h1 class="page-title">Leagues</h1>
 
 {#- A league is a row, not a card. Cards on a grid are the generated-dashboard
-    look §1 rules out, and a ruled list reads the count and the name in one
-    pass without any of it. -#}
+    look §1 rules out, and a ruled list reads the name and the standing in one
+    pass without any of it.
+
+    The figure on the right is the reader's own position once a weekend has
+    scored, and the member count before that. The count does not disappear —
+    it moves under the name, where "of 50" still answers whether there is room
+    for another friend. -#}
 <ul class="ruled">
   {% for row in rows %}
   <li>
     <a class="split" href="{{ url_for('leagues.detail', league_id=row.league.id) }}">
       <span>
-        <span class="u-semi">{{ row.league.name }}</span>
+        <span class="u-semi namelink">{{ row.league.name }}</span>
         {% if row.membership.is_admin %}
         <span class="label u-mid">Admin</span>
         {% endif %}
+        <br><span class="label u-mid">
+          {{ row.members }} member{{ '' if row.members == 1 else 's' }}
+          {%- if not row.league.is_global %} of {{ cap }}{% endif -%}
+        </span>
       </span>
-      <span class="status u-nowrap">
-        {{ row.members }} member{{ '' if row.members == 1 else 's' }}
-        {%- if not row.league.is_global %} of {{ cap }}{% endif -%}
+
+      {#- Ranked, hidden, or not yet scored — three different facts, and a
+          blank for the third rather than a nought. "P1 of 1, 0 points" before
+          the season starts is worse than saying nothing. -#}
+      <span class="u-nowrap">
+        {%- if row.standing and row.standing.is_ranked -%}
+        <span class="num u-semi">{{ 'P' ~ row.standing.position }}</span>
+        {%- elif row.standing -%}
+        <span class="label u-low">Hidden</span>
+        {%- endif -%}
       </span>
     </a>
   </li>
