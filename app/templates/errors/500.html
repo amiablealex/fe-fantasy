@@ -1,5 +1,23 @@
 {% extends "base.html" %}
+{% block title %}Something went wrong{% endblock %}
+{% block main_class %}prose-page{% endblock %}
 {% block content %}
-<h1 class="page-title">Something broke</h1>
-<p>The error has been logged.</p>
+<h1 class="page-title">Something went wrong</h1>
+<p class="pagelede">The error has been recorded. Nothing you had saved is
+  affected.</p>
+
+{#- The second sentence above is the one that matters. This page is most likely
+    to be seen on a race weekend by someone who has just committed a lineup, and
+    the question they will have is whether it went through. Committing is a POST
+    inside one transaction, so a failure leaves the previous lineup intact — the
+    page can say so plainly.
+
+    Deliberately no traceback, no error id, no apology paragraph. -#}
+<p>Trying again often works. If it does not,
+  <a href="mailto:help@amiablealex.com">help@amiablealex.com</a> will reach
+  someone.</p>
+
+<ul class="bullets">
+  <li><a href="{{ url_for('lineups.home') }}">Back to the front page</a></li>
+</ul>
 {% endblock %}

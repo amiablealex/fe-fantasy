@@ -1,5 +1,26 @@
 {% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block main_class %}prose-page{% endblock %}
 {% block content %}
 <h1 class="page-title">Not found</h1>
-<p>No such page.</p>
+<p class="pagelede">There is nothing at this address.</p>
+
+{#- Also what a reader gets when something exists but is not theirs to see: a
+    league they are not in, a lineup that has not locked, another player's
+    weekend. SPEC.md §2 makes that a 404 rather than a 403 deliberately, since a
+    403 confirms the thing exists. So this page must read as "no such page"
+    without ever hinting that it might be a permissions problem — hence no "you
+    may not have access" anywhere on it. -#}
+<p>The link may be out of date, or the address may have a typo in it.</p>
+
+<ul class="bullets">
+  <li><a href="{{ url_for('lineups.home') }}">Back to the front page</a></li>
+  {% if current_user.is_authenticated %}
+  <li><a href="{{ url_for('meetings.weekend') }}">Weekends</a></li>
+  <li><a href="{{ url_for('leagues.index') }}">Leagues</a></li>
+  {% else %}
+  <li><a href="{{ url_for('pages.how_to_play') }}">How to play</a></li>
+  <li><a href="{{ url_for('auth.login') }}">Sign in</a></li>
+  {% endif %}
+</ul>
 {% endblock %}
