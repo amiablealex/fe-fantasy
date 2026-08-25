@@ -6,12 +6,34 @@
    a driver only appears in the next stage if they won this one, and the losing
    row of every pair is dimmed and terminal.
 
-   Three rule weights carry the hierarchy, which is what tokens.css asks of
-   them: a hairline between rows, a mark rule at the group cut and between duel
-   pairs, a heavy rule above each section heading. No new primitive was needed,
-   which is the demonstration Phase 3 recorded as owed. #}
+   **Each section is a band that opens.** Closed, the four summaries are an
+   index of the session — two groups, four duels, two, one — which is the shape
+   of qualifying legible in four lines at 360px before a single name is read.
+   The last section is open by default, and on a completed round that is the
+   Final, which is where "who took pole" is answered. On a Saturday afternoon
+   with only the groups in, the last section *is* the groups, so the default
+   lands on the newest thing either way without this file knowing which case it
+   is in.
 
-{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx, yours) %}
+   **Three levels of ground, and no two of them the same.** The page is paper,
+   the section is recessed, and each stage inside it inverts back to paper —
+   which is the rule `tokens.css` already states for a control inside a panel,
+   applied at a different scale. That inversion is what does the grouping: a
+   duel is one white band with two rows in it, so four quarter-finals read as
+   four objects and Group A cannot be mistaken for the top of Group B. Space
+   alone was not doing it, because a row here is two lines tall and the gap
+   between pairs never looked bigger than the gap inside one.
+
+   **The rubric belongs to the section, not to a stage.** It sits on the band
+   directly under the summary, so it names the columns once and every stage
+   below it is the same shape. Putting it inside the first stage made that
+   stage taller than its siblings, which is exactly the asymmetry the pairing
+   change was trying to remove.
+
+   **No duel headings and no elimination rule.** Both were removed in Phase 8.3
+   and the reasons are in `bracket.py`'s docstring. #}
+
+{% macro row(ui, bridge, palette, r, show_position, profile_base, profile_hx, yours, card_hx) %}
 <div class="bracket__row{{ ' bracket__row--out' if r.eliminated }}{{ ' is-yours' if r.driver_id in yours }}">
   {#- Always emitted, even in a duel where the order is already obvious from
       the styling: the cell holds the grid's first column open, so a duel row
@@ -19,8 +41,11 @@
   <span class="bracket__pos num">{% if show_position %}{{ r.position or '—' }}{% endif %}</span>
   <span class="bracket__who">
     {% if profile_base %}
-    <a class="bracket__name c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
-       hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+    {#- Opens this driver's card for the weekend. See the same link in
+        `_results.html`: the season is one tap further on, from the card. -#}
+    <a class="bracket__name namelink" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
+       hx-get="{{ (card_hx ~ '&subject=d' ~ r.driver_id) if card_hx
+                  else (profile_hx ~ '?subject=d' ~ r.driver_id) }}"
        hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label if r.driver else '—' }}</a>
     {% else %}
     <span class="bracket__name">{{ r.driver.short_label if r.driver else '—' }}</span>
@@ -42,34 +67,41 @@
 {% endmacro %}
 
 
-{% macro stage(ui, bridge, palette, s, profile_base, profile_hx, yours) %}
+{% macro stage(ui, bridge, palette, s, profile_base, profile_hx, yours, card_hx) %}
 <div class="bracket__stage{{ ' bracket__stage--duel' if s.is_duel }}">
-  <div class="bracket__head">
-    <span class="bracket__title label">{{ s.label }}</span>
-  </div>
+  {% if s.show_label %}<span class="bracket__label">{{ s.label }}</span>{% endif %}
   {% for r in s.rows %}
-    {#- One line for ten rows. Captioning every driver with whether they went
-        through would say the same thing ten times; a rule with a word on it
-        says it once, in the place it happens. -#}
-    {% if s.cut_after and loop.index0 == s.cut_after %}
-    <div class="bracket__cut"><span class="label">Eliminated</span></div>
-    {% endif %}
-    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx, yours) }}
+    {{ row(ui, bridge, palette, r, not s.is_duel, profile_base, profile_hx, yours, card_hx) }}
   {% endfor %}
 </div>
 {% endmacro %}
 
 
-{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none, yours=[]) %}
+{% macro bracket(ui, bridge, palette, sections, rules, profile_base=none, profile_hx=none, yours=[], card_hx=none) %}
 {% if sections %}
 <div class="bracket">
   {% for section in sections %}
-  <section class="bracket__section">
-    <h3 class="bracket__section-title">{{ section.title }}</h3>
+  <details class="panel bracket__section" {% if loop.last %}open{% endif %}>
+    <summary>
+      <span class="panel__title">{{ section.title }}</span>
+      <span class="panel__hint label"></span>
+    </summary>
+
+    {#- Four cells, on the same grid the rows use, so each label sits over the
+        column it names. The position cell is empty in a duel rather than
+        removed: dropping it would shift every column left and the section
+        would stop lining up with the one above it. -#}
+    <div class="bracket__rubric">
+      <span class="bracket__pos">{{ '' if section.is_duel else 'P' }}</span>
+      <span>Driver</span>
+      <span class="bracket__time">Time</span>
+      <span class="bracket__fp">{{ bridge.POINTS_ABBREVIATION }}</span>
+    </div>
+
     {% for s in section.stages %}
-      {{ stage(ui, bridge, palette, s, profile_base, profile_hx, yours) }}
+      {{ stage(ui, bridge, palette, s, profile_base, profile_hx, yours, card_hx) }}
     {% endfor %}
-  </section>
+  </details>
   {% endfor %}
 </div>
 
@@ -77,12 +109,16 @@
     typed. Without it the column is four unexplained numbers; with it every
     figure on the page is reachable by addition from figures also on the page —
     these sum to the driver's qualifying total in their profile, and that plus
-    the race table's FP is the round. -#}
+    the race table's FP is the round.
+
+    Outside the sections, because it explains all four and would otherwise be
+    hidden inside whichever one happened to be open. -#}
 <p class="pkey__note">{{ bridge.POINTS_ABBREVIATION }} is what each stage was
 worth: {{ rules.group_progress }} for reaching the Duels,
 {{ rules.duel_win }} for winning a duel, {{ rules.pole }} more for pole. A
-driver&#8217;s figures add up to their qualifying total.{% if yours %} A rule in
-the margin marks the four drivers you had in for this weekend.{% endif %}</p>
+driver&#8217;s figures add up to their qualifying total. Drivers who went out
+are shown in grey.{% if yours %} A rule in the margin marks the four drivers
+you had in for this weekend.{% endif %}</p>
 {% else %}
 <p class="prose u-mid">No qualifying results are stored for this round yet.</p>
 {% endif %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}How to play{% endblock %}
+{% block main_class %}prose-page{% endblock %}
+
+{#- Every figure on this page comes from `app/scoring/rules.py`. SPEC.md §3
+    versions the ruleset so that re-tuning after Jeddah does not rewrite
+    December, and a hand-typed table of point values would start lying the day
+    that re-tune ships. The totals below are derived for the same reason.
+
+    Headings carry ids so a section can be linked to directly. No visible table
+    of contents: eight short sections on a phone would put a screenful of links
+    in front of the thing the reader came for. -#}
+
+{% set q = rules.qualifying %}
+{% set r = rules.race %}
+{% set pole_total = q.group_progress + 3 * q.duel_win + q.pole %}
+
+{% block content %}
+<h1 class="page-title">How to play</h1>
+<p class="pagelede">Pick four drivers and a team. They score from real Formula E
+  weekends. One transfer per weekend, banked up to two.</p>
+
+<h2 id="lineup">Your lineup</h2>
+<p>Four drivers and one team, subject to two rules:</p>
+<ul class="bullets">
+  <li>No two of your drivers from the same team.</li>
+  <li>Your team pick must not be a team you already have a driver from.</li>
+</ul>
+<p>Change it as often as you like until the deadline. After that it is locked.</p>
+
+<h2 id="deadline">The deadline</h2>
+<p>One per weekend, at the first qualifying session. A double-header has one
+  deadline covering both races.</p>
+
+<h2 id="transfers">Transfers</h2>
+<p>One per weekend, banked up to a maximum of two.</p>
+<p>A transfer is one changed slot: a driver for a driver, or your team for
+  another team.</p>
+<p>Bringing in a driver from the team you hold forces your team pick to move as
+  well. Two slots change, so it costs two transfers, and you need both banked
+  before it is available.</p>
+<p>Everything is free until the first deadline of the season. Transfers start
+  counting from the second weekend.</p>
+
+<h2 id="scoring">Scoring</h2>
+<p>Scored per round. A double-header scores your lineup twice.</p>
+
+<h3 id="qualifying">Qualifying</h3>
+<table class="table table--rules">
+  <tbody>
+    <tr><td>Reaching the Duels — top four of your group</td>
+        <td class="c-num">{{ q.group_progress }}</td></tr>
+    <tr><td>Winning a duel — quarter-final, semi-final, final</td>
+        <td class="c-num">{{ q.duel_win }} each</td></tr>
+    <tr><td>Pole</td><td class="c-num">{{ q.pole }}</td></tr>
+  </tbody>
+</table>
+<p>Which gives {{ pole_total }} for pole, {{ q.group_progress + 2 * q.duel_win }}
+  for losing the final, {{ q.group_progress + q.duel_win }} for losing a
+  semi-final, {{ q.group_progress }} for losing a quarter-final, and nothing
+  for going out in the groups.</p>
+<p>Pole is the driver who wins the Qual Final. A grid penalty moves a driver
+  back but does not take the pole away.</p>
+
+<h3 id="race">Race</h3>
+<table class="table table--rules">
+  <tbody>
+    <tr><td>Win</td><td class="c-num">{{ r.win }}</td></tr>
+    <tr><td>Podium</td><td class="c-num">{{ r.podium }}</td></tr>
+    <tr><td>Points finish — top ten</td><td class="c-num">{{ r.points_finish }}</td></tr>
+    <tr><td>Fastest lap of the race</td><td class="c-num">{{ r.fastest_lap }}</td></tr>
+    <tr><td>Every {{ r.places_step }} places gained</td>
+        <td class="c-num">+{{ r.places_gained_per_step }}, up to +{{ r.places_gained_cap }}</td></tr>
+    <tr><td>Every {{ r.places_step }} places lost</td>
+        <td class="c-num">&#8722;{{ r.places_lost_per_step }}, down to &#8722;{{ r.places_lost_cap }}</td></tr>
+  </tbody>
+</table>
+<p>These stack. A win scores {{ r.win }} + {{ r.podium }} + {{ r.points_finish }}
+  before places gained and fastest lap.</p>
+<p>The fastest lap point goes to whoever set the quickest lap, wherever they
+  finished.</p>
+<p>Places gained and lost are measured from where a driver started, after any
+  penalty. Retirements are classified at the back of the field.</p>
+
+<h3 id="team">Your team pick</h3>
+<p>Half of what its two drivers score that round, including anything negative.
+  Halves are kept rather than rounded: drivers on 8 and 3 give the team 5.5.</p>
+
+<h2 id="examples">Worked examples</h2>
+<table class="table table--rules">
+  <tbody>
+    <tr><td>Pole, wins from P1, sets the fastest lap</td>
+        <td class="c-num">{{ pole_total + r.win + r.podium + r.points_finish + r.fastest_lap }}</td></tr>
+    <tr><td>Wins from P6, went out in the groups</td>
+        <td class="c-num">{{ r.win + r.podium + r.points_finish + r.places_gained_per_step }}</td></tr>
+    <tr><td>Pole, retires, classified P18</td>
+        <td class="c-num">{{ pole_total - r.places_lost_cap }}</td></tr>
+    <tr><td>Fourth in qualifying, finishes P3</td>
+        <td class="c-num">{{ q.group_progress + q.duel_win + r.podium + r.points_finish }}</td></tr>
+    <tr><td>Twentieth in qualifying, finishes P11</td>
+        <td class="c-num">{{ r.places_gained_per_step }}</td></tr>
+  </tbody>
+</table>
+
+<h2 id="absent">Drivers who do not appear</h2>
+<p>A driver who does not take part in a session scores nothing for it. There is
+  no substitute, and no free transfer if a driver leaves the grid.</p>
+
+<h2 id="visibility">Who can see your lineup</h2>
+<p>Nobody, until the deadline passes. After that it is visible to people in a
+  league with you.</p>
+
+<h2 id="perfect-five">The Perfect Five</h2>
+<p>After a weekend has been scored you can see what it was worth: the four
+  best-scoring drivers and the best-scoring team. The lineup rules do not apply
+  to it, so it is not necessarily a lineup that could have been picked.</p>
+{% endblock %}

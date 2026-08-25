@@ -1,5 +1,21 @@
 {% extends "base.html" %}
+{% block title %}Not permitted{% endblock %}
+{% block main_class %}prose-page{% endblock %}
 {% block content %}
 <h1 class="page-title">Not permitted</h1>
-<p>You don't have access to that.</p>
+
+{#- Rare by design. Anything that is merely not yours answers 404 (§2), so this
+    is reached only by an administrative route, or by a signed-out visitor
+    following a link into the signed-in application — which is what the 401
+    handler renders too, and why the sign-in offer has to be here. -#}
+{% if current_user.is_authenticated %}
+<p class="pagelede">Your account does not have access to that.</p>
+<p><a href="{{ url_for('lineups.home') }}">Back to the front page</a></p>
+{% else %}
+<p class="pagelede">You need to be signed in to see that.</p>
+<ul class="bullets">
+  <li><a href="{{ url_for('auth.login') }}">Sign in</a></li>
+  <li><a href="{{ url_for('auth.register') }}">Create an account</a></li>
+</ul>
+{% endif %}
 {% endblock %}

@@ -25,7 +25,7 @@ path `_lineup.html` and `scoring_bridge` took into Phases 4 and 5.
 
 from __future__ import annotations
 
-from flask import Blueprint, render_template, request, url_for
+from flask import Blueprint, current_app, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import palette
@@ -76,6 +76,12 @@ def _subject(raw: str | None):
         return None, None
     return raw[0], int(raw[1:])
 
+# The URL says `d9`; the domain says "driver". `_subject` speaks the wire
+# vocabulary because that is what a link carries, and `view.py` speaks the
+# domain one because that is what a `PickScore.kind` is. Crossing them is what
+# made the card return nothing on every request for a day — silently, because
+# an unrecognised kind is indistinguishable from a subject with no scores.
+SUBJECT_KINDS = {"d": "driver", "t": "team"}
 
 def _profile_for(season, raw: str | None):
     kind, subject_id = _subject(raw)
@@ -162,10 +168,14 @@ def results_context(meeting, sequence: int, yours=frozenset(), base=None) -> dic
         "yours": yours,
         "schedule": queries.round_schedule(shown),
         "profile_base": (
-            f"{base}?m={sequence}&r={shown.round_number}"
-            f"&stage={stage}&results=open"
+            f"{base}?m={sequence}&r={shown.round_number}&stage={stage}"
         ),
         "profile_hx": url_for("meetings.weekend_profile"),
+        # A driver's name opens their card for *this weekend*, not their
+        # season. The season is one further tap, on the card's own info mark,
+        # which is the order the questions are actually asked in: how did they
+        # do here, and then how have they done all year.
+        "card_hx": f"{url_for('meetings.weekend_card')}?m={sequence}",
     }
 
 
@@ -250,7 +260,6 @@ def weekend():
     ctx.update(results_context(
         meeting, sequence, your_driver_ids(meeting, locked)
     ))
-    ctx["results_open"] = request.args.get("results") == "open"
 
     # Profiles open over whatever is already on screen and close by dropping the
     # parameter, so closing one returns the reader to the row they tapped.
@@ -346,7 +355,6 @@ def perfect_five():
             ctx["meeting"], sequence, ctx["marked"],
             base=url_for("meetings.perfect_five"),
         ))
-        ctx["results_open"] = request.args.get("results") == "open"
 
     return render_template("meetings/perfect_five.html", **ctx)
 
@@ -412,4 +420,67 @@ def weekend_profile():
         palette=palette,
         profile=profile,
         close_url=request.args.get("back") or url_for("meetings.weekend"),
+    )
+
+
+@meetings_bp.route("/weekend/card")
+@login_required
+def weekend_card():
+    """One driver's or team's weekend, for HTMX to drop into the page.
+
+    The same card a lineup slot discloses, for a subject the reader tapped in a
+    classification or a bracket row. `RoundScore` is user-independent, so this
+    is the same card for everyone looking at it and needs no viewer argument —
+    unlike anything that reads a lineup.
+
+    Gated on the deadline for the same reason the Perfect Five is: before a
+    weekend locks there is nothing scored to show, and a route that answers
+    anyway is a route that will eventually answer early.
+
+    204 rather than 404 on a miss. The response is swapped into the page, so an
+    error document would be rendered inside the profile host; an empty body
+    leaves whatever was there alone, and the link's own `href` is still the
+    path that navigates.
+    """
+    season = current_season()
+    sequence = request.args.get("m", type=int)
+    if season is None or sequence is None:
+        return "", 204
+
+    # No lock check. A card is built from `RoundScore` rows, which only exist
+    # once results have been ingested — so "nothing scored yet" already returns
+    # nothing, and a second gate on the deadline only adds a way for the card to
+    # refuse a weekend it has real figures for. The Perfect Five needs its own
+    # gate because it is an answer key; a driver's own score is not.
+    meeting = queries.get_meeting(season, sequence)
+    if meeting is None:
+        return "", 204
+
+    kind, subject_id = _subject(request.args.get("subject"))
+    subject_kind = SUBJECT_KINDS.get(kind)
+    if subject_kind is None:
+        current_app.logger.debug("card: unreadable subject %r", request.args.get("subject"))
+        return "", 204
+
+    pick = view.subject_meeting_score(season, meeting, subject_kind, subject_id)
+    if pick is None:
+        current_app.logger.debug(
+            "card: nothing scored for %s %s at m=%s", subject_kind, subject_id, sequence
+        )
+        return "", 204
+
+    return render_template(
+        "meetings/_card.html",
+        bridge=display,
+        palette=palette,
+        pick=pick,
+        meeting=meeting,
+        profile_url=(
+            f"{url_for('meetings.weekend')}?m={sequence}"
+            f"&profile={request.args.get('subject')}"
+        ),
+        profile_hx=(
+            f"{url_for('meetings.weekend_profile')}"
+            f"?subject={request.args.get('subject')}"
+        ),
     )

@@ -21,10 +21,10 @@
 <div class="rswitch">
   {% for r in rounds %}
   <a class="rswitch__tab"
-     href="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}&amp;results=open#results"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}#results"
      hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}"
      hx-target="#results-body" hx-swap="innerHTML"
-     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}&amp;results=open"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ r.round_number }}&amp;stage={{ stage }}"
      {% if r.round_number == shown.round_number %}aria-current="true"{% endif %}>
     <span class="num">Round {{ r.round_number }}</span>
     <span class="rswitch__format">{{ r.format_label }}</span>
@@ -38,16 +38,16 @@
 {% macro stage_switch(stage, shown, sequence, base) %}
 <div class="rswitch rswitch--stage">
   <a class="rswitch__tab"
-     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying&amp;results=open#results"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying#results"
      hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying"
      hx-target="#results-body" hx-swap="innerHTML"
-     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying&amp;results=open"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=qualifying"
      {% if stage == 'qualifying' %}aria-current="true"{% endif %}>Qualifying</a>
   <a class="rswitch__tab"
-     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race&amp;results=open#results"
+     href="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race#results"
      hx-get="{{ base }}/results?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race"
      hx-target="#results-body" hx-swap="innerHTML"
-     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race&amp;results=open"
+     hx-push-url="{{ base }}?m={{ sequence }}&amp;r={{ shown.round_number }}&amp;stage=race"
      {% if stage == 'race' %}aria-current="true"{% endif %}>Race</a>
 </div>
 {% endmacro %}
@@ -66,7 +66,7 @@
    A zero is printed rather than suppressed. §4.2 suppresses zeros across eleven
    columns because nine noughts drown the two cells that fired; in a single
    column a nought is the answer, and a blank would read as missing data. #}
-{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none, yours=[]) %}
+{% macro classification(ui, bridge, palette, rows, scores, fastest_ids=none, profile_base=none, profile_hx=none, yours=[], card_hx=none) %}
 <table class="table">
   <thead>
     <tr>
@@ -86,8 +86,15 @@
       <td class="c-pos num">{{ r.position or '—' }}</td>
       <td class="c-name">
         {% if profile_base %}
-        <a class="c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
-           hx-get="{{ profile_hx }}?subject=d{{ r.driver_id }}"
+        {#- The name opens this driver's card for the weekend, not their season.
+            A reader who taps a row inside a classification is asking about the
+            weekend they are looking at; the season is one further tap, on the
+            card's own info mark. The plain href still goes to the season sheet,
+            which is where this link went before HTMX was involved and is a fair
+            answer with JavaScript off. -#}
+        <a class="namelink" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
+           hx-get="{{ (card_hx ~ '&subject=d' ~ r.driver_id) if card_hx
+                      else (profile_hx ~ '?subject=d' ~ r.driver_id) }}"
            hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label }}</a>
         {% else %}{{ r.driver.short_label }}{% endif %}
         {%- if fastest_ids and r.driver_id in fastest_ids %}

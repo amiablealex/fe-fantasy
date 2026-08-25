@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Terms{% endblock %}
+{% block main_class %}prose-page{% endblock %}
+{% block content %}
+<h1 class="page-title">Terms</h1>
+<p class="pagelede">Short version: a free game, run as a personal project, with
+  no fee and no prizes. Be reasonable and it will be fine.</p>
+
+<h2 id="who">Who can use it</h2>
+<p>You need to be 16 or over to hold an account.</p>
+<p>One account per person. You are responsible for keeping your password to
+  yourself and for what happens under your account.</p>
+
+<h2 id="game">The game</h2>
+<p>There is no entry fee, no stake and no prize. Nothing of value is won or
+  lost. This is not a betting or gambling service.</p>
+<p>Scores are calculated from third-party timing data. That data is
+  occasionally wrong or late, and scores may be recalculated when corrections
+  arrive.</p>
+<p>The rules and point values may change between seasons. A round already
+  scored keeps the values it was scored under.</p>
+
+<h2 id="conduct">Usernames and conduct</h2>
+<p>Your username and any league name you create are visible to other people.
+  Keep them free of anything abusive, hateful, obscene, or impersonating
+  someone else.</p>
+<p>Do not attempt to break, overload or gain unauthorised access to the
+  service, and do not use automated tools against it.</p>
+<p>An account or a league name that breaks this can be changed or removed, with
+  notice where that is reasonable and without it where it is not.</p>
+
+<h2 id="availability">Availability</h2>
+<p>This is a personal project running on modest infrastructure. It may be
+  unavailable, may lose data, and may be discontinued. No uptime is promised
+  and no service level is offered.</p>
+<p>You can delete your account at any time in
+  <a href="{{ url_for('auth.account') }}">account settings</a>.</p>
+
+<h2 id="liability">Liability</h2>
+<p>The service is provided as it is, without warranties, and to the fullest
+  extent the law allows there is no liability for any loss arising from using
+  it or from being unable to use it.</p>
+<p>Nothing here limits liability for death or personal injury caused by
+  negligence, for fraud, or for anything else that cannot lawfully be limited.
+  If you are a consumer, your statutory rights are unaffected.</p>
+
+<h2 id="unofficial">Not official</h2>
+<p>An unofficial fan project with no connection to Formula E Operations, the
+  FIA, ABB, or any team, driver or sponsor. See
+  <a href="{{ url_for('pages.about') }}">about</a>.</p>
+
+<h2 id="law">Law</h2>
+<p>These terms are governed by the law of England and Wales, and the courts of
+  England and Wales have jurisdiction. If you are a consumer living elsewhere
+  in the UK, you may bring proceedings in your own jurisdiction.</p>
+
+<h2 id="changes">Changes</h2>
+<p>These terms may change. The date below changes with them, and continuing to
+  use the service means accepting the current version.</p>
+<p class="status">Last updated 25 August 2026.</p>
+{% endblock %}

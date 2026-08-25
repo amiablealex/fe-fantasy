@@ -1,7 +1,7 @@
 # FE Fantasy — Project Spec
 
-**Status:** Phases 0–7 complete. Season 12 backfilled and scored locally; the worker is live in production and idling until the Season 13 calendar is published.
-**Last updated:** 23 August 2026
+**Status:** Phases 0–8 complete. Season 12 backfilled and scored locally; the worker is live in production and idling until the Season 13 calendar is published.
+**Last updated:** 25 August 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
 
@@ -34,6 +34,24 @@
 > **No migration.** Season history, the bracket, the Perfect Five and the whole meeting view are reads over rows the scoring pass already wrote. The last migration in this project is `0006`.
 >
 > §11 gains five entries, one of which — separating "what did this cost" from "is there anything to save" — is the same mistake found in four places.
+
+> **Revision note 11 (25 August 2026).** Phase 8 complete — visual refinement, taken in a gap the roadmap opened rather than planned. Seven things here go beyond, or against, what earlier drafts said.
+>
+> **§8 is reordered.** Phase 8 was production readiness and could not start: every one of its entry conditions is gated on a Season 13 calendar the provider has not published. Visual work needs no calendar, so it took the gap. Production readiness is Phase 9, unchanged apart from its number, and November is still clear.
+>
+> **§1 gains a surface, and this is the substantive change.** "Typography and layout do the work colour would otherwise do" stands, but it had been read as *no fills anywhere*, and the consequence was an application with one word for a boundary: a line. A rule says two things are adjacent and different. It never says six things are one thing, and at the density Phase 7 reached, a reader was being asked to infer every group from its edges. `.slot` had already found this alone in Phase 4 and its own comment said so — a recessed ground was "most of the newspaper problem, not a lack of decoration" — and it was never generalised past the one component. Phase 8 generalised it. See §1's surface rule.
+>
+> **The mark family gains a rule** — a circle is an action, a square is a state — along with a wordmark and a favicon. The favicon is the only asset in this project and exists because a phone home screen cannot be set in type.
+>
+> **Motion exists**, at four applications and no fifth.
+>
+> **Navigation is two rows, and the footer carries the growth.** A live figure under each tab was drafted and dropped: two were clutter above pages already full of numbers, and the third could not be written at all, because a player in four leagues has four positions and a header has no room to say which one it means.
+>
+> **`/leagues/<id>` is two pages.** The split removed a duplication rather than hiding one — the membership list was the standings table's own people in a different order.
+>
+> **The static pages exist** (§4.9), and registration being public makes privacy and terms a requirement rather than a courtesy. `/how-to-play` renders every figure from `app/scoring/rules.py`, because a typed one would start lying the day the post-Jeddah re-tune ships.
+>
+> §11 gains six defects. Three are mine, one is a class of instruction rather than a bug, and every one of them failed silently rather than loudly.
 
 ---
 
@@ -81,6 +99,67 @@ The two exceptions are both states rather than identities, and both sit **outsid
 Added in Phase 7, when the editor needed to distinguish "you have unsaved changes" from "your lineup is invalid". They are genuinely different facts and colour says so faster than wording does; sharing red between them would have emptied red of meaning, which is the same argument §4.1 makes about never marking a transferred-in pick in the error colour.
 
 **Team colour is two stripes**, seeded from `team.color` for hue only; lightness and chroma come from `tokens.css` and are routed by hue to one of two clamp tiers, because yellows and cyans cannot hold chroma at the lightness reds and purples can. The secondary stripe carries a second, independent channel: solid, tint, dark, or light. Seeds and overrides live in `app/palette.py` — data repair, not design. An unseeded team degrades to a neutral rule.
+
+### Surfaces — the rule added in Phase 8
+
+**A surface is warranted when a region must be read as a unit and then left.** Never for emphasis, never for importance, never for state.
+
+Three grounds, and the phase that introduced the middle one added no fourth on purpose:
+
+| Tier | Value | Job |
+|---|---|---|
+| Ground | `--surface` | the page. Everything sits here unless it has earned otherwise |
+| Recessed | `--surface-recessed` | a region read as a unit: a panel, a bracket section, a lineup slot, a form control |
+| Inked | `--ink-900` | the verdict block. One per screen, carrying the single figure the screen exists to give |
+
+Four constraints, which matter more than the token:
+
+1. **A fill replaces a rule; it never joins one.** Every heavy rule that became a panel is a line removed, which is why the page got quieter rather than busier. `--rule-heavy` appeared seven times before Phase 8, five of them in full ink, so a weekend page carried four to six 3px black rules at 360px. It now appears once, on the appbar, at the boundary between the app's chrome and its content.
+2. **No recessed surface nests inside another.** Where the case genuinely arises the inner one inverts to paper — a form control inside a panel, and a bracket stage inside a bracket section.
+3. **A surface holds a heading and a list.** Never a single statement, never a lone figure: fill something small enough and you have rebuilt the pill this project retired.
+4. **A surface is full-measure and square.** It never sits on a grid beside a sibling and never takes a corner radius. There is no `--radius` token and that is deliberate.
+
+**The band bleeds through the page's inline padding**, so on a phone it runs the full width of the screen. A band with no left or right edge cannot be read as a tile on a grid, which is what keeps this out of the card look above.
+
+**A panel may be a disclosure.** `<details class="panel">` is how the bracket became four summaries and how a fifty-member list stops being the longest thing on a page.
+
+### The mark family
+
+A glyph from the display face inside a geometric container. No icon asset enters the project.
+
+**A circle is an action — press it and something opens. A square is a state — it is telling you a fact and cannot be pressed.** That describes both marks that already existed, and it is the test any new one has to pass.
+
+Two sizes only, `currentColor` throughout. Members: `!` in a square for the two problem levels, `i` in a circle for a profile, an initial in a circle for the account.
+
+**The star is the one exemption**, and it is documented rather than left as an inconsistency: every other mark occupies a slot of its own, where the star sits inside running text beside a driver's name, and a container would outweigh the word it marks.
+
+**A cog was considered and refused.** A cog is not a character but an asset, so it would replace the family's rule with "circles containing whatever suits", and the second icon then costs nothing to justify. It would also have under-described its destination, which is members and an invite code as much as it is settings.
+
+### Motion
+
+**Motion confirms a change the reader caused.** Never on load, never looping, never announcing.
+
+Two tokens and four applications, and there is not a fifth: a sheet arriving, a disclosure opening, a results fragment settling, and a tab becoming current. Exit is instant everywhere — a dismissal should feel finished the moment it is asked for.
+
+The `prefers-reduced-motion` block is the one deliberately unlayered rule in the project, because it has to beat every layer to do its job.
+
+### Identity
+
+**The wordmark is the type system in miniature**: "FE" in Anybody at display weight, "Fantasy" in Archivo condensed tracked caps. The same relationship every screen uses — the display face for what behaves like a figure, the text face for what behaves like a label. It needs no drawing and degrades to the words.
+
+The two stripes precede it, in ink rather than a team hue, because ten hues are already on the grid and an eleventh at the top of every page would be read as an identity.
+
+**One asset exists: `favicon.svg`.** F and E are rectilinear letters, so they are drawn as rectangles rather than outlined from a font — the mark needs no font file, renders identically at 16px, and cannot break if the Anybody subset is regenerated. Paper ground, per the light-ground argument above: every other motorsport app on a home screen is dark.
+
+### Navigation
+
+**Two rows, and the split is what stops it growing.** Row one is the wordmark and the account control; row two is the three destinations a player moves between. Everything else — how to play, about, privacy, terms, admin — is in the footer, because those are visited rarely and deliberately.
+
+No hamburger and no bottom tab bar: one reads as a menu of things that would not fit, the other reads as a native application and wants icons this project does not have.
+
+**Sign out is not in the header.** It was a once-a-season action holding permanent primary navigation, and it was a form dressed as a link. It is on the account page, which is what the circle opens.
+
+**Labels only.** A live figure per tab was drafted against §7's argument that all engagement pressure sits in the interface, and dropped: see revision note 11.
 
 ### Viewport strategy
 
@@ -384,6 +463,10 @@ The one thing that can move a stored score down is the provider correcting a cla
 | **Perfect Five** | `/weekend/perfect-five?m=N` | What the weekend was worth |
 | **Friend profile** | `/players/<id>?m=N` | Another player's weekend, and their season |
 | **League table** | `/leagues/<id>` | Season standings within a league |
+| **League settings** | `/leagues/<id>/settings` | Members, the invite, the name, leaving |
+| **Subject card** | a sheet, from any results row | What this driver or team scored *this weekend* |
+| **How to play** | `/how-to-play` | The rules and the scoring, rendered from the ruleset |
+| **About, privacy, terms** | `/about` `/privacy` `/terms` | What this is, what is held, what is agreed |
 | **Driver / team profile** | a sheet, from anywhere | How this subject has scored this season, and in earlier ones |
 | **Admin health** | `/admin/health` | Provider quota, worker liveness, scoring coverage, outstanding conflicts |
 
@@ -519,6 +602,42 @@ The Final winner's cell therefore reads 4, not 1 — the duel win plus the pole 
 **How the figures are derived, and the guard on it.** From position plus the round's own recorded `ScoringRuleset`, not from the stored components — `ScoreComponent` records which *rule* fired and not which session, so attributing a duel win to QF3 rather than SF1 would mean parsing a detail string written for humans. That means the structure of the qualifying rule is written down in two places. Magnitudes cannot drift, because both read the same ruleset object. Structure can, and a test asserts the bracket's per-driver totals equal `engine.score_qualifying`'s own over the same sessions. Same guard §5 puts on `transfer_cost` and `scoring_provisional`.
 
 **It needed no new token and no new primitive** — only an arrangement of `.ruled`, the team band and the three rule weights, which is the demonstration Phase 3 recorded as owed. The three weights carry the hierarchy exactly as `tokens.css` argues they should: hairline between rows, mark rule at the group cut and between duel pairs, heavy rule above each section heading.
+
+### 4.8 The subject card
+
+**A driver's name in a classification or a bracket row opens what they scored this weekend**, not their season. A reader who taps a row inside a specific round is asking about the weekend they are looking at; the season is one further tap, on the card's own info mark. Three depths in the order the questions are asked: the round on screen, the weekend containing it, the season containing that.
+
+**Meeting-scoped, not round-scoped**, even though the tap happens inside one round's table. A double-header would otherwise give the same driver two different cards depending on which round's classification you came from, with nothing on either saying which — and the lineup slot above would show a third figure, their sum.
+
+It is the same macro over the same object as a lineup slot, which is enforced rather than coincidental: `view._driver_pick` and `view._team_pick` were extracted out of `score_meeting` so a card and a slot cannot drift. `subject_meeting_score` builds a one-pick `RoundBreakdown` per round and hands it to `aggregate_meeting`, so there is no aggregation logic in the new path at all.
+
+`RoundScore` is user-independent, so the card needs no viewer argument — unlike anything that reads a lineup. Its fragment route answers 204 on any miss, because an error document swapped into a dialog host is worse than nothing; the *reason* goes to the log, for the reason §11 records.
+
+### 4.9 The static pages
+
+Four, written because registration is public and friends arrive in December knowing nothing about scoring.
+
+**`/how-to-play` renders every figure from `app/scoring/rules.py`.** The qualifying gradient, the race table and the worked-example totals are all derived. §3 versions the ruleset precisely so the post-Jeddah re-tune does not rewrite December, and a hand-typed page of point values would start lying the day that re-tune ships. This is the one place `get_ruleset()` with no argument is correct: the page describes how a lineup picked *today* will score.
+
+**A rules page states rules.** No rationale, no design intent, no reassurance. The reasons live in this document.
+
+**`/about` states what the app is**, credits the provider, states non-commercial — which the free tier requires — and disclaims affiliation with Formula E, the FIA, ABB and any team or driver, with trademarks used only where necessary to describe the championship.
+
+**`/privacy` and `/terms` are written to UK GDPR Article 13 and to the Gambling Act's negative**: the controller named, the lawful bases given as contract and legitimate interests, every processor named including Cloudflare, the EU database location stated, both cookies described with a note that there is no banner because there is nothing to consent to, the ICO route linked, a minimum age of 16, and no entry fee and no prize said explicitly.
+
+Headings carry ids so a section can be linked to. No visible table of contents: eight short sections on a phone would put a screenful of links in front of the answer.
+
+### 4.10 The league pages
+
+**`/leagues/<id>` is the table. Administration is `/leagues/<id>/settings`.** They were two visits wearing one URL, and only one of them happens on a Sunday night.
+
+The split removed a duplication rather than hiding one: the membership list was the standings table's own people in a different order, one screen apart, and everything unique to it — join dates, who is hidden, the remove control — is administration.
+
+Settings is visible to every member, not only to admins. A member needs the code to invite someone, wants to see who is in, and must always be able to leave; which controls appear inside each band is what `membership.is_admin` decides. Every mutating control returns to settings, except leaving, which returns to the index because the league it acted on is no longer readable.
+
+**The league list answers "where am I", not "how many are we".** A member count is a property of the league; this page is a list of the reader's own leagues. Once a weekend has scored the position leads and the count moves under the name, where "of 50" still says whether there is room for a friend.
+
+**One meaning per signal.** Weight in a standings table means `.is-yours` and nothing else. The Points column used to carry semibold on every row to say "this column decides the order", so the viewer's row was bold because it was theirs and everyone's points were bold because they were points, and neither could be read. Points keeps prominence through ink instead.
 
 ---
 
@@ -899,7 +1018,8 @@ A second Railway service from the same repo, start command `python -m worker.sch
 | Aug 2026 | Phases 3, 4, 5 complete; worker live in production |
 | Aug 2026 | Phase 6 complete: leagues, invites, standings, friend profiles |
 | **23 Aug 2026** | **Phase 7 complete: the meeting view, the bracket, the Perfect Five, season history** |
-| Sep–Nov 2026 | Phase 8 — production readiness. The gap is deliberate |
+| **25 Aug 2026** | **Phase 8 complete: the visual layer, the identity, the static pages** |
+| Sep–Nov 2026 | Phase 9 — production readiness. Gated on the calendar, so mostly waiting attentively |
 | ~Oct 2026 | S13 calendar published; the worker picks it up unattended; S12 loaded to production afterwards |
 | Early Dec 2026 | Friends registered, leagues created, opening lineups set during grace |
 | **18–19 Dec 2026** | **Jeddah — first live round** |
@@ -907,9 +1027,29 @@ A second Railway service from the same repo, start command `python -m worker.sch
 
 **Phase 7 was planned for early December and landed in August.** Every phase since 3 has run ahead, and the whole roadmap is now roughly three and a half months early against a fixed date. That surplus is not an invitation to add features: the game is complete, and the risk between here and Jeddah is entirely operational — a calendar that arrives in a shape nobody has seen, a session status nobody has observed, and a first weekend that has to work on a phone in front of an audience.
 
-So Phase 8 is production readiness, and it is mostly waiting attentively.
+So the surplus went into the visual layer, which needed no calendar and no data, and Phase 9 is production readiness — mostly waiting attentively.
 
-### Phase 8 — Production readiness
+### Phase 8 — Visual refinement, complete
+
+**Not what this document said Phase 8 was.** Production readiness is gated on a Season 13 calendar the provider had not published, so none of its entry conditions could be met. Visual work needed no calendar. It took the gap; production readiness is Phase 9 below, unchanged apart from its number.
+
+The brief was four complaints and one absence. Sections did not separate. `/leagues/<id>` was overwhelming. Shaded backgrounds were the obvious tool and the obvious trap. The mark family was two near-misses rather than a set. And there were no static pages at all, with friends registering in December knowing one sentence about scoring.
+
+| # | Stage | Contents |
+|---|---|---|
+| 8.1 | Foundation | The surface tier, semantic region spacing, motion tokens, `.panel` as the grouping primitive, full-ink heavy rules retired |
+| 8.2 | Identity | Wordmark, favicon, the mark family's rule, the two-row shell, the footer, the pages blueprint |
+| 8.3 | Dense screens | Bracket sections as opening panels, duel pairing by inversion, the results section always visible, the subject card |
+| 8.4 | Leagues | The table/settings split, standings on the league list, one figure formatter |
+| 8.5 | Static pages | How to play from the ruleset; about, privacy, terms |
+| 8.6 | Sweep | Error pages, the dead `results=open` contract, dead CSS, `.c-driver` renamed |
+| 8.7 | Close | This document |
+
+**No migration, and no Python beyond four small additions**: the pages blueprint, the card route, `view.subject_meeting_score`, and the leagues split. Everything else is CSS and templates.
+
+**Two things were built twice.** Duel pairing was first attempted with space alone and did not read, because a bracket row is two lines tall and the gap between pairs never looked bigger than the gap inside one; the second attempt inverted the ground and needed no space at all. And the nav's live figures were designed, mocked, and dropped before shipping. Both are recorded because the discarded version was the reasonable-sounding one.
+
+### Phase 9 — Production readiness
 
 Entry conditions, in the order they unblock:
 
@@ -921,7 +1061,7 @@ Entry conditions, in the order they unblock:
 - **The suite takes about six minutes on the Pi** and §7 records why. That is the point at which it stops being run before committing, and Phase 7 shipped several defects that a run would not have caught but a *habit* of running might have. Session-scoped schema, per-test rollback.
 - **A phone, on the day.** Everything since Phase 3 was designed at 360px and checked in device emulation. Jeddah is the first time it is read on a real handset by someone who did not build it.
 
-### Explicitly not in Phase 8
+### Explicitly not in Phase 9
 
 The game is done. No new scoring rules, no new views, no second season's features. The one thing that will change after Jeddah is the places gained/lost magnitudes, and ruleset versioning exists so that re-tune does not rewrite December.
 
@@ -954,11 +1094,24 @@ Run against Season 12 in Phase 2b. **No point values changed; ruleset promoted t
 - **Season 12 in production:** not loaded. Do it *after* the S13 sync (§8).
 - **`prof.info_link` has no callers** since the styleguide picker it was written for was deleted. Either the editor's hand-written link folds back into it — with `hx-select` and `hx-push-url` parameters — or the macro goes.
 - **The desktop relaxation has never been designed.** `--measure` widens to 46rem above 48rem and everything else is unchanged. That is defensible as "a wide tablet" (§1) and has never been looked at properly.
+- **The subject card has no no-JavaScript equivalent.** Its link keeps a working `href`, but that href goes to the season sheet as it did before, so the two paths differ. Parity wants a `?card=` parameter resolved on three pages, which is route work for a path nobody in the current audience takes.
+- **The styleguide's standings section renders championship points**, which §3 says are rendered nowhere. It is debug-only and cannot reach production, but it is the one screen contradicting the one-unit rule. Fix or delete.
+- **Backup and log retention in `/privacy` are approximations** — "of the order of a week", "roughly a month" — pending confirmation of what Railway actually keeps.
+- **A minimum age of 16 is stated** in privacy and terms. It sidesteps UK GDPR Article 8 rather than engaging with the ICO's Children's Code, which is proportionate for a free non-commercial game and is not the same as compliance if this grows.
 
 ### Resolved
 
 | Decision | Outcome |
 |---|---|
+| **Surfaces** | **Three grounds and four constraints (§1).** A fill replaces a rule rather than joining one; no recessed surface nests; a surface holds a heading and a list; full-measure and square. `--rule-heavy` survives once, on the appbar |
+| **The mark family** | Circle is an action, square is a state. Two sizes, `currentColor`, glyphs from the display face. The star is a documented exemption; a cog was refused |
+| **Motion** | Four applications and no fifth, confirming a change the reader caused. Exit is always instant |
+| **Identity** | A two-face wordmark preceded by the two stripes in ink. One asset in the project: a favicon drawn as rectangles, because F and E are rectilinear and a home screen cannot be set in type |
+| **Navigation** | Two rows, three destinations, the footer carrying everything else. Labels only — a per-tab figure could not be written for Leagues |
+| **The league pages** | Table and settings, split. Settings is every member's, not only an admin's |
+| **The subject card** | A results row opens the weekend, not the season. Meeting-scoped, and the same macro over the same object as a lineup slot |
+| **The rules page** | Rendered from `rules.py`, never typed. The one correct use of `get_ruleset()` with no argument |
+| **Static page voice** | A rules page states rules. Rationale lives in this document |
 | **Perfect Five** | **The four best-scoring drivers and the best-scoring team, not the best valid lineup.** Ordered by total, then best finishing position, then id, so ties cannot reach the page. The achievability benchmark is given up deliberately |
 | **The unit** | **Fantasy points only.** Real championship points are ingested for §6's check and rendered nowhere |
 | **The qualifying bracket** | Stages read down the page, per-stage FP, elimination in ink, deltas below the leader. No new primitive — Phase 3's risk closed by demonstration |
@@ -1030,7 +1183,8 @@ Run against Season 12 in Phase 2b. **No point values changed; ruleset promoted t
 ### Delivery
 
 - **Tarballs for new or wholly-rewritten files; anchored snippets for anything else.**
-- **A file that has taken a hand edit is no longer tarball-eligible** until it has been sent back. Phase 7 lost two rounds of editor work this way: `edit.html` was shipped whole from a copy that predated three hand edits, silently reverting them. The rule that prevents it is the same one §5 applies to scores — one source of truth, and the moment there are two they diverge without an error anywhere. Files currently in that state: `config.py`, `lineups/routes.py`, `lineups/home.html`, `lineups/edit.html`, `lineups/_lineup.html`, `primitives.css`, `tokens.css`.
+- **An anchor is a unique string, not a section name.** A Phase 8 instruction said "replace the `@layer components {` under the QUALIFYING BRACKET banner", and that string occurs sixteen times in `primitives.css`. The replacement landed in the first block instead — the foundations — and silently deleted every team-stripe rule, the figure and label treatments and the base personal mark. An anchor must be a line that appears once. Where a block runs past about forty lines, ship the whole file instead and reconstruct it mechanically: apply each edit by exact anchor, assert each matched exactly once, and diff the selector set against the live copy before delivering. That is a guarantee no paste instruction can offer.
+- **A file that has taken a hand edit is no longer tarball-eligible** until it has been sent back. Phase 7 lost two rounds of editor work this way: `edit.html` was shipped whole from a copy that predated three hand edits, silently reverting them. The rule that prevents it is the same one §5 applies to scores — one source of truth, and the moment there are two they diverge without an error anywhere. Files in that state at the close of Phase 8: `lineups/home.html`, `lineups/edit.html`, `lineups/_lineup.html`, `leagues/index.html`, `leagues/_table.html`, `tokens.css`.
 - **Multi-line terminal work:** write to `/tmp` via `cat >` and run with `PYTHONPATH=. python /tmp/script.py` to avoid paste mangling.
 - **Quote multi-word `.env` values.** python-dotenv tolerates `NAME=Formula E Fantasy`, but `source .env` reads it as a command invocation and fails obscurely.
 
@@ -1075,6 +1229,16 @@ All four asked "what did this weekend cost" when they meant "is there anything p
 
 **A read written twice is a read that will disagree.** `_player_results` was a copy of `_results_context` differing in one line — which URL the disclosure's links point at. It is now one function with six callers and a `base` argument. The same instinct deleted the styleguide's six duplicated screens: a debug-only surface is where drift goes unobserved longest, and `/styleguide/meeting` had been raising a 500 since Phase 3 because its template was never committed.
 
+**An outdented mark and a clipped ancestor are silently incompatible.** Every "this is yours" treatment in this application is a pseudo-element outdented into a reserved gutter — it sits *outside* its row's box. Phase 8 gave `::details-content` `overflow: clip` so a disclosure would not spill mid-transition, and `clip` clips both axes, so an animation added to the results section removed every personal mark inside it: the classification and the bracket at once. `overflow-clip-margin` hands back exactly the gutter. Worth knowing as a class rather than as an incident — the failure is invisible rather than broken, and nothing anywhere reports it.
+
+**One concept, two vocabularies, and no translation layer.** A URL carries `d9`; a `PickScore.kind` is `"driver"`. Both are right where they live. The subject-card route was written to call `subject_meeting_score(kind="d")`, which matched neither branch and fell through to the one return that produces silence, so every card request in the application answered nothing. Both vocabularies stay; they now meet in one named constant, and that constant is the only place they touch.
+
+**A route where every failure returns the same response cannot be debugged from outside it.** The card fragment answered 204 whether the meeting was missing, the deadline had not passed, the subject was unreadable, or the subject had no scores. 204 is the right *response* — an error document swapped into a dialog host is worse than nothing — but the reason belongs in the log. Any fragment route that answers with silence needs to say why at debug level.
+
+**The class a component defines is the class its markup has to use.** The league range switch rendered its tabs as `.label u-caps` with a `u-semi` on the current one, so none of `.vswitch__tab` — its padding, its underline, its current state — had ever applied. It read as a spacing fault and was reported as one. The fix was not margins.
+
+**One signal, one meaning.** In the standings table weight meant "this row is yours" *and* "this is the column that decides the order", so a viewer's row was bold because it was theirs and every row's points were bold because they were points. Neither could be read. Prominence that is not personal marking has to be carried by ink.
+
 **A derived figure is allowed if a test pins it to the recomputation.** `transfer_cost`, `scoring_provisional` and the bracket's per-stage points are all second copies of something the engine knows. Each has a test asserting equality with the authoritative derivation. That is the price of the shortcut, and it is worth paying.
 
 ---
@@ -1106,6 +1270,7 @@ fe-fantasy/
 │   │   ├── draft.py         # what is broken, what it costs, what each option does
 │   │   ├── service.py       # open weekend, grace, bank, commit
 │   │   └── routes.py        # / and /lineup
+│   ├── pages/               # how-to-play, about, privacy, terms. No database
 │   ├── meetings/            # scoring in production, and the weekend views
 │   │   ├── bridge.py        # ORM rows -> engine dicts, and the ruleset to use
 │   │   ├── display.py       # every string a reader sees. Engine only — no ORM, no Flask
@@ -1114,7 +1279,7 @@ fe-fantasy/
 │   │   ├── bracket.py       # the qualifying knockout as a view model
 │   │   ├── scoring.py       # the scoring pass: completeness, partial, idempotent
 │   │   ├── reads.py         # stored scores, shaped like the engine's output
-│   │   └── routes.py        # /weekend, /weekend/perfect-five, and their fragments
+│   │   └── routes.py        # /weekend, /weekend/perfect-five, the card, the fragments
 │   ├── models/              # user, league, lineup, score, worker, calendar, grid, result
 │   ├── providers/
 │   │   ├── base.py          # normalised dataclasses + ResultsProvider protocol
@@ -1124,6 +1289,7 @@ fe-fantasy/
 │   ├── scoring/             # rules.py, engine.py, lineups.py — no Flask, no SQLAlchemy
 │   ├── styleguide/          # debug-only: tokens, type, palette. Nothing else
 │   ├── static/
+│   │   ├── favicon.svg      # the only asset in the project. See §1
 │   │   ├── css/             # tokens.css, primitives.css, styleguide.css
 │   │   ├── fonts/           # Archivo, Anybody, subset woff2 + OFL
 │   │   └── js/              # htmx.min.js, dialogs.js — self-hosted, no CDN
@@ -1131,7 +1297,9 @@ fe-fantasy/
 │       ├── lineups/         # _lineup.html (the component), home, edit
 │       ├── meetings/        # weekend, perfect_five, _nav, _results, _results_body,
 │       │                    # _bracket, _profile, _profile_sheet
-│       ├── leagues/  players/  auth/  admin/  errors/
+│       ├── leagues/         # index, detail (the table), settings, new, join, landing
+│       ├── pages/           # how_to_play, about, privacy, terms
+│       ├── players/  auth/  admin/  errors/
 │       └── styleguide/      # _shell, index
 ├── worker/                  # outside app/: the application must not import it
 │   ├── scheduler.py         # APScheduler, one replica, the entrypoint

@@ -131,7 +131,7 @@
       {% for s in standings %}
       <a class="split" href="{{ url_for('leagues.detail', league_id=s.league.id) }}">
         <span>
-          <span class="u-semi">{{ s.league.name }}</span>
+          <span class="u-semi namelink">{{ s.league.name }}</span>
           <br><span class="label u-mid">
             {%- if s.is_ranked -%}
             {{ 'Joint ' if s.tied }}P{{ s.position }} of {{ s.members }}

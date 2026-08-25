@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FE Fantasy">
+  <!--
+    The one asset in this project, and it exists because typography cannot do
+    this job: a phone home screen needs a raster tile and there is nowhere to
+    set type in one.
+
+    So it is not set type. F and E are entirely rectilinear letters, so they are
+    drawn here as rectangles — which means the mark needs no font file, renders
+    identically in every context including a 16px favicon, and cannot go wrong
+    if the Anybody subset is ever regenerated. The proportions are Anybody's
+    (heavy weight, normal width) read off by eye rather than outlined.
+
+    Paper ground, deliberately, per SPEC.md §1: every other motorsport app on a
+    home screen is dark, and a light tile is the most distinctive thing this
+    mark can do while still being the app it opens.
+
+    The two stripes bleed off the left edge, which is the same move `.panel`
+    makes on a phone. In ink rather than in a team hue, so the app's own mark
+    can never be read as an identity on the grid.
+  -->
+  <rect width="64" height="64" fill="#fbfbfc"/>
+
+  <!-- The stripes, full bleed. -->
+  <rect x="0" y="0" width="5" height="64" fill="#2b2f38"/>
+  <rect x="5" y="0" width="4" height="64" fill="#a4a7ae"/>
+
+  <!-- F -->
+  <rect x="17" y="16" width="7"  height="32" fill="#2b2f38"/>
+  <rect x="17" y="16" width="19" height="7"  fill="#2b2f38"/>
+  <rect x="17" y="28" width="15" height="6"  fill="#2b2f38"/>
+
+  <!-- E -->
+  <rect x="40" y="16" width="7"  height="32" fill="#2b2f38"/>
+  <rect x="40" y="16" width="19" height="7"  fill="#2b2f38"/>
+  <rect x="40" y="28" width="15" height="6"  fill="#2b2f38"/>
+  <rect x="40" y="41" width="19" height="7"  fill="#2b2f38"/>
+</svg>

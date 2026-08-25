@@ -182,8 +182,11 @@
 {% endmacro %}
 
 
-{% macro breakdown(bridge, palette, pick, index, best_url=none, profile_url=none, profile_hx=none) %}
-<dialog class="sheet sheet--narrow" id="bd-{{ index }}">
+{% macro breakdown(bridge, palette, pick, index, best_url=none, profile_url=none, profile_hx=none, modal=false) %}
+{#- A slot's breakdown is opened by the slot pointing at its id. A card arrives
+    already meant — nothing on the page points at it — so it carries `data-modal`
+    and `dialogs.js` shows it after the swap. -#}
+<dialog class="sheet sheet--narrow" {% if modal %}data-modal{% else %}id="bd-{{ index }}"{% endif %}>
   <div class="sheet__head sheet__head--pick">
     {{ band(palette, pick.team, split = pick.is_team) }}
     <span class="sheet__title">

@@ -51,6 +51,18 @@
   </form>
 </fieldset>
 
+{# Sign out left the header in Phase 8.2: it is a once-a-season action that was
+   holding permanent primary navigation, and it was a POST dressed as a link.
+   Here it is honestly a button, and it sits next to the other things you do to
+   your own account rather than next to the places you go. #}
+<fieldset class="panel">
+  <legend class="label panel__title">Sign out</legend>
+  <form method="post" action="{{ url_for('auth.logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="button--quiet">Sign out of {{ config.APP_NAME }}</button>
+  </form>
+</fieldset>
+
 <fieldset class="panel panel--danger">
   <legend class="label panel__title">Delete account</legend>
   <p class="aftermatter">This cannot be undone. Your lineups and every score

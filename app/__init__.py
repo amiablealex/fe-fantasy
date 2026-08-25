@@ -21,6 +21,19 @@ from app import models  # noqa: F401
 __all__ = ["create_app", "models"]
 
 
+def _register_filters(app: Flask) -> None:
+    """One formatter for every figure a reader sees.
+
+    `display.fmt` was reaching templates only where a route remembered to pass
+    it, so the league table rendered raw Decimals — 45.50 against 45.5 two taps
+    away. A filter cannot be forgotten. `display` imports the engine and nothing
+    else, so registering it here costs the app factory nothing.
+    """
+    from app.meetings.display import fmt
+
+    app.add_template_filter(fmt, "fmt")
+
+
 def create_app(config_class=None) -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -38,6 +51,7 @@ def create_app(config_class=None) -> Flask:
     # conversion happens once, at render, through a filter rather than in each
     # template's own strftime.
     localtime.register(app)
+    _register_filters(app)
     _register_blueprints(app)
     _register_user_loader()
     _register_hooks(app)
@@ -69,6 +83,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.leagues.routes import invite_bp, leagues_bp, players_bp
     from app.lineups.routes import lineups_bp
     from app.meetings.routes import meetings_bp
+    from app.pages.routes import pages_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
@@ -77,6 +92,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(leagues_bp)
     app.register_blueprint(invite_bp)
     app.register_blueprint(players_bp)
+    app.register_blueprint(pages_bp)
 
     if app.debug:
         from app.styleguide import bp as styleguide_bp
