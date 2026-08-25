@@ -3,10 +3,48 @@
 {% block main_class %}prose-page{% endblock %}
 {% block content %}
 <h1 class="page-title">About</h1>
+<p class="pagelede">A fantasy game for the ABB FIA Formula E World
+  Championship. Free to play, non-commercial, run by one person.</p>
 
-{#- Stub. The route, the title and the shell are stage 8.2; the words are
-    stage 8.5. Do not merge this branch to main until this page has content:
-    a live page reading "coming soon" is worse than a link that is not there
-    yet. -#}
-<p class="prose">Coming shortly.</p>
+<h2 id="what">What it is</h2>
+<p>Pick four drivers and a team. They score points from real race weekends
+  across the season. One transfer per weekend, banked up to two.</p>
+<p>Leagues are private and joined by invite. Everyone also appears in one
+  global table, which you can opt out of.</p>
+<p><a href="{{ url_for('pages.how_to_play') }}">How to play</a> covers the
+  rules and the scoring.</p>
+
+<h2 id="who">Who made it</h2>
+<p>Built by <a href="https://github.com/amiablealex" target="_blank" rel="noopener">amiablealex</a>
+  as a personal project.</p>
+<p>There is a companion app,
+  <a href="https://f1.kitsniff.com" target="_blank" rel="noopener">F1 Predictions</a>.
+  The two share an author and nothing else.</p>
+
+<h2 id="data">Where the results come from</h2>
+<p>Formula E timing and results come from the
+  <a href="https://api.ocblacktop.com" target="_blank" rel="noopener">Orange Cat Blacktop</a>
+  API. Sessions are fetched shortly after they finish and scored
+  automatically, so qualifying scores usually appear on the day and the rest
+  arrives with the race.</p>
+<p>A weekend that has not finished scoring says so on the page rather than
+  showing a total as final.</p>
+
+<h2 id="not">What it does not do</h2>
+<p>No email except a password reset. No deadline reminders, no digests, no
+  notifications.</p>
+<p>No adverts, no tracking, no analytics.</p>
+<p>No entry fee, no prizes, no money of any kind.</p>
+
+<h2 id="unofficial">Not official</h2>
+<p>This is an unofficial fan project with no connection to Formula E
+  Operations, the FIA, ABB, or any team, driver or sponsor. None of them have
+  endorsed or approved it.</p>
+<p>Names including &ldquo;Formula E&rdquo;, &ldquo;E-Prix&rdquo; and the names
+  of teams and drivers are trademarks of their respective owners. They are used
+  here only where necessary to describe the championship this game is played
+  on.</p>
+
+<h2 id="contact">Contact</h2>
+<p><a href="mailto:help@amiablealex.com">help@amiablealex.com</a></p>
 {% endblock %}

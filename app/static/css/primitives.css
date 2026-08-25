@@ -486,6 +486,85 @@
      constrains further. */
   .gate { max-inline-size: 26rem; }
 
+  /* ---- Static pages ------------------------------------------------------
+     The only long-form prose in the application. Everything else here is a
+     table, a slot or a control, so this is the one place `--measure-prose`
+     does any work: at the full 46rem desktop measure a paragraph runs to
+     about 130 characters, which is roughly twice a readable line.
+
+     A section heading is set in the text face, at prose size, in semibold —
+     not the display face. The display face is for figures, and it would put a
+     round number's treatment on the word "Transfers". */
+  .prose-page {
+    max-inline-size: var(--measure-prose);
+    font-size: var(--step-4);
+    line-height: var(--leading-prose);
+  }
+
+  .prose-page p { margin-block-start: 0.7em; }
+
+  .prose-page h2 {
+    margin-block: var(--gap-region) var(--space-3);
+    font-size: var(--step-4);
+    font-weight: var(--weight-bold);
+    scroll-margin-block-start: var(--space-6);
+  }
+
+  .prose-page h3 {
+    margin-block: var(--space-7) var(--space-3);
+    font-size: var(--step-1);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-mid);
+    scroll-margin-block-start: var(--space-6);
+  }
+
+  /* The one-sentence summary under the title. Set as the page's own voice
+     rather than as a first paragraph: a reader who stops here should still
+     have the answer. */
+  .pagelede {
+    margin-block-start: var(--space-3);
+    font-size: var(--step-4);
+    line-height: var(--leading-prose);
+    color: var(--text-mid);
+    border-inline-start: var(--mark-width) solid var(--mark);
+    padding-inline-start: var(--mark-gutter);
+  }
+
+  /* A marker in the reserved gutter, so a list keeps the same left edge as the
+     prose around it. `list-style` markers hang outside the box and are the one
+     bullet this project cannot set. */
+  .prose-page .bullets { margin-block-start: 0.7em; }
+
+  .prose-page .bullets li {
+    position: relative;
+    padding-inline-start: var(--mark-gutter);
+    margin-block-start: 0.4em;
+  }
+
+  .prose-page .bullets li::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-start: 0.62em;
+    inline-size: var(--space-3);
+    block-size: var(--rule-mark);
+    background: var(--rule-strong);
+  }
+
+  /* A rules table has no headings — both columns are self-evident — so it
+     needs a rule at the top that `.table` would otherwise get from its
+     `<thead>`. */
+  .table--rules {
+    margin-block-start: 0.9em;
+    font-size: var(--step-3);
+    border-block-start: var(--rule-hair) solid var(--text);
+  }
+
+  .table--rules td { padding-block: var(--space-3); }
+  .table--rules .c-num { font-weight: var(--weight-semi); white-space: nowrap; }
+
   .page-title {
     font-family: var(--face-display);
     font-size: var(--step-5);

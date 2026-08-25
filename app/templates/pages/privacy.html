@@ -1,12 +1,114 @@
 {% extends "base.html" %}
 {% block title %}Privacy{% endblock %}
 {% block main_class %}prose-page{% endblock %}
+
+{#- Written to satisfy UK GDPR Articles 13 and 14 — identity of the controller,
+    what is held, why, on what lawful basis, who else sees it, how long it is
+    kept, what rights you have and where to complain — in plain sentences
+    rather than in the language such notices are usually written in. Where a
+    figure needs verifying it is stated as an approximation rather than
+    invented. -#}
+
 {% block content %}
 <h1 class="page-title">Privacy</h1>
+<p class="pagelede">Short version: an email address, a username and your picks.
+  Nothing is sold, shared for marketing, or tracked.</p>
 
-{#- Stub. The route, the title and the shell are stage 8.2; the words are
-    stage 8.5. Do not merge this branch to main until this page has content:
-    a live page reading "coming soon" is worse than a link that is not there
-    yet. -#}
-<p class="prose">Coming shortly.</p>
+<h2 id="controller">Who is responsible</h2>
+<p>{{ config.APP_NAME }} is run by
+  <a href="https://github.com/amiablealex" target="_blank" rel="noopener">amiablealex</a>
+  as an individual, and is the data controller for the information described
+  below. Contact:
+  <a href="mailto:help@amiablealex.com">help@amiablealex.com</a>.</p>
+
+<h2 id="what">What is held</h2>
+<ul class="bullets">
+  <li><strong>Your email address.</strong> Used to sign you in and to reset
+    your password. It is never shown to other users.</li>
+  <li><strong>Your username.</strong> Visible to other people in leagues you
+    belong to, and on the global table unless you opt out.</li>
+  <li><strong>A hash of your password.</strong> The password itself is never
+    stored and cannot be recovered by anyone, including us.</li>
+  <li><strong>Your lineups and scores.</strong> Visible to people in a league
+    with you, once a weekend&rsquo;s deadline has passed.</li>
+  <li><strong>Your IP address,</strong> in server logs and while rate-limiting
+    sign-in and invite attempts.</li>
+  <li><strong>Dates,</strong> including when you registered and when you were
+    last active.</li>
+</ul>
+
+<h2 id="why">Why, and on what basis</h2>
+<p>Under UK GDPR every use of personal data needs a lawful basis. There are
+  two here.</p>
+<ul class="bullets">
+  <li><strong>Performance of a contract.</strong> Your account, your lineups
+    and your scores exist because you asked for an account and the game cannot
+    work without them.</li>
+  <li><strong>Legitimate interests.</strong> Server logs and IP-based rate
+    limiting, to keep the service running and to stop automated sign-in and
+    invite-code guessing. This is a limited use and you can object to it by
+    writing to the address above.</li>
+</ul>
+<p>Your data is not used for marketing or profiling, and no decisions about you
+  are made automatically.</p>
+
+<h2 id="others">Who else sees it</h2>
+<ul class="bullets">
+  <li><strong><a href="https://railway.com" target="_blank" rel="noopener">Railway</a></strong>
+    hosts the application and its database. The database is located in the
+    European Union.</li>
+  <li><strong><a href="https://www.cloudflare.com" target="_blank" rel="noopener">Cloudflare</a></strong>
+    sits in front of the site and sees the IP address of every request.</li>
+  <li><strong><a href="https://resend.com" target="_blank" rel="noopener">Resend</a></strong>
+    sends password reset emails, and receives your email address in order to do
+    so. No other email is sent.</li>
+</ul>
+<p>Railway, Cloudflare and Resend are companies incorporated in the United
+  States and may process data outside the United Kingdom. Where that happens it
+  is covered by the standard contractual protections those providers publish.
+  Nothing is sold, rented, or shared with anyone else.</p>
+
+<h2 id="cookies">Cookies</h2>
+<p>Two, and both are strictly necessary to sign you in:</p>
+<ul class="bullets">
+  <li>A session cookie, which lasts until you close your browser or sign out.</li>
+  <li>A &ldquo;remember me&rdquo; cookie, set only if you tick that box when
+    signing in.</li>
+</ul>
+<p>There are no analytics, advertising or third-party cookies. There is no
+  cookie banner because there is nothing to consent to.</p>
+
+<h2 id="keeping">How long it is kept</h2>
+<p>Your account and its data are kept until you delete them.</p>
+<p>Server logs, which include IP addresses, are kept by the hosting provider
+  for a short period — of the order of a week — and then discarded.</p>
+<p>Database backups are taken automatically and are kept for roughly a month.
+  Deleting your account removes it immediately from the live database; copies
+  in existing backups disappear as those backups expire.</p>
+
+<h2 id="rights">Your rights</h2>
+<p>You can:</p>
+<ul class="bullets">
+  <li>See what is held about you, and get a copy.</li>
+  <li>Have anything inaccurate corrected — your username and email can be
+    changed yourself, in
+    <a href="{{ url_for('auth.account') }}">account settings</a>.</li>
+  <li>Delete your account, also in account settings. This removes your account,
+    your lineups and every score computed from them.</li>
+  <li>Object to or restrict the limited uses listed under legitimate interests
+    above.</li>
+</ul>
+<p>Ask at <a href="mailto:help@amiablealex.com">help@amiablealex.com</a> and you
+  will get a reply within a month.</p>
+<p>If you are not satisfied with the answer you can complain to the
+  <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener">Information
+  Commissioner&rsquo;s Office</a>, the UK regulator.</p>
+
+<h2 id="age">Age</h2>
+<p>Accounts are for people aged 16 or over. See the
+  <a href="{{ url_for('pages.terms') }}">terms</a>.</p>
+
+<h2 id="changes">Changes</h2>
+<p>If this notice changes materially, the date below changes with it.</p>
+<p class="status">Last updated 25 August 2026.</p>
 {% endblock %}
