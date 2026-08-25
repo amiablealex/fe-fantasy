@@ -43,7 +43,7 @@
     {% if profile_base %}
     {#- Opens this driver's card for the weekend. See the same link in
         `_results.html`: the season is one tap further on, from the card. -#}
-    <a class="bracket__name c-driver" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
+    <a class="bracket__name namelink" href="{{ profile_base }}&amp;profile=d{{ r.driver_id }}"
        hx-get="{{ (card_hx ~ '&subject=d' ~ r.driver_id) if card_hx
                   else (profile_hx ~ '?subject=d' ~ r.driver_id) }}"
        hx-target="#profile-host" hx-swap="innerHTML">{{ r.driver.short_label if r.driver else '—' }}</a>

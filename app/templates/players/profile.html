@@ -31,7 +31,13 @@
 {#- The refs are built from the *visible* weekends rather than from the
     calendar, so an unlocked weekend has no arrow pointing at it — the nav
     cannot become a second route to something the visibility layer hides. -#}
-{% set keep = '&results=open&stage=' ~ stage if results_open else '' %}
+{#- Carried across an arrow tap. `results=open` came out in 8.3 when the
+    Results section stopped being a disclosure — there is no longer an open
+    state to remember. The stage is not dead with it, and matters more than it
+    did: a reader on the Race table who moves to the next weekend wants the
+    Race table, and before this it was only carried while the disclosure
+    happened to be open. -#}
+{% set keep = '&stage=' ~ stage %}
 {% if nav %}
 {{ nav_ui.meeting_nav(nav, refs, sequence, base, keep) }}
 {% if menu %}

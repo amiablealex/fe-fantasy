@@ -61,7 +61,7 @@
         {{- '=' if row.tied }}{{ row.position }}
       </td>
       <td class="c-name">
-        <a class="c-driver" href="{{ url_for('players.profile', user_id=row.user_id) }}">{{ row.username }}</a>
+        <a class="namelink" href="{{ url_for('players.profile', user_id=row.user_id) }}">{{ row.username }}</a>
         {{ movement(row.movement) }}
       </td>
       {#- Ink, not weight. Weight in this table means one thing and it is

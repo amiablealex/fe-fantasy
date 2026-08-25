@@ -168,8 +168,7 @@ def results_context(meeting, sequence: int, yours=frozenset(), base=None) -> dic
         "yours": yours,
         "schedule": queries.round_schedule(shown),
         "profile_base": (
-            f"{base}?m={sequence}&r={shown.round_number}"
-            f"&stage={stage}&results=open"
+            f"{base}?m={sequence}&r={shown.round_number}&stage={stage}"
         ),
         "profile_hx": url_for("meetings.weekend_profile"),
         # A driver's name opens their card for *this weekend*, not their
@@ -261,7 +260,6 @@ def weekend():
     ctx.update(results_context(
         meeting, sequence, your_driver_ids(meeting, locked)
     ))
-    ctx["results_open"] = request.args.get("results") == "open"
 
     # Profiles open over whatever is already on screen and close by dropping the
     # parameter, so closing one returns the reader to the row they tapped.
@@ -357,7 +355,6 @@ def perfect_five():
             ctx["meeting"], sequence, ctx["marked"],
             base=url_for("meetings.perfect_five"),
         ))
-        ctx["results_open"] = request.args.get("results") == "open"
 
     return render_template("meetings/perfect_five.html", **ctx)
 

@@ -984,11 +984,10 @@
      reads as a quiet affordance instead of as emphasis, and it darkens on
      hover rather than appearing from nothing.
 
-     `.c-driver` is the older name and already outgrew it — the standings table
-     uses it for usernames and the league list now uses it for league names. It
-     is kept as an alias here and renamed out in the 8.6 sweep, which is a
-     three-template edit and not worth doing mid-stage. */
-  .c-driver,
+     Named `.c-driver` until the 8.6 sweep, by which point the standings table
+     was using it for usernames and the league list for league names. A class
+     named after the first thing it happened to style is a class nobody reaches
+     for correctly the second time. */
   .namelink {
     color: inherit;
     text-decoration: none;
@@ -996,7 +995,6 @@
     transition: border-color var(--dur-quick) var(--ease);
   }
 
-  .c-driver:hover, .c-driver:focus-visible,
   .namelink:hover, .namelink:focus-visible { border-block-end-color: var(--text); }
 
   /* The hover target is the whole row, not the name inside it, so the name has
@@ -2296,7 +2294,7 @@
    looping, never announcing. Four applications, and there is not a fifth.
 
    Colour and border transitions live with the components they belong to —
-   `.infomark`, `.c-driver`, the tabs, `.mnav__arrow`. What is here is the
+   `.infomark`, `.namelink`, the tabs, `.mnav__arrow`. What is here is the
    arriving and departing, which needs the newer CSS and wants keeping in one
    place so it can be found and removed.
 
@@ -2392,90 +2390,6 @@
 
   #results-body.htmx-settling {
     opacity: 0;
-  }
-}
-
-
-/* ===========================================================================
-   QUARANTINE — candidates for deletion at 8.6
-   ===========================================================================
-   No caller was found for any of these while reorganising the file in 8.1.
-   They are kept rather than deleted because "I could not find one" and "there
-   is not one" are different statements, and a grep on the templates settles it
-   in one command:
-
-     grep -rnE 'qstage|slots__|\bslots\b|aside__|round-head|verdict__row' app/templates/
-
-   Anything that shows up moves back into its section above with the comment it
-   deserves; anything that does not is deleted at 8.6 with the rest of the
-   sweep.
-   =========================================================================== */
-
-@layer components {
-  /* Placeholder shape from Phase 3, superseded by the bracket. */
-  .qstage { margin-block-start: var(--gap-block); }
-
-  .qstage__head {
-    border-block-end: var(--rule-mark) solid var(--text);
-    padding-block-end: var(--space-2);
-    margin-block-end: var(--space-2);
-  }
-
-  /* The running state of a draft, sticky above a scrolling picker. Superseded
-     by `.budget` and the problem bars. */
-  .slots {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--surface);
-    border-block: var(--rule-hair) solid var(--text);
-    padding-block: var(--space-4);
-    margin-block-start: var(--space-5);
-  }
-
-  .slots__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-block: var(--space-1);
-  }
-
-  .slots__row--cost {
-    border-block-start: var(--rule-hair) solid var(--rule);
-    padding-block-start: var(--space-3);
-    margin-block-start: var(--space-3);
-  }
-
-  .slots__fill { font-weight: var(--weight-semi); }
-  .slots__fill.is-over { text-decoration: underline; text-decoration-thickness: 2px; }
-
-  /* Separated the two races of a double-header before the round block did. */
-  .round-head {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: baseline;
-    column-gap: var(--space-4);
-    border-block-end: var(--rule-hair) solid var(--text);
-    padding-block-end: var(--space-3);
-    margin-block-start: var(--space-7);
-    margin-block-end: var(--space-4);
-  }
-
-  .round-head__number { font-size: var(--step-5); }
-
-  /* Written for a comparison figure under the verdict that has never been
-     built. Worth keeping if the verdict is ever going to grow a second line;
-     worth deleting if it is not. */
-  .verdict__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
-    border-block-start: var(--rule-hair) solid var(--ink-600);
-    margin-block-start: var(--space-4);
-    padding-block-start: var(--space-3);
-    color: var(--ink-200);
   }
 }
 
