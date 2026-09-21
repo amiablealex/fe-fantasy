@@ -11,11 +11,11 @@ The second is the reason it is not optional. The provider's free tier allows
 weekend, which is only safe if something can say no. `api_calls_this_month`
 is that something: one indexed aggregate, checked before any fetch phase
 begins. Without a table there is nowhere for a monthly count to live, because
-the worker restarts and an in-process counter restarts with it.
+the worker lives for one cron run and an in-process counter would die with it.
 
-Rows are pruned by age rather than kept forever. A poll every ninety seconds
-through a race weekend is a few thousand rows a season, and none of them is
-interesting a month later.
+Rows are pruned by age rather than kept forever. An hourly heartbeat plus a
+row for every five-minute run that did something through a race weekend is a
+few thousand rows a season, and none of them is interesting a month later.
 """
 from __future__ import annotations
 
@@ -41,6 +41,11 @@ JOB_SEASON_SYNC = "season_sync"
 JOB_SCORE = "score"
 JOBS = (JOB_POLL, JOB_SEASON_SYNC, JOB_SCORE)
 
+# The worker's hard limit per run. It lives here rather than in worker/tick.py
+# because the admin page needs it to tell a run in progress from one that was
+# killed, and the application may not import the worker.
+RUN_CEILING_SECONDS = 240
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -61,8 +66,8 @@ class WorkerRun(db.Model):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
-    # Null while running. A row with no finish that is hours old is a crashed
-    # worker, which is worth being able to see.
+    # Null while running. No run outlives RUN_CEILING_SECONDS, so a row still
+    # open past it is a killed or crashed run, which is worth being able to see.
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ok: Mapped[bool | None] = mapped_column(Boolean)
 
@@ -76,8 +81,14 @@ class WorkerRun(db.Model):
     detail: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     @property
+    def is_killed(self) -> bool:
+        if self.finished_at is not None:
+            return False
+        return _utcnow() - self.started_at > timedelta(seconds=RUN_CEILING_SECONDS)
+
+    @property
     def is_running(self) -> bool:
-        return self.finished_at is None
+        return self.finished_at is None and not self.is_killed
 
     @property
     def duration_seconds(self) -> float | None:
@@ -130,5 +141,9 @@ class WorkerRun(db.Model):
         return result.rowcount or 0
 
     def __repr__(self) -> str:  # pragma: no cover
-        state = "running" if self.is_running else ("ok" if self.ok else "failed")
+        state = (
+            "running" if self.is_running
+            else "killed" if self.is_killed
+            else "ok" if self.ok else "failed"
+        )
         return f"<WorkerRun {self.job} {state} calls={self.api_calls}>"

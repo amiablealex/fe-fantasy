@@ -30,15 +30,12 @@ from datetime import datetime, timedelta, timezone
 
 from app import create_app
 from app.extensions import db
-from app.models.worker import JOB_POLL, WorkerRun
+from app.models.worker import JOB_POLL, RUN_CEILING_SECONDS, WorkerRun
 from app.providers.ocblacktop import OCBlacktopProvider
 from worker import jobs, runs
 from worker.runs import Run
 
 log = logging.getLogger("worker")
-
-# Well inside the five-minute interval, with room for a slow sync.
-RUN_CEILING_SECONDS = 240
 
 
 def _utcnow() -> datetime:

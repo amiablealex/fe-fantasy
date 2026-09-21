@@ -113,7 +113,9 @@ def test_contest_constants_partition_the_breakdown():
 
 
 def test_worker_run_is_running_until_it_finishes():
-    started = datetime(2026, 12, 18, 14, 0, tzinfo=timezone.utc)
+    # Relative to the real clock, because `is_killed` reads it: a fixed date
+    # here would turn into a killed run the day that date passed.
+    started = datetime.now(timezone.utc)
     run = WorkerRun(job="poll", started_at=started)
     assert run.is_running
     assert run.duration_seconds is None

@@ -104,9 +104,20 @@ def test_only_successful_runs_count_as_the_last_poll(app, db):
     assert not worker.is_silent
 
 
-def test_an_open_run_is_counted(app, db):
+def test_an_open_run_inside_the_ceiling_is_not_killed(app, db):
     _run(db, JOB_POLL, minutes_ago=1, finished=False)
-    assert health_queries.snapshot(NOW).worker.unfinished == 1
+    assert health_queries.snapshot(NOW).worker.killed == 0
+
+
+def test_an_open_run_past_the_ceiling_is_killed(app, db):
+    _run(db, JOB_POLL, minutes_ago=10, finished=False)
+    assert health_queries.snapshot(NOW).worker.killed == 1
+
+
+def test_a_kill_older_than_retention_stops_being_counted(app, db):
+    days = app.config["WORKER_RUN_RETENTION_DAYS"]
+    _run(db, JOB_POLL, minutes_ago=(days + 1) * 24 * 60, finished=False)
+    assert health_queries.snapshot(NOW).worker.killed == 0
 
 
 # -----------------------------------------------------------------------------

@@ -21,10 +21,12 @@
       <span>
         {% if health.worker.has_ever_run %}
           The worker has not reported since {{ health.worker.since(health.worker.last_any) }}.
-          It heartbeats hourly even when idle, so silence means it is not running.
+          It heartbeats hourly even when idle, so silence means its cron runs
+          are not starting or not finishing.
         {% else %}
           The worker has never reported. If the service is deployed, check its
-          logs for a start-up failure.
+          cron runs in Railway: a run that fails before it can record anything
+          shows only there, as a non-zero exit.
         {% endif %}
       </span>
     </p>
@@ -62,14 +64,14 @@
       <dt>Last successful sync</dt>
       <dd>{{ health.worker.since(health.worker.last_sync) or "never" }}</dd>
 
-      <dt>Runs still open</dt>
-      <dd class="num">{{ health.worker.unfinished }}</dd>
+      <dt>Killed, last {{ health.worker.killed_window_days }} days</dt>
+      <dd class="num">{{ health.worker.killed }}</dd>
     </dl>
-    {% if health.worker.unfinished %}
+    {% if health.worker.killed %}
       <p class="problem">
-        A run with no finish time is a worker that stopped mid-job. One is
-        normal if the worker is running right now; several mean it is
-        restarting.
+        A killed run hit the run ceiling or crashed, and whatever it was doing
+        did not commit. The next run retries anything left undone; the Railway
+        logs say why it stopped.
       </p>
     {% endif %}
   </section>
@@ -195,9 +197,11 @@
               <td class="c-name">{{ run.job }}</td>
               <td class="c-num">{{ ago(run.started_at) }}</td>
               <td class="c-num">{{ run.api_calls or "" }}</td>
-              <td class="{% if run.ok is false %}u-semi{% else %}u-mid{% endif %}">
+              <td class="{% if run.ok is false or run.is_killed %}u-semi{% else %}u-mid{% endif %}">
                 {% if run.is_running %}
                   <span class="status">running</span>
+                {% elif run.is_killed %}
+                  killed
                 {% else %}
                   {{ run.summary or "—" }}
                 {% endif %}

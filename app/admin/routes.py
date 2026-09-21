@@ -1,11 +1,9 @@
 """Admin blueprint.
 
-Read-mostly by design (SPEC.md §10). Mutating actions are added per phase, must
-be idempotent, and are logged with actor and timestamp. Arbitrary record editing
-is deliberately absent — that is what psql is for.
-
-Phase 0 ships the mechanism and three counts, so `admin_required` and the
-navigation are proven end to end before there is anything real to administer.
+Read-mostly by design (SPEC.md §10). Mutating actions must be idempotent and
+logged with actor and timestamp, and none exist yet: every remedy the health
+page points at is a CLI command. Arbitrary record editing is deliberately
+absent — that is what psql is for.
 """
 from __future__ import annotations
 
@@ -72,8 +70,9 @@ def health():
 def request_info():
     """What the proxy chain is actually delivering.
 
-    The hop count in ProxyFix has to match reality: too few and you read a
-    proxy's IP instead of the client's, too many and a client can spoof it.
+    Client IPs come from `CF-Connecting-IP` (SPEC.md §7): Railway's edge
+    rebuilds `X-Forwarded-For` from its own peer, so no hop count recovers the
+    client from it. This page is how to check that is still true.
     """
     from flask import request
 

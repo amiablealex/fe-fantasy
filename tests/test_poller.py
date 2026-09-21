@@ -246,24 +246,29 @@ def test_a_not_ready_session_is_retried_on_the_next_tick(app, race_session, clas
 
 
 def test_the_patient_phase_stops_asking_every_tick(app, race_session):
-    """Inside the eager window every tick asks. Past it, the interval takes
-    over — otherwise a session that never publishes would spend a call a minute
-    for six hours."""
-    jobs._last_attempt.clear()
-    provider = FakeProvider({"sess-race": []})
+    """Inside the eager window every tick asks. Past it, only the first tick
+    after each patient boundary does — otherwise a session that never
+    publishes would spend a call a tick for six hours.
 
-    eager = race_session.end_time + timedelta(minutes=5)
-    jobs.poll_once(provider, eager)
-    jobs.poll_once(provider, eager + timedelta(minutes=1))
-    assert provider.calls == 2
+    Stateless: the answer is a function of the session's scheduled end and the
+    tick's time, because the worker is a cron job that remembers nothing.
+    """
+    config = app.config
+    eager = timedelta(minutes=config["POLL_EAGER_MINUTES"])
+    patient = timedelta(minutes=config["POLL_PATIENT_INTERVAL_MINUTES"])
+    tick = timedelta(seconds=config["POLL_INTERVAL_SECONDS"])
+    ended = race_session.end_time or race_session.start_time
 
-    patient = race_session.end_time + timedelta(minutes=45)
-    jobs.poll_once(provider, patient)
-    jobs.poll_once(provider, patient + timedelta(minutes=1))
-    assert provider.calls == 3
+    eager_ticks = [ended + tick * i for i in range(1, eager // tick + 1)]
+    assert all(jobs._should_attempt(race_session, t) for t in eager_ticks)
 
-    jobs.poll_once(provider, patient + timedelta(minutes=20))
-    assert provider.calls == 4
+    intervals = 4
+    patient_ticks = [
+        ended + eager + tick * i
+        for i in range(1, (patient // tick) * intervals + 1)
+    ]
+    fired = [t for t in patient_ticks if jobs._should_attempt(race_session, t)]
+    assert len(fired) == intervals
 
 
 # -----------------------------------------------------------------------------

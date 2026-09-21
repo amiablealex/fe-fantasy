@@ -18,7 +18,7 @@ from app.extensions import db
 from app.ingest.status import awaiting_results, next_session_start, stale_sessions
 from app.models.calendar import Round, Season, Session
 from app.models.result import SyncConflict
-from app.models.worker import JOB_POLL, JOB_SEASON_SYNC, WorkerRun
+from app.models.worker import JOB_POLL, JOB_SEASON_SYNC, RUN_CEILING_SECONDS, WorkerRun
 
 
 def _utcnow() -> datetime:
@@ -80,7 +80,8 @@ class WorkerState:
     last_poll: WorkerRun | None
     last_sync: WorkerRun | None
     last_any: WorkerRun | None
-    unfinished: int
+    killed: int
+    killed_window_days: int
     silence_limit_minutes: int
     now: datetime
 
@@ -166,6 +167,25 @@ def _last_run(job: str | None = None) -> WorkerRun | None:
     return db.session.scalars(stmt).first()
 
 
+def _killed_runs(now: datetime, window_days: int) -> int:
+    """Open rows older than the run ceiling, within the retention window.
+
+    Pruning keeps unfinished rows forever as crash evidence, so an unbounded
+    count would stay non-zero for good after one kill and the page would never
+    stop saying so. The rows stay; the headline forgets them.
+    """
+    stmt = (
+        select(func.count())
+        .select_from(WorkerRun)
+        .where(
+            WorkerRun.finished_at.is_(None),
+            WorkerRun.started_at < now - timedelta(seconds=RUN_CEILING_SECONDS),
+            WorkerRun.started_at >= now - timedelta(days=window_days),
+        )
+    )
+    return db.session.scalar(stmt) or 0
+
+
 def _season_scoring() -> list[SeasonScoring]:
     stmt = (
         select(
@@ -216,11 +236,8 @@ def snapshot(now: datetime | None = None, *, runs: int = 12) -> Health:
             last_poll=WorkerRun.last_successful(JOB_POLL),
             last_sync=WorkerRun.last_successful(JOB_SEASON_SYNC),
             last_any=_last_run(),
-            unfinished=db.session.scalar(
-                select(func.count())
-                .select_from(WorkerRun)
-                .where(WorkerRun.finished_at.is_(None))
-            ) or 0,
+            killed=_killed_runs(now, config["WORKER_RUN_RETENTION_DAYS"]),
+            killed_window_days=config["WORKER_RUN_RETENTION_DAYS"],
             silence_limit_minutes=config["WORKER_HEARTBEAT_MINUTES"] * 2,
             now=now,
         ),
