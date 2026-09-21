@@ -185,9 +185,15 @@ def test_sections_are_in_reading_order_and_empty_ones_are_dropped():
 
 
 def test_the_group_cut_falls_after_the_fourth_row():
+    """Since Phase 8.3 the cut is not a marker between rows; it is where
+    `eliminated` begins. Rows are in position order, so everything above the
+    cutoff went through and everything below it did not."""
     groups = bracket.build(full_bracket()[:1], RULESET)[0].stages[0]
-    assert groups.cut_after == engine.GROUP_PROGRESSION_CUTOFF
-    assert [r.progressed for r in groups.rows][:5] == [True, True, True, True, False]
+    cutoff = engine.GROUP_PROGRESSION_CUTOFF
+
+    assert len(groups.rows) > cutoff, "a group with no eliminations proves nothing"
+    assert not any(row.eliminated for row in groups.rows[:cutoff])
+    assert all(row.eliminated for row in groups.rows[cutoff:])
 
 
 def test_only_the_leader_carries_an_absolute_time():
