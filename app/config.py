@@ -227,7 +227,7 @@ class Config:
 
     # The poller. Every tick opens with a database query that costs nothing, so
     # a short interval is only expensive during a race weekend.
-    POLL_INTERVAL_SECONDS = _env_int("POLL_INTERVAL_SECONDS", 60)
+    POLL_INTERVAL_SECONDS = _env_int("POLL_INTERVAL_SECONDS", 300)
     # Results are never up the instant a session ends; asking immediately just
     # spends a call to be told no.
     POLL_SESSION_GRACE_MINUTES = _env_int("POLL_SESSION_GRACE_MINUTES", 3)

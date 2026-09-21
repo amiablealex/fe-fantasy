@@ -1,10 +1,11 @@
 """In-process rate limiting for auth endpoints.
 
-Known limitation, accepted (SPEC.md §7): the store is a module-level dict, so
-limits are per gunicorn worker. With `--workers 2` the effective allowance
-doubles and blocking is inconsistent between requests. That is tolerable for an
-invite-scale app and is not tolerable for a public one — the replacement is a
-`login_attempts` table, not a bigger dict.
+Known limitation, accepted (SPEC.md §7): the store is a module-level dict. The
+web service runs one gunicorn process with threads, so there is one store and
+the lock below is what keeps it consistent. It is still lost whenever the
+process stops, and with Serverless that includes every sleep: a block outlives
+ten minutes of silence only if nobody else visits. Tolerable at invite scale,
+not for a public app — the replacement is a `login_attempts` table.
 
 Buckets are namespaced so login and registration are limited independently.
 """

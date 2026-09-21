@@ -27,8 +27,10 @@ after a restart:
     eager .. give up     every patient interval
     > give up            stopped, and reported as stale
 
-`_last_attempt` holds the patient-phase timing in memory only. A restart costs
-one extra fetch, which is the right trade against a column and a migration.
+The patient phase is stateless too: a session is attempted on the first tick
+after each patient-interval boundary, counted from the end of the eager phase.
+The worker is a Railway cron job that lives for one tick, so there is nothing
+it could remember between attempts, and nothing it needs to.
 """
 from __future__ import annotations
 
@@ -51,9 +53,6 @@ from app.ingest.status import due_sessions, next_session_start, stale_sessions
 from worker.runs import Run, budget
 
 log = logging.getLogger(__name__)
-
-# Session id -> when we last asked. In process only; see the module docstring.
-_last_attempt: dict[int, datetime] = {}
 
 
 def _utcnow() -> datetime:
@@ -78,17 +77,30 @@ def target_season_year(now: datetime | None = None) -> int:
 # -----------------------------------------------------------------------------
 
 
+def patient_attempt_due(
+    elapsed: timedelta, eager: timedelta, patient: timedelta, tick: timedelta
+) -> bool:
+    """Whether this tick is the first after a patient-interval boundary.
+
+    Boundaries are counted from the end of the eager phase. Ticks are `tick`
+    apart, so exactly one tick falls in each boundary's window whatever phase
+    the cron happens to run at. A skipped cron run misses one attempt, which
+    the next boundary makes up.
+    """
+    since = elapsed - eager
+    return since // patient != (since - tick) // patient
+
+
 def _should_attempt(session_row: Session, now: datetime) -> bool:
     config = current_app.config
     eager = timedelta(minutes=config["POLL_EAGER_MINUTES"])
     patient = timedelta(minutes=config["POLL_PATIENT_INTERVAL_MINUTES"])
+    tick = timedelta(seconds=config["POLL_INTERVAL_SECONDS"])
 
-    ended = session_row.end_time or session_row.start_time
-    if now - ended <= eager:
+    elapsed = now - (session_row.end_time or session_row.start_time)
+    if elapsed <= eager:
         return True
-
-    last = _last_attempt.get(session_row.id)
-    return last is None or now - last >= patient
+    return patient_attempt_due(elapsed, eager, patient, tick)
 
 
 # -----------------------------------------------------------------------------
@@ -151,7 +163,6 @@ def poll_once(provider, now: datetime | None = None) -> PollOutcome:
     seasons: set[int] = set()
 
     for session_row in due:
-        _last_attempt[session_row.id] = now
         outcome.attempted += 1
         before = report.rows_created
         sync_session_results(
