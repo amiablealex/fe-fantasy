@@ -15,9 +15,6 @@ psycopg[binary]==3.3.4
 requests==2.34.2
 resend==2.36.0
 
-# Background worker (Phase 1 onward; no worker service runs in Phase 0)
-APScheduler==3.11.3
-
 # Server
 gunicorn==26.1.0
 

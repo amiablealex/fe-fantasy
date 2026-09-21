@@ -103,8 +103,26 @@ never set and quietly fell back to a default.
 
 ## Deployment (Railway)
 
-One service in Phase 0. The worker service is added in Phase 1, when there is
-something to poll.
+Three services: web, worker, Postgres. Start commands come from the Procfile.
+
+**Web service**
+
+- Build: Nixpacks (automatic)
+- Start command: one gunicorn process, four threads (see `Procfile`)
+- Pre-deploy command: `flask db upgrade`
+- Healthcheck path: `/health`
+- Serverless: on. It sleeps after ten minutes without outbound traffic; the
+  first request after a sleep takes a few seconds.
+
+**Worker service**
+
+- Start command: `python -m worker.tick`
+- Cron schedule: `*/5 * * * *`, which must match `POLL_INTERVAL_SECONDS`
+- Restart policy: Never
+- No healthcheck, no pre-deploy command, Serverless off
+
+Each run does whatever is due and exits. `/admin/health` is where to look
+for liveness; the cron run list shows exit codes.
 
 **Service settings**
 
@@ -161,7 +179,7 @@ app/
   providers/       data provider abstraction — errors only until Phase 1
   scoring/         versioned rulesets; imports nothing from Flask or SQLAlchemy
   static/css/      base.css now; tokens.css and the design system in Phase 3
-worker/            Phase 1
+worker/            cron entrypoint, poll and sync jobs, run recording
 sim/               Phase 2 — Season 12 scoring simulation, standalone
 tests/fixtures/    committed API probe JSON
 ```
