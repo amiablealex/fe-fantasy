@@ -1,7 +1,7 @@
 # FE Fantasy — Project Spec
 
-**Status:** Phases 0–8 complete. Season 12 backfilled and scored locally; the worker is live in production and idling until the Season 13 calendar is published.
-**Last updated:** 25 August 2026
+**Status:** Phases 0–8 complete. Season 12 backfilled and scored locally; the worker runs in production as a five-minute cron job and is idling until the Season 13 calendar is published.
+**Last updated:** 21 September 2026
 **Target:** Live before the Season 13 opener — Jeddah, 18–19 December 2026
 **Domain:** `fe.kitsniff.com`
 
@@ -52,6 +52,16 @@
 > **The static pages exist** (§4.9), and registration being public makes privacy and terms a requirement rather than a courtesy. `/how-to-play` renders every figure from `app/scoring/rules.py`, because a typed one would start lying the day the post-Jeddah re-tune ships.
 >
 > §11 gains six defects. Three are mine, one is a class of instruction rather than a bug, and every one of them failed silently rather than loudly.
+
+> **Revision note 12 (21 September 2026).** An efficiency pass on the Railway deployment, taken in Phase 9's waiting period. August's bill was $3.29 and almost all of it was resident memory — CPU cost under a cent — for three processes held in RAM around the clock by a game that is idle most of the year. Nothing about the game changed.
+>
+> **The web service is one gunicorn process with four threads, and sleeps.** Two sync workers were two full copies of the application serving a friend group. Serverless puts the service to sleep after ten minutes without outbound traffic, and the first request after a sleep pays a cold start. Deadlines are unaffected: a lock is a comparison against `clock.now()` at request time (§2), not a job anything has to run.
+>
+> **The worker is a Railway cron job** — `python -m worker.tick` every five minutes, doing whatever is due and exiting. APScheduler is gone, and so is the one-replica rule: Railway skips a scheduled run while the previous one is active, so the platform now enforces what was a dashboard setting nobody could check from inside the process. Results land up to five minutes later than before, accepted in exchange (§7).
+>
+> **The worker keeps no state between runs**, and two things relied on it. The poll's patient phase no longer remembers when a session was last tried; it attempts on the first tick after each fifteen-minute boundary, which is arithmetic over the stored schedule and is pinned by a test against every cron phase (§6). The hourly heartbeat reads `WorkerRun` rather than a process global, which closes §10's restart-visibility item by removing restarts.
+>
+> Postgres stays always-on and is expected to be most of the remaining bill: the worker touches it every five minutes, and a database that sleeps behind a race-weekend poller is not a saving worth having. No migration.
 
 ---
 
@@ -751,7 +761,7 @@ A join rather than `user_id IN (...)`: the global league has no member cap, and 
 
 ### WorkerRun
 
-One row per background job execution, for two jobs in one table. Diagnostic for §10's admin page, and the only place a monthly quota can live — the worker restarts and an in-process counter restarts with it.
+One row per background job execution, for two jobs in one table. Diagnostic for §10's admin page, and the only place a monthly quota can live — the worker is a process that lives for one tick, so an in-process counter would never count past a single run.
 
 Rows are written only when a run does something, plus a heartbeat at most once an hour. Pruning never deletes an unfinished row: a row with no `finished_at` is the only evidence a crash leaves behind.
 
@@ -812,7 +822,7 @@ The four-call `/events` walk still happens, but as a check for *schedule changes
 
 A worst-case month is roughly 700 against 7,500. **Under 10%.** The binding constraint is the ~2 requests per second ceiling, not the monthly quota.
 
-Off-season the cost is **one call a day**: `resolve_season` pages `/seasons`, finds no 2027, and raises before spending anything on season detail or the events walk. **That is the state production has been in since Phase 5 shipped in August**, and three months of it before Jeddah is three months of evidence that the worker idles correctly.
+Off-season the cost is **one call a day**: `resolve_season` pages `/seasons`, finds no 2027, and raises before spending anything on season detail or the events walk. **That is the state production has been in since Phase 5 shipped in August**, under the cron entrypoint since 21 September, and the weeks between that and Jeddah are the evidence that the worker idles correctly.
 
 #### How the poller stays quiet
 
@@ -821,9 +831,11 @@ Every tick opens with a query that costs nothing: is there a session whose sched
 | Since scheduled end | Behaviour |
 |---|---|
 | < 3 min | too early; results are never up instantly |
-| 3–30 min | attempt every tick |
-| 30 min – 6 h | attempt every 15 minutes |
+| 3–30 min | attempt every tick (five minutes) |
+| 30 min – 6 h | attempt on the first tick after each 15-minute boundary |
 | > 6 h | stopped, and reported as stale on the admin page |
+
+**A tick is a process.** The worker runs as a cron job and exits (§7), so nothing in the poll may be remembered in memory between ticks. The patient phase is therefore derived rather than recorded: boundaries are counted from the end of the eager phase, and a session is attempted on the tick whose window contains one. Whatever phase the cron runs at relative to a session's end, that is exactly one attempt per interval; a skipped run misses one attempt and the next boundary makes it up. `POLL_INTERVAL_SECONDS` must equal the cron interval, because the arithmetic counts ticks by it and the process cannot read its own cron expression. `tests/test_worker_cadence.py` pins it.
 
 A stale session leaves its round provisional until `flask backfill-results` fetches it. That remedy is manual on purpose.
 
@@ -919,7 +931,7 @@ Calendar facts for S13: 21 races across 13 locations, eight double-headers (Jedd
 | Postgres | **18.x in both environments** — local 18.4, Railway 18.6. Same major version, so `pg_dump` restores in both directions. |
 | DB driver | **psycopg 3** (`psycopg[binary]`), URI scheme `postgresql+psycopg://`. Not psycopg2. |
 | Auth | Separate account system. Keep the `User` model shape close to the F1 app so a future merge or SSO handshake stays cheap. |
-| Stack | Flask, SQLAlchemy 2.x, Alembic/Flask-Migrate, APScheduler, HTMX, Jinja2, Flask-WTF, Gunicorn, pytest |
+| Stack | Flask, SQLAlchemy 2.x, Alembic/Flask-Migrate, HTMX, Jinja2, Flask-WTF, Gunicorn, pytest. The worker is a Railway cron job, not a scheduler library |
 | Email | Resend, **password reset only**. No deadline reminders, no digests, no notifications of any kind. |
 | Season scoping | `season_id` on every season-scoped table from day one. Leagues are the exception. |
 
@@ -937,7 +949,8 @@ Season 13 runs 18 December to 25 July, so half the calendar falls inside British
 
 ### Deployment notes
 
-- **Migrations run as a Railway pre-deploy command** (`flask db upgrade`), not from application startup. Startup migration races across gunicorn workers.
+- **The web service is one gunicorn process with four threads, and sleeps.** `--worker-class gthread --workers 1 --threads 4` in the `Procfile`, Serverless on in the service settings. It sleeps after ten minutes without outbound traffic; the first request after a sleep pays a cold start, and Railway documents that it may answer 502. Anything sending outbound traffic while idle keeps it awake, an uptime monitor included. The price of one threaded process is that module-level mutable state needs a lock — the rate limiter already had one.
+- **Migrations run as a Railway pre-deploy command** (`flask db upgrade`), not from application startup. Startup migration races across gunicorn processes, and under Serverless the application boots on every wake.
 - **Healthcheck path is `/health`**, set in the service settings. Without it a deploy that boots but cannot reach Postgres reports "online".
 - **Cloudflare SSL/TLS must be Full (strict).** Flexible sends plaintext to Railway, so `SESSION_COOKIE_SECURE` cookies never return and login silently fails to persist.
 - **The Railway-generated `*.up.railway.app` domain is deleted** once the custom domain works. `CF-Connecting-IP` is only trustworthy for traffic that passed through Cloudflare.
@@ -947,14 +960,16 @@ Season 13 runs 18 December to 25 July, so half the calendar falls inside British
 
 ### The worker service
 
-A second Railway service from the same repo, start command `python -m worker.scheduler`.
+A second Railway service from the same repo, run as a **cron job**: start command `python -m worker.tick`, schedule `*/5 * * * *`. Each run does whatever is due — the poll, the calendar sync if its interval has passed, pruning, the hourly heartbeat — and exits. The poll goes first because it is the time-sensitive one, and each job is isolated so a failure in one does not stop the others.
 
-- **Exactly one replica.** APScheduler holds its schedule in process, so a second replica double-fires every job — against a rate-limited free tier that means 429s. The process has no way to detect a sibling, so this constraint exists nowhere but here and in the dashboard.
-- **No healthcheck path.** It serves no HTTP.
-- **No pre-deploy command.** `flask db upgrade` stays on the web service only.
-- **`FANTASY_NOW` is ignored** and logs a warning at startup if set. A stale value would send the worker chasing a weekend from last December.
+- **No in-memory state.** Every decision about what is due comes from the stored schedule or from `WorkerRun`. Anything a future job needs to remember between runs is stored or derived; a module-level dict in `worker/` is a bug.
+- **Overlap is the platform's problem.** Railway skips a scheduled run while the previous one is active, which replaced the one-replica rule a long-running APScheduler process needed and could not enforce. The cost is that a hung run would silently stop all polling, so every run has a hard ceiling of 240 seconds — `SIGALRM`, then `os._exit`, because an exception raised from a signal handler could be swallowed by a job's own `except`. A killed run leaves an unfinished `WorkerRun` row, which is the crash evidence §5 keeps.
+- **Restart policy: Never.** Exit codes are honest — 1 when a job raised or the ceiling fired — and the default on-failure policy would rerun a failure immediately, spending quota on it again during the one weekend that matters. Job failures are also recorded on their `WorkerRun` row; the cron run list is where the exit code shows.
+- **The cron interval and `POLL_INTERVAL_SECONDS` must agree** (§6).
+- **No healthcheck path, no pre-deploy command, Serverless off.** It serves no HTTP, `flask db upgrade` stays on the web service, and a cron service is already absent between runs.
+- **`FANTASY_NOW` is ignored** and logs a warning on every run if set. A stale value would send the worker chasing a weekend from last December.
 
-**`railway.toml` is deleted.** Railway deprecated Config as Code with a 1 December 2026 cutoff — seventeen days before Jeddah. It had already caused one failure: both services resolve the same root config file, so the worker inherited the web service's `healthcheckPath` and was killed for failing a check on a process that serves no HTTP.
+**`railway.toml` is deleted.** Railway deprecated Config as Code with a 1 December 2026 cutoff — seventeen days before Jeddah. It had already caused one failure: both services resolve the same root config file, so the worker inherited the web service's `healthcheckPath` and was killed for failing a check on a process that serves no HTTP. The cron schedule and restart policy are dashboard settings for the same reason.
 
 **Region: `europe-west4`.** A Postgres volume cannot be relocated, so moving regions means a new instance and a `pg_dump` restore.
 
@@ -972,7 +987,7 @@ A second Railway service from the same repo, start command `python -m worker.sch
 | SQLAlchemy 2.x `select()` throughout | The F1 app passes a Flask-SQLAlchemy `Query` into `session.execute()`, which is deprecated |
 | Dev dependencies split | pytest and responses were otherwise shipping into the production image |
 
-**Known limitation, accepted:** login rate limiting is in-memory and therefore per-process. Acceptable for an invite-scale app.
+**Known limitation, accepted:** login rate limiting is in-memory. There is one web process, so one store, but it is lost on every sleep: a block survives only while the service stays awake, so an attacker who pauses for ten minutes gets a clean slate. Acceptable for an invite-scale app; the replacement is a `login_attempts` table, not a bigger dict.
 
 **Known limitation, accepted:** the test suite creates and drops the full schema per test, costing roughly six minutes on the Pi. That is approaching the point where it discourages running the tests before committing, which is the real cost. Revisit with a session-scoped schema and per-test rollback.
 
@@ -1019,6 +1034,7 @@ A second Railway service from the same repo, start command `python -m worker.sch
 | Aug 2026 | Phase 6 complete: leagues, invites, standings, friend profiles |
 | **23 Aug 2026** | **Phase 7 complete: the meeting view, the bracket, the Perfect Five, season history** |
 | **25 Aug 2026** | **Phase 8 complete: the visual layer, the identity, the static pages** |
+| 21 Sep 2026 | Worker moved to cron; web service one threaded process with Serverless |
 | Sep–Nov 2026 | Phase 9 — production readiness. Gated on the calendar, so mostly waiting attentively |
 | ~Oct 2026 | S13 calendar published; the worker picks it up unattended; S12 loaded to production afterwards |
 | Early Dec 2026 | Friends registered, leagues created, opening lineups set during grace |
@@ -1059,7 +1075,7 @@ Entry conditions, in the order they unblock:
 - **The S13 qualifying sanity check** (§6) needs a replacement expectation once a real payload exists.
 - **DB-backed tests for what Phase 7 shipped.** The phase closes with pure-function coverage — the bracket against the engine, the split's module boundaries, the localtime filter — and three defects that a route test would have caught: the `mark_best` id collision, the Perfect Five's non-determinism across requests, and the friend profile's results fragment respecting visibility.
 - **The suite takes about six minutes on the Pi** and §7 records why. That is the point at which it stops being run before committing, and Phase 7 shipped several defects that a run would not have caught but a *habit* of running might have. Session-scoped schema, per-test rollback.
-- **A phone, on the day.** Everything since Phase 3 was designed at 360px and checked in device emulation. Jeddah is the first time it is read on a real handset by someone who did not build it.
+- **A phone, on the day.** Everything since Phase 3 was designed at 360px and checked in device emulation. Jeddah is the first time it is read on a real handset by someone who did not build it — and for most of them the first tap will be a cold start (§7).
 
 ### Explicitly not in Phase 9
 
@@ -1090,7 +1106,7 @@ Run against Season 12 in Phase 2b. **No point values changed; ruleset promoted t
 - **Admin surface, still outstanding:** mutating actions (idempotent, logged with actor and timestamp), and pushing a deadline later before it passes. Every remedy `/admin/health` points at is currently a CLI command — a button that rescores a season is the kind of thing that gets pressed by accident on a race weekend.
 - **Meeting display name overrides:** `grouping_locked` currently guards both regrouping and renaming, so correcting "Monte Carlo" to "Monaco" also freezes the grouping. Worth splitting if it becomes annoying.
 - **S13 qualifying points sanity check:** what the replacement expectation should be, once a real S13 payload exists.
-- **Worker restart visibility:** `_last_heartbeat` is a process global, so every restart writes an idle row immediately. "The worker restarted" and "the worker is healthy" look similar on the admin page.
+- **Serverless on race weekends:** whether to switch it off from Friday to Sunday, so the weekend's busiest hours never meet a cold start. It is a manual toggle, which is the argument against. Decide after Jeddah from what the cold start actually looks like on a phone.
 - **Season 12 in production:** not loaded. Do it *after* the S13 sync (§8).
 - **`prof.info_link` has no callers** since the styleguide picker it was written for was deleted. Either the editor's hand-written link folds back into it — with `hx-select` and `hx-push-url` parameters — or the macro goes.
 - **The desktop relaxation has never been designed.** `--measure` widens to 46rem above 48rem and everything else is unchanged. That is defensible as "a wide tablet" (§1) and has never been looked at properly.
@@ -1103,6 +1119,9 @@ Run against Season 12 in Phase 2b. **No point values changed; ruleset promoted t
 
 | Decision | Outcome |
 |---|---|
+| **Worker runtime** | **A Railway cron job every five minutes.** No scheduler library, no in-memory state, restart policy Never, a 240-second ceiling per run |
+| **Web process** | One gunicorn process with four threads, Serverless on |
+| Worker restart visibility | Gone with the restarts. The heartbeat reads `WorkerRun` |
 | **Surfaces** | **Three grounds and four constraints (§1).** A fill replaces a rule rather than joining one; no recessed surface nests; a surface holds a heading and a list; full-measure and square. `--rule-heavy` survives once, on the appbar |
 | **The mark family** | Circle is an action, square is a state. Two sizes, `currentColor`, glyphs from the display face. The star is a documented exemption; a cog was refused |
 | **Motion** | Four applications and no fifth, confirming a change the reader caused. Exit is always instant |
@@ -1302,7 +1321,7 @@ fe-fantasy/
 │       ├── players/  auth/  admin/  errors/
 │       └── styleguide/      # _shell, index
 ├── worker/                  # outside app/: the application must not import it
-│   ├── scheduler.py         # APScheduler, one replica, the entrypoint
+│   ├── tick.py              # the entrypoint: one cron run, everything due, then exit
 │   ├── jobs.py              # poll and sync, as plain functions
 │   └── runs.py              # WorkerRun recording and the monthly ceiling
 ├── sim/                     # Phase 2b standalone simulation
